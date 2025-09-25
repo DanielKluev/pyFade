@@ -1,3 +1,5 @@
+![](assets/images/pyFADE-logo-300_800_text.png)
+
 # Faceted Alignment Datasets Editor
 
 pyFADE is tool designed to assist in creation of highly personalized, biased, multi-faceted datasets for local LLM fine-tuning.
@@ -50,6 +52,11 @@ Can automatically identify new failures of tuned models and create samples for o
 # Similarity graph and deduplication
 
 Use embeddings and Milvus to quickly and effortlessly build relations graph and spot duplicates/near duplicates.
+
+# Split and merge datasets
+
+Save only certain facets/tags/groups as separate dataset.
+Merge several datasets in one.
 
 # Export
 
