@@ -18,8 +18,9 @@ This file helps a code-writing agent onboard the pyFade repository quickly. It c
 - Providers: integration with Ollama (`ollama` Python package) — requires Ollama runtime/daemon if used at runtime. `mock-echo-model` added for testing without a real model backend.
 - Database and persistence: SQLAlchemy ORM, using SQLite or SQLCipher.
 - ML utilities: sentence-transformers, scikit-learn (cosine similarity), spaCy, numpy.
-- Other modules referenced: qt_material, ollama, dynaconf.
+- Other modules referenced: qt_material, ollama.
 - Note: `requirements.txt` contains only `PyQt6>=6.6`. The code imports more packages; see Build/Install steps below.
+- pytest is used for tests in `tests/` directory.
 
 ## 3) Code style
 - Follows PEP 8 style guidelines.
@@ -31,8 +32,13 @@ This file helps a code-writing agent onboard the pyFade repository quickly. It c
 - Following Google Material Design principles for UI layout and behavior, using qt_material for theming.
 
 ## 4) Testing, build, and run instructions
- - Special `mock-echo-model` can be used to test generation without needing a real model backend. It simply echoes the prompt back.
- - For testing, scripts in `tests/` can be created or modified to test various components, functionality, and performance.
+ - For testing, scripts in `tests/` can be created or modified to test various components, functionality, and performance. Use `pytest` framework for unit tests.
+ - By default, tests should use only the `mock-echo-model` provider to avoid dependencies on external model backends and high computational requirements. Tests for real LLM providers should be isolated and clearly marked, ensuring they do not interfere with the main test suite and never get run by default.
+ - Tests that involve mock or real generation should use FLAT_PREFIX_SYSTEM/FLAT_PREFIX_USER/FLAT_PREFIX_ASSISTANT markers for system/user/assistant messages, as defined in `py_fade.providers.flat_prefix_template`. Provider implementations will call `flat_prefix_template_to_messages()` with prompt and prefill to convert these flat prefixes to common Messages API format.
+ - For debugging purposes, you *MUST* improve and expand unit tests, adding state logging as nessesary, with log-level DEBUG and running tests with debug output enabled. When debugging, plan for the future, make changes to unit tests reusable for future development, not just current debug session. 
+ - When not debugging, ensure tests run cleanly without debug output, and that they are efficient and reliable, managing verbosity and debug logging via appropriate `logging` module configurations.
+ - To run the application, use `python run.py` from the project root. This will launch the GUI.
+ - To run entire test suite, use `pytest` from the project root.
 
 ## 5) UI
  - Follows Google Material Design principles for UI layout and behavior, using qt_material for theming.
