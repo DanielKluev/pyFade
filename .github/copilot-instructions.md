@@ -6,21 +6,20 @@ This file helps a code-writing agent onboard the pyFade repository quickly. It c
 
 ## 1) High-level summary
 
-- Purpose: pyFADE is a desktop GUI application for creating and managing faceted alignment datasets (SFT/DPO/PPO exports, ranking, token-level inspection, prefill-aware generation). It bundles a Qt6 GUI, providers for local model backends (e.g., Ollama), dataset management, and helper scripts like a boundary detector.
+- Purpose: pyFADE is a desktop GUI for curating faceted alignment datasets. It provides an IDE-style PyQt6 workspace for browsing samples, facets, tags, beam searches, and export templates backed by a SQLite database plus extensible inference providers.
 - Primary language/runtime: Python (code and pyc files indicate usage with CPython 3.11). The GUI uses PyQt6 and qt_material for styling.
-- Repo scale: small project (dozens of Python modules, no large binary assets). Expect transient model downloads (sentence-transformers, spaCy) that may take minutes.
+- Repo scale: small project (dozens of Python modules, no large binary assets). Optional ML downloads (sentence-transformers, spaCy) are only needed for helper scripts.
 
 ## 2) Project type, frameworks, and notable dependencies
 
-- Python 3.11 (project produced .pyc files tagged cpython-311). Target OS examples use Windows paths.
-- GUI: PyQt6, qt_material.
-- Config: custom AppConfig class, all defaults set as class attributes, overridden by `config.yaml` in user config dir.
-- Providers: integration with Ollama (`ollama` Python package) — requires Ollama runtime/daemon if used at runtime. `mock-echo-model` added for testing without a real model backend.
-- Database and persistence: SQLAlchemy ORM, using SQLite or SQLCipher.
-- ML utilities: sentence-transformers, scikit-learn (cosine similarity), spaCy, numpy.
-- Other modules referenced: qt_material, ollama.
-- Note: `requirements.txt` contains only `PyQt6>=6.6`. The code imports more packages; see Build/Install steps below.
-- pytest is used for tests in `tests/` directory.
+- Python 3.11 (project produced `.pyc` files target CPython 3.11). Target OS examples use Windows paths but the code is cross-platform.
+- GUI: PyQt6 with qt_material theming.
+- Config: `AppConfig` persists YAML under the user config directory (recent datasets, provider models, per-dataset state).
+- Providers: deterministic mock provider (default), Ollama integration (`ollama` package), optional local llama.cpp backend (`llama-cpp-python`).
+- Persistence: SQLAlchemy ORM backed by SQLite files.
+- Core runtime dependencies are listed in `requirements.txt`: PyQt6, qt-material, SQLAlchemy, numpy, tiktoken, ollama.
+- Optional extras: sentence-transformers, scikit-learn, spaCy (for `detect_boundary.py`), llama-cpp-python (for GGUF models).
+- Tests are written with `pytest` and run in Qt offscreen mode.
 
 ## 3) Code style
 - Follows PEP 8 style guidelines.
@@ -38,7 +37,7 @@ This file helps a code-writing agent onboard the pyFade repository quickly. It c
  - For debugging purposes, you *MUST* improve and expand unit tests, adding state logging as nessesary, with log-level DEBUG and running tests with debug output enabled. When debugging, plan for the future, make changes to unit tests reusable for future development, not just current debug session. 
  - When not debugging, ensure tests run cleanly without debug output, and that they are efficient and reliable, managing verbosity and debug logging via appropriate `logging` module configurations.
  - To run the application, use `python run.py` from the project root. This will launch the GUI.
- - To run entire test suite, use `pytest` from the project root.
+- To run entire test suite, use `pytest` from the project root (PyQt6 must be installed for the widgets).
 
 ## 5) UI
  - Follows Google Material Design principles for UI layout and behavior, using qt_material for theming.
@@ -49,9 +48,10 @@ This file helps a code-writing agent onboard the pyFade repository quickly. It c
 
 Top-level files (root):
 - `README.md` — project overview and features.
-- `requirements.txt` — currently only `PyQt6>=6.6` (incomplete).
+- `requirements.txt` — core runtime dependencies (PyQt6, qt-material, SQLAlchemy, numpy, tiktoken, ollama).
 - `run.py` — application entrypoint; parses args and starts `py_fade.app.py`.
 - `detect_boundary.py` — standalone script that uses sentence-transformers and spaCy.
+- `Changelog.md` — summary of notable updates.
 
 Python package `py_fade/` (important modules):
 - `py_fade/app.py` — main app class `pyFadeApp`, GUI launcher, config wiring; note the hardcoded DB path.

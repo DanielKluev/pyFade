@@ -1,34 +1,34 @@
-# Supported LLM inference backends/providers
+# Provider integrations
 
-## Embedded Llama.cpp via llama-cpp-python
+pyFADE ships with a deterministic mock model so the GUI and automated tests run without external services. Additional backends are optional and can be enabled through the configuration file (`config.yaml`).
 
-Preferred inference engine for local, resource-limited generation.
-Supports full range of features (logprobs, beaming, etc).
+## Built-in mock provider
 
-### Requirements
-- `llama-cpp-python` package installed. Make sure to install it with appropriate GPU flags.
+- Module: `py_fade.providers.mock_provider.MockLLMProvider`
+- Dependency: included in the repository (no extra packages)
+- Use cases: unit tests, UI demos, and offline experimentation
+- Features: deterministic completions, top-*k* logprobs, beam search compatible
 
-### Configuration
-- Will be added if model configuration has `gguf` field pointing to a valid GGUF model file.
-- `gguf` field may have value `USE_OLLAMA_REGISTRY` to use Ollama model registry for GGUF models.
+## Ollama (optional)
 
-## Remote Llama.cpp
+- Module: `py_fade.providers.ollama.PrefillAwareOllama`
+- Install: `pip install ollama` and ensure the Ollama daemon is running
+- Configuration: add entries under `models` in `config.yaml` with `provider: "ollama"` (see examples in the config file)
+- Notes: Ollama does not expose token logprobs, so beam search visualisation is limited when this provider is selected.
 
-Run inference on remote server via REST API.
-Requires server IP and port as config.
+## Local llama.cpp (optional)
 
-## Ollama
+- Module: `py_fade.providers.llama_cpp.PrefillAwareLlamaCppInternal`
+- Install: `pip install llama-cpp-python` with the appropriate CPU/GPU build flags
+- Configuration: models must supply a `gguf` path. When `USE_OLLAMA_REGISTRY` is specified, pyFADE will attempt to resolve the GGUF file from an Ollama models directory.
+- Capabilities: exposes full logprob streams, making it the preferred backend for beam search and token-level tooling.
 
-Very easy to set up and run.
+## Planned integrations
 
-Major downsides:
-- Ollama doesn't provide logprobs, so beaming, metrics and a lot of other functionality is not available.
-- Some models require template changes to make assistant reply prefill work correctly.
+The following backends are on the roadmap but not yet implemented:
 
-## vLLM
+- Remote llama.cpp via REST APIs
+- vLLM or other server-side generation services
+- Hugging Face Transformers (skipped for now to avoid a hard dependency on PyTorch)
 
-TBD.
-
-## HuggingFace transformers
-
-For now, intentionally not supported to avoid pytorch dependency.
+Watch the [roadmap](roadmap.md) for progress on these items.

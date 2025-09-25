@@ -6,7 +6,7 @@ pyFADE is tool designed to assist in creation of highly personalized, biased, mu
 Conveniently manage facet-dependent completions preference rankings for each sample.
 From unified UI and database, maintain and export faceted datasets for SFT or DPO tuning of ensemble of facet-specific LLMs.
 
-# What's facet?
+## What's facet?
 
 Style, boundaries, risks, knowledge and skills - every human expresses all of it differently depending on context.
 Notes to self, communicating with your spouse, family, friends, colleagues, boss, clients, authorities, filling tax reports - what is acceptable and good for one *facet*, could be hazardous for other. 
@@ -19,6 +19,14 @@ So goal is to have one LLM to engage with ideas exploration, another to help wit
 Tight control and decoupling of facets gives us assisants who are more efficient at each facet, keeping assistants accessible with commodity hardware, and at same time there's clear separation of concerns and risk management, as each facet has explicit purpose and safety profile.
 
 At same time, some personal preferences and biases are cross-domain, implying facets should be inheritable and chainable, getting most out of each sample in the dataset.
+
+# Project roadmap
+
+- [Development roadmap](docs/roadmap.md)
+
+# Changelog
+
+- [Changelog](Changelog.md)
 
 # Key features
  - top_k = 1 generations by different models

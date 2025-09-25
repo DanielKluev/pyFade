@@ -12,3 +12,10 @@ Make sure `requirements.txt` file is up to date with all dependencies used in th
 Ensure that all documentation is clear, concise, and easy to understand for new users. Use consistent formatting and style throughout the documentation.
 
 For `.github/copilot-instructions.md`, check current project structure, dependencies, and setup instructions to ensure they are accurate and up to date, as well as current practices and conventions used in the codebase.
+
+Duplicate all undone TODO items from README.md and source files into docs/roadmap.md file, organizing them by feature area and priority. Move completed TODO items from `docs/roadmap.md` to `Changelog.md` file, summarizing the changes made in each version. 
+
+Make sure all important features are highlighted in `README.md` file. 
+Make sure all relevant `docs/*` files are linked from `README.md` file.
+
+When updating documentation, ensure that any changes made to the codebase are reflected in the documentation. This includes updating function signatures, class names, and any other relevant information.
