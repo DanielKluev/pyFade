@@ -27,6 +27,7 @@ from py_fade.gui.widget_navigation_sidebar import WidgetNavigationSidebar
 from py_fade.gui.widget_sample import WidgetSample
 from py_fade.gui.widget_facet import WidgetFacet
 from py_fade.gui.widget_tag import WidgetTag
+from py_fade.gui.widget_export_template import WidgetExportTemplate
 
 # Dataset models
 from py_fade.dataset.sample import Sample
@@ -34,6 +35,7 @@ from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.tag import Tag
 from py_fade.dataset.data_filter import DataFilter
+from py_fade.dataset.export_template import ExportTemplate
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -345,6 +347,24 @@ class WidgetDatasetTop(QWidget):
         tag_widget.tag_cancelled.connect(lambda wid=widget_id: self._on_tag_cancelled(wid))
         return widget_id
 
+    def create_export_template_tab(
+        self, template: ExportTemplate | None, *, focus: bool = True
+    ) -> int:
+        """Create a new tab for managing an export template."""
+
+        template_widget = WidgetExportTemplate(self, self.app, self.dataset, template)
+        template_id = template.id if template else 0
+        title = f"X: {template.name}" if template else "New Export Template"
+        widget_id = self._register_tab(template_widget, title, "export_template", template_id, focus=focus)
+        template_widget.template_saved.connect(
+            lambda saved, wid=widget_id: self._on_export_template_saved(wid, saved)
+        )
+        template_widget.template_deleted.connect(
+            lambda deleted, wid=widget_id: self._on_export_template_deleted(wid, deleted)
+        )
+        template_widget.template_copied.connect(self._on_export_template_copied)
+        return widget_id
+
     def _on_sample_saved(self, widget_id: int, sample: Sample) -> None:
         tab_info = self.tabs.get(widget_id)
         if not tab_info or not sample:
@@ -385,6 +405,28 @@ class WidgetDatasetTop(QWidget):
             if index >= 0:
                 self.close_tab(index)
 
+    def _on_export_template_saved(self, widget_id: int, template: ExportTemplate) -> None:
+        tab_info = self.tabs.get(widget_id)
+        if not tab_info:
+            return
+        tab_info["id"] = template.id
+        self._set_tab_title(widget_id, f"X: {template.name}")
+        if hasattr(self.sidebar, "refresh"):
+            self.sidebar.refresh()
+
+    def _on_export_template_deleted(self, widget_id: int, template: ExportTemplate) -> None:
+        if hasattr(self.sidebar, "refresh"):
+            self.sidebar.refresh()
+        index = self._tab_index(widget_id)
+        if index >= 0:
+            self.close_tab(index)
+
+    def _on_export_template_copied(self, template: ExportTemplate) -> None:
+        widget_id = self.create_export_template_tab(template, focus=True)
+        self._focus_widget(self.tabs[widget_id]["widget"])
+        if hasattr(self.sidebar, "refresh"):
+            self.sidebar.refresh()
+
     def _focus_widget(self, widget: QWidget | None) -> None:
         if not widget:
             return
@@ -413,8 +455,16 @@ class WidgetDatasetTop(QWidget):
             self._focus_widget(self.tabs[existing_widget_id]["widget"])
             return
 
-        if normalized_type in {"completion", "export_template"}:
+        if normalized_type == "completion":
             self.log.info("Navigation for %s is not implemented yet.", normalized_type)
+            return
+
+        if normalized_type == "export_template":
+            template = ExportTemplate.get_by_id(self.dataset, item_id)
+            if not template:
+                return
+            widget_id = self.create_export_template_tab(template, focus=True)
+            self._focus_widget(self.tabs[widget_id]["widget"])
             return
 
         if normalized_type == "tag":
@@ -445,6 +495,7 @@ class WidgetDatasetTop(QWidget):
                 return
             widget_id = self.create_facet_tab(facet, focus=True)
             self._focus_widget(self.tabs[widget_id]["widget"])
+            return
 
     def _on_new_item_requested(self, item_type: str) -> None:
         normalized_type = item_type.lower()
@@ -459,6 +510,10 @@ class WidgetDatasetTop(QWidget):
             return
         if normalized_type == "tag":
             widget_id = self.create_tag_tab(None, focus=True)
+            self._focus_widget(self.tabs[widget_id]["widget"])
+            return
+        if normalized_type == "export_template":
+            widget_id = self.create_export_template_tab(None, focus=True)
             self._focus_widget(self.tabs[widget_id]["widget"])
             return
 

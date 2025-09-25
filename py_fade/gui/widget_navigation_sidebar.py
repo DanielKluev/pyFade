@@ -168,13 +168,17 @@ class WidgetNavigationTree(QWidget):
         elif show == "Completions":
             self.current_item_type = None # Completions created elsewhere
             self._populate_completions(data_filter, dataset)
+        elif show == "Export Templates":
+            self.current_item_type = "export_template"
+            self._populate_export_templates(data_filter, dataset)
 
         if self.current_item_type is None:
             self.new_element_button.setVisible(False) # New elements of this type created elsewhere
         else:
             self.new_element_button.setVisible(True)
-            self.new_element_button.setText(f"New {self.current_item_type}")
-            self.new_element_button.setToolTip(f"Create new {self.current_item_type} element")
+            pretty_label = self.current_item_type.replace("_", " ").title()
+            self.new_element_button.setText(f"New {pretty_label}")
+            self.new_element_button.setToolTip(f"Create new {pretty_label} element")
 
     def _populate_samples(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
         """
@@ -283,6 +287,41 @@ class WidgetNavigationTree(QWidget):
             item.setData(1, Qt.ItemDataRole.UserRole, f"completion_{i+1}")
         
         completion_item.setExpanded(True)
+
+    def _populate_export_templates(self, data_filter: DataFilter, dataset: "DatasetDatabase") -> None:
+        """Populate tree with export templates stored in the dataset."""
+
+        if not dataset.session:
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+
+        templates = ExportTemplate.get_all(dataset)
+
+        search_value: str | None = None
+        for criteria in getattr(data_filter, "filters", []):
+            if criteria.get("type") == "text_search":
+                probe = str(criteria.get("value", "")).strip().lower()
+                if probe:
+                    search_value = probe
+                    break
+
+        if search_value:
+            templates = [
+                template
+                for template in templates
+                if search_value in template.name.lower() or search_value in template.description.lower()
+            ]
+
+        if not templates:
+            placeholder = QTreeWidgetItem(self.tree, ["No export templates available"])
+            placeholder.setFlags(placeholder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            return
+
+        for template in templates:
+            label = f"{template.name} — {template.training_type}" if template.training_type else template.name
+            item = QTreeWidgetItem(self.tree, [label])
+            item.setData(0, Qt.ItemDataRole.UserRole, "export_template")
+            item.setData(1, Qt.ItemDataRole.UserRole, template.id)
+            item.setToolTip(0, template.description)
 
     def select_item(self, item_type: str, item_id: int) -> None:
         """Select and focus the first tree item matching the provided type and identifier."""
