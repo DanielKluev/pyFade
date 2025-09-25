@@ -105,6 +105,15 @@ def _compute_seed(prompt_text: str, prefill: str, forced_response: str | None) -
     return int.from_bytes(hasher.digest()[:8], "big", signed=False)
 
 
+def _canonicalize_messages(messages: Sequence[dict[str, str]]) -> str:
+    parts: list[str] = []
+    for message in messages:
+        role = message.get("role", "")
+        content = message.get("content", "")
+        parts.append(f"{role}:{content.strip()}")
+    return "\n".join(parts)
+
+
 class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
     """Deterministic mock response generator used by :class:`MockLLMProvider`.
 
@@ -118,24 +127,31 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
 
     def __init__(
         self,
-        prompt_text: str,
+        messages: Sequence[dict[str, str]],
         prefill: str,
         max_length: int,
         top_logprobs: int,
         forced_response_text: str | None = None,
     ) -> None:
-        self.prompt_text = prompt_text
+        self.messages = [
+            {
+                "role": message.get("role", "user"),
+                "content": message.get("content", ""),
+            }
+            for message in messages
+        ]
+        self._prompt_signature = _canonicalize_messages(self.messages)
         self.prefill = prefill or ""
         self._forced_response_text = forced_response_text
         self.top_logprobs = max(0, int(top_logprobs))
         self._rng = random.Random(
-            _compute_seed(prompt_text, self.prefill, forced_response_text)
+            _compute_seed(self._prompt_signature, self.prefill, forced_response_text)
         )
 
         self.generated_text = (
             forced_response_text
             if forced_response_text is not None
-            else self._build_preferred_response(prompt_text)
+            else self._build_preferred_response(self.messages)
         )
         if not self.generated_text:
             self.generated_text = (
@@ -198,9 +214,9 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
             return "".join(self.streaming_token_texts[: self._position])
         return "".join(self.streaming_token_texts)
 
-    def _build_preferred_response(self, prompt_text: str) -> str:
+    def _build_preferred_response(self, messages: Sequence[dict[str, str]]) -> str:
         opener = self._rng.choice(_COMMON_OPENERS)
-        user_turn = self._extract_primary_user_turn(prompt_text)
+        user_turn = self._extract_primary_user_turn(messages)
         if not user_turn:
             body = (
                 "this is a mocked completion so you can exercise the UI without a live model."
@@ -217,23 +233,19 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
         return f"{opener} {body}".strip()
 
     @staticmethod
-    def _extract_primary_user_turn(prompt_text: str) -> str:
-        if not prompt_text:
+    def _extract_primary_user_turn(messages: Sequence[dict[str, str]]) -> str:
+        if not messages:
             return ""
-        lowered = prompt_text.lower()
-        markers = ("user:", "human:", "customer:")
-        for marker in markers:
-            marker_idx = lowered.find(marker)
-            if marker_idx != -1:
-                content_start = marker_idx + len(marker)
-                remainder = prompt_text[content_start:]
-                for end_marker in ("\nassistant:", "\nsystem:", "\nuser:", "\nhuman:"):
-                    end_idx = remainder.lower().find(end_marker)
-                    if end_idx != -1:
-                        remainder = remainder[:end_idx]
-                        break
-                return remainder.strip()
-        return prompt_text.strip()
+        for message in messages:
+            if message.get("role") == "user":
+                content = message.get("content", "").strip()
+                if content:
+                    return content
+        for message in messages:
+            content = message.get("content", "").strip()
+            if content:
+                return content
+        return ""
 
     def _compute_true_tokens(self) -> list[_TrueToken]:
         if not self.full_text:
@@ -388,8 +400,22 @@ class MockLLMProvider(BasePrefillAwareProvider):
         max_tokens = kwargs.get("max_tokens", self.default_max_tokens)
         top_logprobs = kwargs.get("top_logprobs", 0)
 
+        parsed_messages = self.flat_prefix_template_to_messages(prompt, prefill)
+        history_messages: list[dict[str, str]] = []
+        for index, message in enumerate(parsed_messages):
+            role = message.get("role", "user")
+            content = message.get("content", "")
+            if (
+                prefill
+                and index == len(parsed_messages) - 1
+                and role == "assistant"
+                and content == prefill
+            ):
+                continue
+            history_messages.append({"role": role, "content": content})
+
         generator = MockResponseGenerator(
-            prompt_text=prompt,
+            messages=history_messages,
             prefill=prefill or "",
             max_length=max_tokens,
             top_logprobs=top_logprobs,
@@ -407,7 +433,7 @@ class MockLLMProvider(BasePrefillAwareProvider):
 
         return LLMResponse(
             model_id=model_id,
-            full_history=[{"role": "user", "content": prompt}],
+            full_history=history_messages,
             full_response_text=full_response_text,
             response_text=response_text,
             temperature=temperature,
@@ -428,8 +454,13 @@ class MockLLMProvider(BasePrefillAwareProvider):
         **kwargs,
     ) -> list[LLMPTokenLogProbs]:
         top_logprobs = kwargs.get("top_logprobs", 20)
+        parsed_messages = self.flat_prefix_template_to_messages(prompt)
+        history_messages = [
+            {"role": message.get("role", "user"), "content": message.get("content", "")}
+            for message in parsed_messages
+        ]
         generator = MockResponseGenerator(
-            prompt_text=prompt,
+            messages=history_messages,
             prefill="",
             max_length=0,
             top_logprobs=top_logprobs,

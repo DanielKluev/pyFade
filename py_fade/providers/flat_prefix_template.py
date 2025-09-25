@@ -80,3 +80,22 @@ def parse_flat_prefix_string(flat_prefix_string: str | None) -> list[dict]:
         messages.append({"role": current_role, "content": trailing_content})
 
     return messages
+
+def apply_flat_prefix_template(messages: list[dict]) -> str:
+    """
+    Apply the flat prefix template to the given messages.
+    """
+    prompt = ""
+    for message in messages:
+        role = message.get("role", "user")
+        content = message.get("content", "")
+        if role == "system":
+            prompt += f"{FLAT_PREFIX_SYSTEM} {content}\n"
+        elif role == "user":
+            prompt += f"{FLAT_PREFIX_USER} {content}\n"
+        elif role == "assistant":
+            prompt += f"{FLAT_PREFIX_ASSISTANT} {content}\n"
+        else:
+            prompt += f"{FLAT_PREFIX_USER} {content}\n"  # Default to user role
+
+    return prompt
