@@ -162,7 +162,7 @@ class NewCompletionFrame(QFrame):
         self.status_label.setText("Generating...")
         self.completion_area.show()
         self.completion_area.clear()
-        self.app.q_app.processEvents()  # Force UI update
+        self.app.q_app.processEvents()  # type: ignore # Force UI update
 
         mapped_model = self.app.providers_manager.get_mapped_model(self.model_combo.currentText())
         if not mapped_model:

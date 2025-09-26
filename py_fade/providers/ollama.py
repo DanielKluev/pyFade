@@ -5,7 +5,7 @@ import pathlib
 from ollama import ChatResponse, chat
 
 from py_fade.providers.base_provider import LOGPROB_LEVEL_NONE, BasePrefillAwareProvider
-from py_fade.providers.llm_response import LLMResponse
+from py_fade.providers.llm_response import LLMPTokenLogProbs, LLMResponse
 
 
 class OllamaRegistry:
@@ -173,3 +173,10 @@ class PrefillAwareOllama(BasePrefillAwareProvider):
             context_length=context_length,
             max_tokens=max_tokens,
         )
+
+    def evaluate_completion(self, model_id: str, prompt: str, completion: str, **kwargs) -> list[LLMPTokenLogProbs]:
+        """
+        Ollama does not provide token-level log probabilities, so we raise an exception.
+        """
+        self.log.error("Ollama does not support token-level log probabilities.")
+        raise NotImplementedError("Ollama does not support token-level log probabilities.")
