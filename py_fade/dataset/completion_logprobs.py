@@ -31,7 +31,8 @@ class PromptCompletionLogprobs(dataset_base):
     )
     logprobs_model_id: Mapped[str] = mapped_column(
         nullable=False
-    )  # Completion and logprobs can be from different models when we evaluate completion across models
+    )  # Completion and logprobs can be from different models when we evaluate 
+       # completion across models
     logprobs: Mapped[list] = mapped_column(
         JSON, nullable=False
     )  # Store logprobs as JSON, list of dicts for each position
