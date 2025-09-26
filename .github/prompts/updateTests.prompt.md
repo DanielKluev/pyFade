@@ -16,3 +16,8 @@ Make sure all files in the `tests/` directory are reviewed and updated as necess
 For debugging purposes, you *MUST* improve and expand unit tests, adding state logging as nessesary, with log-level DEBUG and running tests with debug output enabled. When debugging, plan for the future, make changes to unit tests reusable for future development, not just current debug session.
 
 When not debugging, ensure tests run cleanly without debug output, and that they are efficient and reliable, managing verbosity and debug logging via appropriate `logging` module configurations.
+
+Check code coverage reports to identify any gaps in test coverage and address them accordingly. The goal is to ensure that the pyFade codebase is robustly tested, minimizing the risk of bugs and regressions in future development.
+
+After making changes, run `pylint` on the modified test files to ensure there are no linting issues. Address any issues that arise, adhering to PEP 8 style guidelines and project conventions.
+After making changes, run the entire test suite to confirm that all tests pass successfully and that the codebase remains stable.

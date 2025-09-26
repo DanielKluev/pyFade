@@ -1,7 +1,8 @@
 import numpy as np
 from PyQt6.QtGui import QColor
 
-def hsv_to_rgb(h, s, v) -> tuple[float, float, float]: # type: ignore
+
+def hsv_to_rgb(h, s, v) -> tuple[float, float, float]:  # type: ignore
     """Convert HSV (0–1 floats) to RGB (0–1 floats)."""
     i = int(h * 6.0)
     f = (h * 6.0) - i
@@ -22,13 +23,13 @@ def hsv_to_rgb(h, s, v) -> tuple[float, float, float]: # type: ignore
     if i == 5:
         return v, p, q
 
-def logprob_to_qcolor(logprob: float,
-                      min_lp: float = -20.0,
-                      max_lp: float = -0.2,
-                      nonlinear: str = "sqrt") -> QColor:
+
+def logprob_to_qcolor(
+    logprob: float, min_lp: float = -20.0, max_lp: float = -0.2, nonlinear: str = "sqrt"
+) -> QColor:
     """
     Map a logprob value to a green-yellow-red QColor for heatmaps in PyQt6.
-    
+
     Parameters
     ----------
     logprob : float
@@ -67,4 +68,3 @@ def logprob_to_qcolor(logprob: float,
     # Convert HSV → RGB
     r, g, b = [int(255 * c) for c in hsv_to_rgb(hue, sat, val)]
     return QColor(r, g, b)
-

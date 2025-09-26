@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import re
 
-
 FLAT_PREFIX_SYSTEM = "<|system|>"
 FLAT_PREFIX_USER = "<|user|>"
 FLAT_PREFIX_ASSISTANT = "<|assistant|>"
@@ -19,9 +18,7 @@ _TOKEN_TO_ROLE = {
     FLAT_PREFIX_ASSISTANT: "assistant",
 }
 
-_TOKEN_PATTERN = re.compile(
-    "(" + "|".join(re.escape(token) for token in _TOKEN_TO_ROLE) + ")"
-)
+_TOKEN_PATTERN = re.compile("(" + "|".join(re.escape(token) for token in _TOKEN_TO_ROLE) + ")")
 
 
 def parse_flat_prefix_string(flat_prefix_string: str | None) -> list[dict]:
@@ -80,6 +77,7 @@ def parse_flat_prefix_string(flat_prefix_string: str | None) -> list[dict]:
         messages.append({"role": current_role, "content": trailing_content})
 
     return messages
+
 
 def apply_flat_prefix_template(messages: list[dict]) -> str:
     """

@@ -1,20 +1,26 @@
+"""Prompt revision ORM model and helpers."""
+
 import datetime
 import hashlib
+from typing import TYPE_CHECKING
+
 from sqlalchemy import Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import DateTime
+
 from py_fade.dataset.dataset_base import dataset_base
 
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from py_fade.dataset.sample import Sample
-    from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.dataset.completion import PromptCompletion
+    from py_fade.dataset.dataset import DatasetDatabase
+    from py_fade.dataset.sample import Sample
+
 
 class PromptRevision(dataset_base):
     """
     Represents a single prompt revision in the dataset.
     """
+
     __tablename__ = "prompt_revisions"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -31,7 +37,7 @@ class PromptRevision(dataset_base):
         "PromptCompletion",
         back_populates="prompt_revision",
         cascade="all, delete-orphan",
-        lazy="select"
+        lazy="select",
     )
 
     @classmethod
@@ -39,10 +45,12 @@ class PromptRevision(dataset_base):
         """
         Compute SHA256 hash of prompt text.
         """
-        return hashlib.sha256(prompt_text.encode('utf-8')).hexdigest()
+        return hashlib.sha256(prompt_text.encode("utf-8")).hexdigest()
 
     @classmethod
-    def new_from_text(cls, prompt_text: str, context_length: int, max_tokens: int) -> "PromptRevision":
+    def new_from_text(
+        cls, prompt_text: str, context_length: int, max_tokens: int
+    ) -> "PromptRevision":
         """
         Create new PromptRevision from prompt text.
         """
@@ -52,16 +60,20 @@ class PromptRevision(dataset_base):
             date_created=datetime.datetime.now(),
             prompt_text=prompt_text,
             context_length=context_length,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
         )
-    
+
     @classmethod
-    def get_or_create(cls, dataset: "DatasetDatabase", prompt_text: str, context_length: int, max_tokens: int) -> "PromptRevision":
+    def get_or_create(
+        cls, dataset: "DatasetDatabase", prompt_text: str, context_length: int, max_tokens: int
+    ) -> "PromptRevision":
         """
         Get existing PromptRevision by text hash or create a new one if not found.
         """
         if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
         prompt_text = prompt_text.strip()
         sha256 = cls.hash_from_text(prompt_text)
         instance = dataset.session.query(cls).filter_by(sha256=sha256).first()
@@ -71,17 +83,18 @@ class PromptRevision(dataset_base):
         dataset.session.add(instance)
         dataset.session.commit()
         return instance
-    
+
     @classmethod
     def get_by_hash(cls, dataset: "DatasetDatabase", prompt_text: str) -> "PromptRevision | None":
         """
         Get existing PromptRevision by text hash.
         """
         if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
         sha256 = cls.hash_from_text(prompt_text.strip())
         return dataset.session.query(cls).filter_by(sha256=sha256).first()
-    
 
     @property
     def prompt_text_oneliner(self) -> str:
@@ -92,5 +105,5 @@ class PromptRevision(dataset_base):
         if len(self.prompt_text) <= max_length:
             prompt = self.prompt_text
         else:
-            prompt = self.prompt_text[:max_length - 3] + "..."
+            prompt = self.prompt_text[: max_length - 3] + "..."
         return prompt.replace("\n", " ").replace("\r", " ")

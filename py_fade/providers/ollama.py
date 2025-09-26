@@ -1,9 +1,12 @@
+import json
 import logging
 import pathlib
-import json
-from ollama import chat, ChatResponse
+
+from ollama import ChatResponse, chat
+
+from py_fade.providers.base_provider import LOGPROB_LEVEL_NONE, BasePrefillAwareProvider
 from py_fade.providers.llm_response import LLMResponse
-from py_fade.providers.base_provider import BasePrefillAwareProvider, LOGPROB_LEVEL_NONE
+
 
 class OllamaRegistry:
     """
@@ -11,21 +14,29 @@ class OllamaRegistry:
     Ollama keeps all model files (GGUF, template, params and so on) as `blobs`, with file names in form of `sha256-<hash>`
     Manifests in `manifests` directory let us map model names to their blobs.
     """
+
     ollama_models_dir: pathlib.Path
-    def __init__(self, ollama_models_dir: str|pathlib.Path):
+
+    def __init__(self, ollama_models_dir: str | pathlib.Path):
         self.log = logging.getLogger("OllamaRegistry")
         self.ollama_models_dir = pathlib.Path(ollama_models_dir)
         if not self.ollama_models_dir.exists():
             self.log.error(f"Ollama models directory does not exist: {self.ollama_models_dir}")
-            raise FileNotFoundError(f"Ollama models directory does not exist: {self.ollama_models_dir}")
-        
+            raise FileNotFoundError(
+                f"Ollama models directory does not exist: {self.ollama_models_dir}"
+            )
+
         # Directory should have `blobs` and `manifests` subdirs
         self.blobs_dir = self.ollama_models_dir / "blobs"
         self.manifests_dir = self.ollama_models_dir / "manifests"
         if not self.blobs_dir.exists() or not self.manifests_dir.exists():
-            self.log.error(f"Ollama models directory structure is invalid: {self.ollama_models_dir}")
-            raise FileNotFoundError(f"Ollama models directory structure is invalid: {self.ollama_models_dir}")
-        
+            self.log.error(
+                f"Ollama models directory structure is invalid: {self.ollama_models_dir}"
+            )
+            raise FileNotFoundError(
+                f"Ollama models directory structure is invalid: {self.ollama_models_dir}"
+            )
+
     def _find_layer(self, manifest: dict, media_type: str) -> dict:
         """
         Recursively find a layer with the given media type in the manifest.
@@ -36,7 +47,7 @@ class OllamaRegistry:
             if layer.get("mediaType") == media_type:
                 return layer
         return {}
-        
+
     def load_model_metadata(self, model_id: str) -> dict:
         """
         Load model metadata from manifests.
@@ -45,23 +56,31 @@ class OllamaRegistry:
         namespace = "library"
         if "/" in model_id:
             namespace, model_id = model_id.split("/", 1)
-        
+
         subtype = ""
         family = model_id
         if ":" in model_id:
             family, subtype = model_id.split(":", 1)
 
-        manifest_file = self.manifests_dir / "registry.ollama.ai" / namespace / family / f"{subtype or 'latest'}"
+        manifest_file = (
+            self.manifests_dir
+            / "registry.ollama.ai"
+            / namespace
+            / family
+            / f"{subtype or 'latest'}"
+        )
         if not manifest_file.exists():
             self.log.error(f"Model manifest file does not exist: {manifest_file}")
             raise FileNotFoundError(f"Model manifest file does not exist: {manifest_file}")
-        
+
         with open(manifest_file, "r") as f:
             manifest = json.load(f)
         weights_dict = self._find_layer(manifest, "application/vnd.ollama.image.model")
         if not weights_dict:
             self.log.error(f"Model manifest does not contain weights information: {manifest_file}")
-            raise ValueError(f"Model manifest does not contain weights information: {manifest_file}")
+            raise ValueError(
+                f"Model manifest does not contain weights information: {manifest_file}"
+            )
         template_dict = self._find_layer(manifest, "application/vnd.ollama.image.template")
         result = {
             "model_id": full_model_id,
@@ -69,53 +88,79 @@ class OllamaRegistry:
             "namespace": namespace,
             "subtype": subtype,
             "weights_file": self.blobs_dir / weights_dict.get("digest", "").replace(":", "-"),
-            "template_file": (self.blobs_dir / template_dict.get("digest", "").replace(":", "-")) if template_dict else None,
+            "template_file": (
+                (self.blobs_dir / template_dict.get("digest", "").replace(":", "-"))
+                if template_dict
+                else None
+            ),
         }
         return result
+
 
 class PrefillAwareOllama(BasePrefillAwareProvider):
     logprob_capability = LOGPROB_LEVEL_NONE  # Ollama does not provide logprobs
     id: str = "ollama"
     is_local_vram: bool = True  # Ollama runs locally and uses VRAM
-    def __init__(self, default_temperature: float = 0.7, default_top_k: int = 40, default_context_length: int = 1024, default_max_tokens: int = 128):
-        self.log = logging.getLogger("PrefillAwareOllama")
-        super().__init__(default_temperature, default_top_k, default_context_length, default_max_tokens)
 
-    def generate(self, model_id:str, prompt: str, prefill: str|None = None, **kwargs) -> LLMResponse:
+    def __init__(
+        self,
+        default_temperature: float = 0.7,
+        default_top_k: int = 40,
+        default_context_length: int = 1024,
+        default_max_tokens: int = 128,
+    ):
+        self.log = logging.getLogger("PrefillAwareOllama")
+        super().__init__(
+            default_temperature, default_top_k, default_context_length, default_max_tokens
+        )
+
+    def generate(
+        self, model_id: str, prompt: str, prefill: str | None = None, **kwargs
+    ) -> LLMResponse:
         """
         We generate a completion using the Ollama API, optionally with a prefill.
         If prefill is provided, we insert it as a start of assistant response.
         """
         if not model_id:
             raise ValueError("model_id must be provided for Ollama provider.")
-        
+
         temperature = kwargs.get("temperature", self.default_temperature)
         top_k = kwargs.get("top_k", self.default_top_k)
         context_length = kwargs.get("context_length", self.default_context_length)
         max_tokens = kwargs.get("max_tokens", self.default_max_tokens)
 
         messages = [{"role": "user", "content": prompt}]
-        history = messages.copy()        
+        history = messages.copy()
 
         # Add prefill as beginning of assistant message if provided
         if prefill:
             messages.append({"role": "assistant", "content": prefill})
 
-        self.log.info(f"Sending request to Ollama model '{model_id}' with prompt: '{prompt[:50]}{'...' if len(prompt) > 50 else ''}' and prefill: '{prefill[:50] if prefill else 'None'}{'...' if prefill and len(prefill) > 50 else ''}'")
+        self.log.info(
+            f"Sending request to Ollama model '{model_id}' with prompt: '{prompt[:50]}{'...' if len(prompt) > 50 else ''}' and prefill: '{prefill[:50] if prefill else 'None'}{'...' if prefill and len(prefill) > 50 else ''}'"
+        )
 
         response = chat(
-            model=model_id, messages=messages, 
-            options={"temperature": temperature, "top_k": top_k, "num_ctx": context_length, "num_predict": max_tokens}
-            )
+            model=model_id,
+            messages=messages,
+            options={
+                "temperature": temperature,
+                "top_k": top_k,
+                "num_ctx": context_length,
+                "num_predict": max_tokens,
+            },
+        )
         if not isinstance(response, ChatResponse):
             self.log.error(f"Unexpected response type: {type(response)}. Expected ChatResponse.")
             raise TypeError(f"Expected ChatResponse, got {type(response)}")
-        
+
         response_content = response.message.content
         if not isinstance(response_content, str):
-            self.log.error(f"Unexpected response content type: {type(response_content)}. Expected str.")
+            self.log.error(
+                f"Unexpected response content type: {type(response_content)}. Expected str."
+            )
             raise TypeError(f"Expected response content to be str, got {type(response_content)}")
-        
+
         full_response_text = (prefill or "") + response_content if prefill else response_content
         return LLMResponse(
             model_id=model_id,
@@ -126,5 +171,5 @@ class PrefillAwareOllama(BasePrefillAwareProvider):
             top_k=top_k,
             prefill=prefill,
             context_length=context_length,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
         )

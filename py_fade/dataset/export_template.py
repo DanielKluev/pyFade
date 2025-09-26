@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import datetime
 from collections.abc import Iterable
-from typing import Any, TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from sqlalchemy import String, desc
 from sqlalchemy.orm import Mapped, mapped_column
@@ -63,7 +63,9 @@ class ExportTemplate(dataset_base):
 
         session = dataset.session
         if session is None:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
         return session.query(cls).filter_by(id=template_id).first()
 
     @classmethod
@@ -72,7 +74,9 @@ class ExportTemplate(dataset_base):
 
         session = dataset.session
         if session is None:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
         trimmed = name.strip()
         return session.query(cls).filter_by(name=trimmed).first()
 
@@ -82,7 +86,9 @@ class ExportTemplate(dataset_base):
 
         session = dataset.session
         if session is None:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
         return list(session.query(cls).order_by(desc(cls.date_created)).all())
 
     # ------------------------------------------------------------------
@@ -112,7 +118,9 @@ class ExportTemplate(dataset_base):
 
         session = dataset.session
         if session is None:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
 
         trimmed_name = name.strip()
         if not trimmed_name:
@@ -163,7 +171,9 @@ class ExportTemplate(dataset_base):
 
         session = dataset.session
         if session is None:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
 
         if name is not None:
             trimmed = name.strip()
@@ -186,7 +196,9 @@ class ExportTemplate(dataset_base):
             self.output_format = self._normalize_output_format(normalized_training, output_format)
         elif training_type is not None:
             # Ensure existing format is still compatible with new training type
-            self.output_format = self._normalize_output_format(normalized_training, self.output_format)
+            self.output_format = self._normalize_output_format(
+                normalized_training, self.output_format
+            )
         self.training_type = normalized_training
 
         if model_families is not None:
@@ -213,7 +225,9 @@ class ExportTemplate(dataset_base):
 
         session = dataset.session
         if session is None:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
         session.delete(self)
 
     def duplicate(self, dataset: "DatasetDatabase", *, name: str | None = None) -> "ExportTemplate":
@@ -348,4 +362,3 @@ class ExportTemplate(dataset_base):
         while f"{base} ({suffix})" in existing_names:
             suffix += 1
         return f"{base} ({suffix})"
-

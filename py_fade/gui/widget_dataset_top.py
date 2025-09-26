@@ -7,48 +7,51 @@ can be closed from a context menu, and context selections propagate to sample
 widgets as well as the navigation sidebar. The last selected facet and model
 are persisted per dataset via the application configuration.
 """
-import logging
 
+import logging
+from typing import TYPE_CHECKING
+
+from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtWidgets import (
-    QWidget, 
-    QVBoxLayout, 
-    QHBoxLayout,
-    QTabWidget,
-    QSplitter,
-    QLabel,
     QComboBox,
     QFrame,
-    QMenu
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QSplitter,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt6.QtCore import Qt, QPoint
+
+from py_fade.dataset.export_template import ExportTemplate
+from py_fade.dataset.facet import Facet
+from py_fade.dataset.prompt import PromptRevision
+
+# Dataset models
+from py_fade.dataset.sample import Sample
+from py_fade.dataset.tag import Tag
+from py_fade.gui.widget_export_template import WidgetExportTemplate
+from py_fade.gui.widget_facet import WidgetFacet
 
 # pyFADE widgets
 from py_fade.gui.widget_navigation_sidebar import WidgetNavigationSidebar
 from py_fade.gui.widget_sample import WidgetSample
-from py_fade.gui.widget_facet import WidgetFacet
 from py_fade.gui.widget_tag import WidgetTag
-from py_fade.gui.widget_export_template import WidgetExportTemplate
 
-# Dataset models
-from py_fade.dataset.sample import Sample
-from py_fade.dataset.prompt import PromptRevision
-from py_fade.dataset.facet import Facet
-from py_fade.dataset.tag import Tag
-from py_fade.dataset.export_template import ExportTemplate
-
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
     from py_fade.dataset.dataset import DatasetDatabase
 
+
 class WidgetDatasetTop(QWidget):
     """
-        Dataset workspace composed of navigation sidebar, context panel, and tabbed editors.
-        Context panel defines active facet and target LLM model, which propagate to samples and sidebar.
-            Active facet alters sorting order of completions, facet-specific completion preferences.
-            Target model is the model used as logprobs evaluation reference, i.e. it's the model that will be trained, while completions may be generated with other models.
-        Tabs are dashboards, samples, facets and so on, using type-specific widgets.
-        By default, create dashboard tab and new sample tab.
+    Dataset workspace composed of navigation sidebar, context panel, and tabbed editors.
+    Context panel defines active facet and target LLM model, which propagate to samples and sidebar.
+        Active facet alters sorting order of completions, facet-specific completion preferences.
+        Target model is the model used as logprobs evaluation reference, i.e. it's the model that will be trained, while completions may be generated with other models.
+    Tabs are dashboards, samples, facets and so on, using type-specific widgets.
+    By default, create dashboard tab and new sample tab.
     """
 
     def __init__(self, parent: QWidget | None, app: "pyFadeApp", dataset: "DatasetDatabase"):
@@ -149,29 +152,31 @@ class WidgetDatasetTop(QWidget):
 
     def _dataset_pref_key(self) -> str:
         return str(self.dataset.db_path.resolve())
-    
+
     def set_facets(self) -> None:
         """Populate facet selector based on current dataset state and preferences."""
         if not self.dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
         if self.facet_combo is None:
             raise RuntimeError("Facet combo box is not initialized.")
-        
+
         available_facets = list(self.dataset.session.query(Facet).all())
         if not available_facets:
             self.log.warning("No facets available in dataset; facet selector will be empty.")
             self.current_facet_id = None
             return
 
-        self.facet_combo.blockSignals(True)        
+        self.facet_combo.blockSignals(True)
         self.facet_combo.clear()
         if not self.current_facet_id:
-            self.current_facet_id = self.app.config.dataset_preferences.get(self._dataset_pref_key(), {}).get("facet_id", None) # type: ignore
+            self.current_facet_id = self.app.config.dataset_preferences.get(self._dataset_pref_key(), {}).get("facet_id", None)  # type: ignore
 
         for facet in available_facets:
             self._facet_map[facet.id] = facet
             self.facet_combo.addItem(facet.name, facet.id)
-        
+
         if self.current_facet_id and self.current_facet_id in self._facet_map:
             index = self.facet_combo.findData(self.current_facet_id)
             if index >= 0:
@@ -182,15 +187,15 @@ class WidgetDatasetTop(QWidget):
         """Populate model selector based on current dataset state and preferences."""
         if self.model_combo is None or not self.app.available_models:
             raise RuntimeError("Application is not fully initialized or no models are available.")
-        
+
         self.model_combo.blockSignals(True)
         self.model_combo.clear()
         if not self.current_model_name:
-            self.current_model_name = self.app.config.dataset_preferences.get(self._dataset_pref_key(), {}).get("model_name", None) # type: ignore
-        
+            self.current_model_name = self.app.config.dataset_preferences.get(self._dataset_pref_key(), {}).get("model_name", None)  # type: ignore
+
         for model in self.app.available_models:
             self.model_combo.addItem(model)
-        
+
         if self.current_model_name:
             index = self.model_combo.findText(self.current_model_name)
             if index >= 0:
@@ -254,7 +259,9 @@ class WidgetDatasetTop(QWidget):
     def populate_tabs(self) -> None:
         """Populate the main tab area with dataset content."""
         self.overview_widget = self.create_overview_tab()
-        self._register_tab(self.overview_widget, "Overview", "overview", entity_id=0, closable=False, focus=False)
+        self._register_tab(
+            self.overview_widget, "Overview", "overview", entity_id=0, closable=False, focus=False
+        )
         sample_widget_id = self.create_sample_tab(None, focus=True)
         self._focus_widget(self.tabs[sample_widget_id]["widget"])
 
@@ -323,8 +330,12 @@ class WidgetDatasetTop(QWidget):
         title = f"S: {sample.title}" if sample else "New Sample"
         widget_id = self._register_tab(sample_widget, title, "sample", sample_id, focus=focus)
         self._apply_context_to_sample(sample_widget)
-        sample_widget.sample_saved.connect(lambda saved, wid=widget_id: self._on_sample_saved(wid, saved))
-        sample_widget.sample_copied.connect(lambda original, wid=widget_id: self._on_sample_copied(wid, original))
+        sample_widget.sample_saved.connect(
+            lambda saved, wid=widget_id: self._on_sample_saved(wid, saved)
+        )
+        sample_widget.sample_copied.connect(
+            lambda original, wid=widget_id: self._on_sample_copied(wid, original)
+        )
         return widget_id
 
     def create_facet_tab(self, facet: Facet | None, *, focus: bool = True) -> int:
@@ -342,7 +353,9 @@ class WidgetDatasetTop(QWidget):
         title = f"T: {tag.name}" if tag else "New Tag"
         widget_id = self._register_tab(tag_widget, title, "tag", tag_id, focus=focus)
         tag_widget.tag_saved.connect(lambda saved, wid=widget_id: self._on_tag_saved(wid, saved))
-        tag_widget.tag_deleted.connect(lambda deleted, wid=widget_id: self._on_tag_deleted(wid, deleted))
+        tag_widget.tag_deleted.connect(
+            lambda deleted, wid=widget_id: self._on_tag_deleted(wid, deleted)
+        )
         tag_widget.tag_cancelled.connect(lambda wid=widget_id: self._on_tag_cancelled(wid))
         return widget_id
 
@@ -354,7 +367,9 @@ class WidgetDatasetTop(QWidget):
         template_widget = WidgetExportTemplate(self, self.app, self.dataset, template)
         template_id = template.id if template else 0
         title = f"X: {template.name}" if template else "New Export Template"
-        widget_id = self._register_tab(template_widget, title, "export_template", template_id, focus=focus)
+        widget_id = self._register_tab(
+            template_widget, title, "export_template", template_id, focus=focus
+        )
         template_widget.template_saved.connect(
             lambda saved, wid=widget_id: self._on_export_template_saved(wid, saved)
         )
@@ -447,7 +462,9 @@ class WidgetDatasetTop(QWidget):
 
     def _on_navigation_item_selected(self, item_type: str, item_id: int) -> None:
         if self.dataset.session is None:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
         normalized_type = item_type.lower()
         existing_widget_id = self._find_tab_by(normalized_type, item_id)
         if existing_widget_id:

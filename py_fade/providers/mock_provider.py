@@ -33,11 +33,10 @@ from typing import Iterator, Sequence
 import tiktoken
 
 from py_fade.providers.base_provider import (
-    BasePrefillAwareProvider,
     LOGPROB_LEVEL_TOP_LOGPROBS,
+    BasePrefillAwareProvider,
 )
-from py_fade.providers.llm_response import LLMResponse, LLMPTokenLogProbs
-
+from py_fade.providers.llm_response import LLMPTokenLogProbs, LLMResponse
 
 _GPT2_ENCODING = tiktoken.get_encoding("gpt2")
 _COMMON_OPENERS: Sequence[str] = (
@@ -187,9 +186,7 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
 
         spec = self._streaming_specs[self._position]
         self._position += 1
-        top_logprobs = (
-            list(spec.top_logprobs) if spec.top_logprobs is not None else None
-        )
+        top_logprobs = list(spec.top_logprobs) if spec.top_logprobs is not None else None
         return LLMPTokenLogProbs(token=spec.text, logprob=spec.logprob, top_logprobs=top_logprobs)
 
     @property
@@ -218,9 +215,7 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
         opener = self._rng.choice(_COMMON_OPENERS)
         user_turn = self._extract_primary_user_turn(messages)
         if not user_turn:
-            body = (
-                "this is a mocked completion so you can exercise the UI without a live model."
-            )
+            body = "this is a mocked completion so you can exercise the UI without a live model."
             return f"{opener} {body}".strip()
 
         summary = " ".join(user_turn.split())
@@ -320,7 +315,9 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
             last_pos = cut
         return segments
 
-    def _build_top_logprobs(self, token: str, base_logprob: float) -> list[tuple[str, float]] | None:
+    def _build_top_logprobs(
+        self, token: str, base_logprob: float
+    ) -> list[tuple[str, float]] | None:
         if self.top_logprobs <= 0:
             return None
         entries: list[tuple[str, float]] = [(token, base_logprob)]

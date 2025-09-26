@@ -16,6 +16,8 @@ Reuse existing components and theming from the pyFade project.
 
 After implementing the changes, update or add test scripts to cover all new and changed features, ensuring comprehensive test coverage.
 
+After implementing changes, run `pylint` on the modified files to ensure there are no linting issues. Address any issues that arise, adhering to PEP 8 style guidelines and project conventions.
+
 For debugging purposes, you **MUST** improve and expand unit tests, adding state logging as nessesary, with log-level DEBUG and running tests with debug output enabled. When debugging, plan for the future, make changes to unit tests reusable for future development, not just current debug session. 
 
 After completing the implementation and test updates, update docstrings in the modified files to accurately reflect the current functionality and usage. Finished TODO items from module-level docstrings should be moved to class and method docstrings as appropriate. Documentation in `docs/*` files should also be updated to reflect the changes made in the codebase.

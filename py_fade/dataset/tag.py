@@ -2,14 +2,13 @@
 
 import datetime
 import logging
+from typing import TYPE_CHECKING, List
 
 from sqlalchemy import Integer, String, desc
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import DateTime
 
 from py_fade.dataset.dataset_base import dataset_base
-
-from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -50,7 +49,9 @@ class Tag(dataset_base):
         """Return a tag matching *name* or ``None`` when not found."""
 
         if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
 
         normalized = name.strip()
         if not normalized:
@@ -62,7 +63,9 @@ class Tag(dataset_base):
         """Return the tag identified by *tag_id* or ``None`` when missing."""
 
         if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
 
         return dataset.session.query(cls).filter_by(id=tag_id).first()
 
@@ -71,7 +74,9 @@ class Tag(dataset_base):
         """Return the list of all tags in the dataset."""
 
         if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
 
         query = dataset.session.query(cls)
         if order_by_date:
@@ -90,7 +95,9 @@ class Tag(dataset_base):
         """Create a new tag ensuring the name is unique."""
 
         if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
 
         normalized_name = name.strip()
         if not normalized_name:
@@ -129,7 +136,9 @@ class Tag(dataset_base):
         """Update the tag fields and keep the name unique across tags."""
 
         if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
 
         if name is not None:
             normalized_name = name.strip()
@@ -157,29 +166,27 @@ class Tag(dataset_base):
         """Remove the tag from the dataset session."""
 
         if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
 
         dataset.session.delete(self)
         self.log.debug("Deleted tag %s", self)
 
     def __str__(self) -> str:
-        return (
-            "Tag(id={id}, name='{name}', scope='{scope}', samples={samples})".format(
-                id=self.id,
-                name=self.name,
-                scope=self.scope,
-                samples=self.total_samples,
-            )
+        return "Tag(id={id}, name='{name}', scope='{scope}', samples={samples})".format(
+            id=self.id,
+            name=self.name,
+            scope=self.scope,
+            samples=self.total_samples,
         )
 
     def __repr__(self) -> str:
-        return (
-            "Tag(id={id}, name='{name}', description='{desc}', scope='{scope}', total_samples={samples}, date_created={created})".format(
-                id=self.id,
-                name=self.name,
-                desc=self.description[:50],
-                scope=self.scope,
-                samples=self.total_samples,
-                created=self.date_created,
-            )
+        return "Tag(id={id}, name='{name}', description='{desc}', scope='{scope}', total_samples={samples}, date_created={created})".format(
+            id=self.id,
+            name=self.name,
+            desc=self.description[:50],
+            scope=self.scope,
+            samples=self.total_samples,
+            created=self.date_created,
         )

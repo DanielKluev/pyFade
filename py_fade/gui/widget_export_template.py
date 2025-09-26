@@ -21,8 +21,8 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QGridLayout,
     QGroupBox,
-    QHeaderView,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -92,9 +92,7 @@ class WidgetExportTemplate(QWidget):
 
         header_layout = QHBoxLayout()
         self.header_label = QLabelWithIcon("description", "Export Template")
-        self.header_label.setStyleSheet(
-            "font-size: 18px; font-weight: bold; color: #3949AB;"
-        )
+        self.header_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #3949AB;")
         header_layout.addWidget(self.header_label)
         header_layout.addStretch()
 
@@ -195,9 +193,7 @@ class WidgetExportTemplate(QWidget):
 
         selector_layout = QHBoxLayout()
         self.facet_selector = QComboBox()
-        self.facet_selector.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToContents
-        )
+        self.facet_selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.add_facet_button = QPushButtonWithIcon("add", "Add Facet")
         selector_layout.addWidget(self.facet_selector)
         selector_layout.addWidget(self.add_facet_button)
@@ -221,9 +217,7 @@ class WidgetExportTemplate(QWidget):
         if header is not None:
             header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
             for column in range(1, 7):
-                header.setSectionResizeMode(
-                    column, QHeaderView.ResizeMode.ResizeToContents
-                )
+                header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         vertical_header = self.facets_table.verticalHeader()
         if vertical_header is not None:
             vertical_header.setVisible(False)
@@ -345,9 +339,7 @@ class WidgetExportTemplate(QWidget):
             self.populate_output_formats(template.training_type)
             self.set_output_format(template.output_format)
             models = template.model_family.split(",") if template.model_family else []
-            self._set_model_selection(
-                models or list(ExportTemplate.SUPPORTED_MODEL_FAMILIES[:1])
-            )
+            self._set_model_selection(models or list(ExportTemplate.SUPPORTED_MODEL_FAMILIES[:1]))
             self.filename_input.setText(template.filename_template)
             self.normalize_checkbox.setChecked(template.normalize_style)
             self.encrypt_checkbox.setChecked(template.encrypt)
@@ -411,9 +403,7 @@ class WidgetExportTemplate(QWidget):
         """Insert the facet picked from the selector into the configuration table."""
 
         if not self._available_facets:
-            QMessageBox.information(
-                self, "No Facets", "No facets are available in this dataset."
-            )
+            QMessageBox.information(self, "No Facets", "No facets are available in this dataset.")
             return
         facet_id = self.facet_selector.currentData()
         if facet_id is None:
@@ -427,9 +417,7 @@ class WidgetExportTemplate(QWidget):
             return
         facet = self._available_facets.get(int(facet_id))
         if not facet:
-            QMessageBox.warning(
-                self, "Facet Missing", "The selected facet no longer exists."
-            )
+            QMessageBox.warning(self, "Facet Missing", "The selected facet no longer exists.")
             return
         self._insert_facet_row(facet, None)
         self.validate_form()
@@ -446,9 +434,7 @@ class WidgetExportTemplate(QWidget):
         limit_combo = QComboBox()
         limit_combo.addItem("Max Samples", "count")
         limit_combo.addItem("Percentage", "percentage")
-        limit_combo.currentIndexChanged.connect(
-            partial(self._on_limit_type_changed, limit_combo)
-        )
+        limit_combo.currentIndexChanged.connect(partial(self._on_limit_type_changed, limit_combo))
         self.facets_table.setCellWidget(row, 1, limit_combo)
 
         # Limit value --------------------------------------------------------
@@ -475,9 +461,7 @@ class WidgetExportTemplate(QWidget):
         # Remove button ------------------------------------------------------
         remove_button = QPushButtonWithIcon("delete", "")
         remove_button.setToolTip("Remove this facet from the export configuration")
-        remove_button.clicked.connect(
-            partial(self._remove_facet_by_button, remove_button)
-        )
+        remove_button.clicked.connect(partial(self._remove_facet_by_button, remove_button))
         self.facets_table.setCellWidget(row, 6, remove_button)
 
         if config:
@@ -598,8 +582,7 @@ class WidgetExportTemplate(QWidget):
                 errors.append(str(exc))
             else:
                 if existing and (
-                    self.template is None
-                    or existing.id != getattr(self.template, "id", None)
+                    self.template is None or existing.id != getattr(self.template, "id", None)
                 ):
                     errors.append("An export template with this name already exists.")
 
@@ -671,14 +654,10 @@ class WidgetExportTemplate(QWidget):
                     "limit_value": limit_value,
                     "order": order_combo.currentData(),
                     "min_logprob": (
-                        None
-                        if min_spin.value() == min_spin.minimum()
-                        else min_spin.value()
+                        None if min_spin.value() == min_spin.minimum() else min_spin.value()
                     ),
                     "avg_logprob": (
-                        None
-                        if avg_spin.value() == avg_spin.minimum()
-                        else avg_spin.value()
+                        None if avg_spin.value() == avg_spin.minimum() else avg_spin.value()
                     ),
                 }
             )
@@ -751,9 +730,7 @@ class WidgetExportTemplate(QWidget):
         except Exception as exc:  # noqa: BLE001
             self.log.exception("Failed to save export template", exc_info=exc)
             session.rollback()
-            QMessageBox.critical(
-                self, "Error", f"Failed to save export template: {exc}"
-            )
+            QMessageBox.critical(self, "Error", f"Failed to save export template: {exc}")
             return
 
         QMessageBox.information(
@@ -791,14 +768,10 @@ class WidgetExportTemplate(QWidget):
         except Exception as exc:  # noqa: BLE001
             self.log.exception("Failed to delete export template", exc_info=exc)
             session.rollback()
-            QMessageBox.critical(
-                self, "Error", f"Failed to delete export template: {exc}"
-            )
+            QMessageBox.critical(self, "Error", f"Failed to delete export template: {exc}")
             return
 
-        QMessageBox.information(
-            self, "Deleted", "Export template deleted successfully."
-        )
+        QMessageBox.information(self, "Deleted", "Export template deleted successfully.")
         self.template_deleted.emit(template)
         self.set_template(None)
 
@@ -822,9 +795,7 @@ class WidgetExportTemplate(QWidget):
         except Exception as exc:  # noqa: BLE001
             self.log.exception("Failed to duplicate export template", exc_info=exc)
             session.rollback()
-            QMessageBox.critical(
-                self, "Error", f"Failed to duplicate export template: {exc}"
-            )
+            QMessageBox.critical(self, "Error", f"Failed to duplicate export template: {exc}")
             return
 
         QMessageBox.information(

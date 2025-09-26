@@ -1,10 +1,15 @@
+"""Helper objects for filtering dataset queries."""
+
+
 class DataFilter:
     """
     Wrapper around various simple and chained filters to apply to datasets.
 
     Currently just limit to simple str search.
     """
+
     filters: list[dict]
+
     def __init__(self, filters: list[dict]):
         self.filters = filters
 

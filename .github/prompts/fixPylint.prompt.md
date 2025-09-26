@@ -20,5 +20,7 @@ Exceptions:
  - R0913: Too many arguments: This is acceptable in functions where multiple parameters are necessary for functionality, especially in constructors and factory methods.
  - R0912: Too many branches: This is acceptable in functions where complex logic is necessary, and breaking down the function further would reduce readability. One such case is form validation functions.
 
+Docstring warnings (C0114, C0115, C0116) should be addressed by adding or improving docstrings to ensure that all modules, classes, and functions are properly documented. Analyze code, its usage, and purpose to write clear and concise docstrings that explain the functionality, usage of the code components and any important details and nuances that developers need to know.
+
 Make sure all changes are covered by existing or new unit tests. If you add new tests, ensure they follow the project's testing conventions and are efficient and reliable. Re-run the test suite to confirm that all tests pass successfully after your changes.
 Run tests often to ensure that your changes do not introduce any regressions or break existing functionality.

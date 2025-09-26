@@ -3,7 +3,7 @@ def apply_template_gemma3(messages: list[dict]) -> str:
     Apply the Gemma3 chat template to the given messages.
     """
     prompt = ""
-    #prompt = "<bos>\n"
+    # prompt = "<bos>\n"
     user = messages.pop(0)
     prompt += f"<start_of_turn>user\n{user['content']}<end_of_turn>\n"
     prompt += "<start_of_turn>model\n"
@@ -13,12 +13,13 @@ def apply_template_gemma3(messages: list[dict]) -> str:
 
     return prompt
 
+
 def apply_template_qwen3(messages: list[dict]) -> str:
     """
     Apply the Qwen3 chat template to the given messages.
     """
     prompt = ""
-    #prompt = "<bos>\n"
+    # prompt = "<bos>\n"
     user = messages.pop(0)
     prompt += f"<|im_start|>user\n{user['content']}<|im_end|>\n"
     prompt += "<|im_start|>assistant\n"
@@ -27,6 +28,7 @@ def apply_template_qwen3(messages: list[dict]) -> str:
         prompt += f"{assistant['content']}"
 
     return prompt
+
 
 def get_template_function(model_id: str):
     """

@@ -1,21 +1,29 @@
-from PyQt6.QtWidgets import (
-    QVBoxLayout,
-    QHBoxLayout,
-    QTextEdit,
-    QSizePolicy,
-    QLabel,
-    QFrame,
-)
-from PyQt6.QtGui import QTextCharFormat, QColor, QTextCursor
-from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
-from py_fade.gui.auxillary import logprob_to_qcolor
+"""Widgets for presenting model completions within the dataset view."""
+
 from typing import TYPE_CHECKING
+
+from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor
+from PyQt6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QSizePolicy,
+    QTextEdit,
+    QVBoxLayout,
+)
+
+from py_fade.gui.auxillary import logprob_to_qcolor
+from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
+
 if TYPE_CHECKING:
     from py_fade.dataset.completion import PromptCompletion
 
+
 class CompletionFrame(QFrame):
     """UI frame representing a single completion."""
+
     icons_size = 24
+
     def __init__(self, completion: "PromptCompletion", parent=None):
         super().__init__(parent)
         self.completion = completion
@@ -27,7 +35,7 @@ class CompletionFrame(QFrame):
             f"""<span style="font-family: 'Material Symbols Outlined';">{google_icon_font.codepoint('model')}</span> {completion.model_id} <span style="font-family: 'Material Symbols Outlined';">{google_icon_font.codepoint('temperature')}</span> {completion.temperature} | top_k={completion.top_k}"""
         )
         header.setFont(google_icon_font.icon_font)
-        #header.setStyleSheet("font-family: 'Material Symbols Outlined'; font-size: 16px; font-weight: bold;")
+        # header.setStyleSheet("font-family: 'Material Symbols Outlined'; font-size: 16px; font-weight: bold;")
 
         text = QTextEdit(self)
         text.setReadOnly(True)
@@ -38,18 +46,28 @@ class CompletionFrame(QFrame):
         status_layout = QHBoxLayout()
         if completion.is_truncated:
             self.truncated_label = QLabel()
-            self.truncated_label.setPixmap(google_icon_font.pixmap("is_truncated", size=self.icons_size, color="red"))
+            self.truncated_label.setPixmap(
+                google_icon_font.pixmap("is_truncated", size=self.icons_size, color="red")
+            )
             self.truncated_label.setToolTip("Completion was truncated due to max tokens limit.")
             status_layout.addWidget(self.truncated_label)
 
         self.metrics_label = QLabel()
         if completion.logprobs and completion.logprobs[0].min_logprob is not None:
             self.metrics_label.setPixmap(
-                google_icon_font.pixmap("metrics", size=self.icons_size, color=logprob_to_qcolor(completion.logprobs[0].min_logprob))
+                google_icon_font.pixmap(
+                    "metrics",
+                    size=self.icons_size,
+                    color=logprob_to_qcolor(completion.logprobs[0].min_logprob),
                 )
-            self.metrics_label.setToolTip(f"Logprobs min: {completion.logprobs[0].min_logprob:.2f}, avg: {completion.logprobs[0].avg_logprob:.2f}")
+            )
+            self.metrics_label.setToolTip(
+                f"Logprobs min: {completion.logprobs[0].min_logprob:.2f}, avg: {completion.logprobs[0].avg_logprob:.2f}"
+            )
         else:
-            self.metrics_label.setPixmap(google_icon_font.pixmap("metrics", size=self.icons_size, color="gray"))
+            self.metrics_label.setPixmap(
+                google_icon_font.pixmap("metrics", size=self.icons_size, color="gray")
+            )
             self.metrics_label.setToolTip("No logprobs available.")
 
         # Prefill

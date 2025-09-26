@@ -10,27 +10,25 @@ when the user navigates to a tag through the sidebar or creates a new tag.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import pyqtSignal
-
 from PyQt6.QtWidgets import (
-    QLabel,
-    QMessageBox,
+    QComboBox,
     QGroupBox,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
+    QMessageBox,
     QPlainTextEdit,
     QVBoxLayout,
     QWidget,
-    QComboBox,
 )
-
-from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.tag import Tag
-
-from typing import TYPE_CHECKING
+from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
+from py_fade.gui.components.widget_label_with_icon import QLabelWithIcon
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -169,15 +167,21 @@ class WidgetTag(QWidget):
         button_layout.setSpacing(8)
 
         self.save_button = QPushButtonWithIcon("save", "Save")
-        self.save_button.setStyleSheet("QPushButton { background-color: #00796B; color: white; padding: 8px 16px; }")
+        self.save_button.setStyleSheet(
+            "QPushButton { background-color: #00796B; color: white; padding: 8px 16px; }"
+        )
         self.save_button.clicked.connect(self.save_tag)
 
         self.cancel_button = QPushButtonWithIcon("cancel", "Cancel")
-        self.cancel_button.setStyleSheet("QPushButton { background-color: #757575; color: white; padding: 8px 16px; }")
+        self.cancel_button.setStyleSheet(
+            "QPushButton { background-color: #757575; color: white; padding: 8px 16px; }"
+        )
         self.cancel_button.clicked.connect(self.cancel_editing)
 
         self.delete_button = QPushButtonWithIcon("delete", "Delete")
-        self.delete_button.setStyleSheet("QPushButton { background-color: #d32f2f; color: white; padding: 8px 16px; }")
+        self.delete_button.setStyleSheet(
+            "QPushButton { background-color: #d32f2f; color: white; padding: 8px 16px; }"
+        )
         self.delete_button.clicked.connect(self.delete_tag)
 
         button_layout.addWidget(self.save_button)
@@ -267,7 +271,9 @@ class WidgetTag(QWidget):
         """Persist the current form data to the dataset."""
 
         if not self.dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
 
         name = self.name_field.text().strip()
         description = self.description_field.toPlainText().strip()
@@ -280,7 +286,9 @@ class WidgetTag(QWidget):
                 self.tag = Tag.create(self.dataset, name, description, scope=normalized_scope)
             else:
                 self.log.debug("Updating tag id=%s", self.tag.id)
-                self.tag.update(self.dataset, name=name, description=description, scope=normalized_scope)
+                self.tag.update(
+                    self.dataset, name=name, description=description, scope=normalized_scope
+                )
 
             self.dataset.session.flush()
             self.dataset.session.commit()
@@ -305,7 +313,9 @@ class WidgetTag(QWidget):
             return
 
         if not self.dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
 
         reply = QMessageBox.question(
             self,

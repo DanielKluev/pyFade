@@ -7,6 +7,7 @@ entry field, validates the password via :meth:`DatasetDatabase.check_password`,
 and blocks access entirely if SQLCipher support is unavailable in the running
 environment.
 """
+
 from __future__ import annotations
 
 import logging
@@ -37,7 +38,7 @@ from py_fade.features_checker import SUPPORTED_FEATURES
 from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
 
 if TYPE_CHECKING:
-    from py_fade.app import pyFadeApp
+    from py_fade.app import PyFadeApp
 
 
 @dataclass(slots=True)
@@ -56,7 +57,7 @@ class LauncherWidget(QWidget):
 
     open_dataset_requested = pyqtSignal(str, str)
 
-    def __init__(self, parent: QWidget | None, app: "pyFadeApp"):
+    def __init__(self, parent: QWidget | None, app: "PyFadeApp"):
         super().__init__(parent)
         self.log = logging.getLogger("LauncherWidget")
         self.app = app
@@ -165,7 +166,9 @@ class LauncherWidget(QWidget):
         self.new_btn = QPushButton("Create new dataset", self)
         controls_row.addWidget(self.new_btn)
 
-        controls_row.addItem(QSpacerItem(24, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+        controls_row.addItem(
+            QSpacerItem(24, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        )
         layout.addLayout(controls_row)
 
         password_frame = QFrame(self)
@@ -260,7 +263,9 @@ class LauncherWidget(QWidget):
         exists = path.exists()
         if not exists:
             tooltip = f"{path}\nFile not found."
-            return RecentDatasetInfo(path=path, db_type="missing", exists=False, icon_name="inventory_2", tooltip=tooltip)
+            return RecentDatasetInfo(
+                path=path, db_type="missing", exists=False, icon_name="inventory_2", tooltip=tooltip
+            )
 
         db_type = DatasetDatabase.check_db_type(path)
         if db_type == "sqlcipher":
@@ -273,7 +278,9 @@ class LauncherWidget(QWidget):
             icon_name = "inventory_2"
             tooltip = f"{path}\nUnknown database format."
 
-        return RecentDatasetInfo(path=path, db_type=db_type, exists=True, icon_name=icon_name, tooltip=tooltip)
+        return RecentDatasetInfo(
+            path=path, db_type=db_type, exists=True, icon_name=icon_name, tooltip=tooltip
+        )
 
     def _apply_logo_pixmap(self) -> None:
         root_dir = pathlib.Path(__file__).resolve().parents[2]
@@ -326,7 +333,9 @@ class LauncherWidget(QWidget):
     def create_new_dataset(self) -> None:
         """Open a file dialog to create a new dataset and refresh the recents list."""
 
-        file_path, _ = QFileDialog.getSaveFileName(self, "Create New Dataset", "", "SQLite DB (*.db)")
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Create New Dataset", "", "SQLite DB (*.db)"
+        )
         if not file_path:
             self.log.info("Create new dataset cancelled by user.")
             return
@@ -338,7 +347,9 @@ class LauncherWidget(QWidget):
             QMessageBox.critical(self, "Create dataset", f"Failed to create dataset:\n{exc}")
             return
         if not created_path:
-            QMessageBox.warning(self, "Create dataset", "Dataset was not created. Please pick a new location.")
+            QMessageBox.warning(
+                self, "Create dataset", "Dataset was not created. Please pick a new location."
+            )
             return
         self.set_recent_datasets()
         self.open_dataset(pathlib.Path(created_path), "")
@@ -351,7 +362,9 @@ class LauncherWidget(QWidget):
             QMessageBox.warning(self, "Select dataset", "Please select a dataset from the list.")
             return
         if not info.exists:
-            QMessageBox.warning(self, "Dataset missing", "The dataset file no longer exists on disk.")
+            QMessageBox.warning(
+                self, "Dataset missing", "The dataset file no longer exists on disk."
+            )
             return
         if info.db_type == "sqlcipher" and not SUPPORTED_FEATURES.get("sqlcipher3", False):
             self._show_sqlcipher_missing_warning(info.path)
@@ -361,11 +374,17 @@ class LauncherWidget(QWidget):
         if info.db_type == "sqlcipher":
             password = self.pw_input.text()
             if not password:
-                QMessageBox.warning(self, "Password required", "Enter the password to unlock this dataset.")
+                QMessageBox.warning(
+                    self, "Password required", "Enter the password to unlock this dataset."
+                )
                 self.pw_input.setFocus()
                 return
             if not DatasetDatabase.check_password(info.path, password):
-                QMessageBox.critical(self, "Incorrect password", "The provided password is not valid for this dataset.")
+                QMessageBox.critical(
+                    self,
+                    "Incorrect password",
+                    "The provided password is not valid for this dataset.",
+                )
                 self.pw_input.selectAll()
                 return
 
@@ -389,7 +408,9 @@ class LauncherWidget(QWidget):
             return
         self.open_selected()
 
-    def _on_current_item_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
+    def _on_current_item_changed(
+        self, current: QListWidgetItem | None, _previous: QListWidgetItem | None
+    ) -> None:
         info = current.data(Qt.ItemDataRole.UserRole) if current else None
         if isinstance(info, RecentDatasetInfo):
             dataset_info = info
@@ -412,7 +433,7 @@ class LauncherWidget(QWidget):
         )
 
 
-def show_launcher(app: "pyFadeApp") -> LauncherWidget:
+def show_launcher(app: "PyFadeApp") -> LauncherWidget:
     """Convenience helper that instantiates and shows the launcher widget."""
 
     widget = LauncherWidget(parent=None, app=app)

@@ -25,24 +25,29 @@ This file helps a code-writing agent onboard the pyFade repository quickly. It c
 - Follows PEP 8 style guidelines.
 - ALWAYS use 4 spaces for indentation (no tabs).
 - Type hints are used extensively.
+- All modules, classes, and functions should have docstrings. Docstrings should start on new line after triple double quotes. Docstrings for class should describe the purpose of the class and any important details. Docstrings for methods should describe the purpose of the method, its parameters, return values, and any important details.
+- Use `logging` module for logging, do not use print statements. Use appropriate log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL). Use per-class loggers via `self.log = logging.getLogger(CLASS_NAME)`. Use lazy evaluation of log messages via `%` of the logger methods, e.g. `logger.debug("Message: %s", variable)` whenever possible.
+- Do not use local imports unless absolutely necessary to avoid circular dependencies, prefer module-level imports.
+- Use f-strings for string formatting, except in logging calls where lazy evaluation via `%` is preferred.
 - UI classes should have separate setup_ui() method that builds the UI components and set_XXX() methods for setting data and populating the UI with values.
 - UI set_XXX() methods should branch on single if statement to handle None/new object vs existing object, one branch for new object with empty/default values, another branch for existing object with real values.
 - SQLAlchemy ORM is used for database models and queries, orchestrated via DatasetDatabase class.
 - Following Google Material Design principles for UI layout and behavior, using qt_material for theming.
 
 ## 4) Testing, build, and run instructions
- - For testing, scripts in `tests/` can be created or modified to test various components, functionality, and performance. Use `pytest` framework for unit tests.
- - By default, tests should use only the `mock-echo-model` provider to avoid dependencies on external model backends and high computational requirements. Tests for real LLM providers should be isolated and clearly marked, ensuring they do not interfere with the main test suite and never get run by default.
- - Tests that involve mock or real generation should use FLAT_PREFIX_SYSTEM/FLAT_PREFIX_USER/FLAT_PREFIX_ASSISTANT markers for system/user/assistant messages, as defined in `py_fade.providers.flat_prefix_template`. Provider implementations will call `flat_prefix_template_to_messages()` with prompt and prefill to convert these flat prefixes to common Messages API format.
- - For debugging purposes, you *MUST* improve and expand unit tests, adding state logging as nessesary, with log-level DEBUG and running tests with debug output enabled. When debugging, plan for the future, make changes to unit tests reusable for future development, not just current debug session. 
- - When not debugging, ensure tests run cleanly without debug output, and that they are efficient and reliable, managing verbosity and debug logging via appropriate `logging` module configurations.
- - To run the application, use `python run.py` from the project root. This will launch the GUI.
+- For testing, scripts in `tests/` can be created or modified to test various components, functionality, and performance. Use `pytest` framework for unit tests.
+- By default, tests should use only the `mock-echo-model` provider to avoid dependencies on external model backends and high computational requirements. Tests for real LLM providers should be isolated and clearly marked, ensuring they do not interfere with the main test suite and never get run by default.
+- Tests that involve mock or real generation should use FLAT_PREFIX_SYSTEM/FLAT_PREFIX_USER/FLAT_PREFIX_ASSISTANT markers for system/user/assistant messages, as defined in `py_fade.providers.flat_prefix_template`. Provider implementations will call `flat_prefix_template_to_messages()` with prompt and prefill to convert these flat prefixes to common Messages API format.
+- For debugging purposes, you *MUST* improve and expand unit tests, adding state logging as nessesary, with log-level DEBUG and running tests with debug output enabled. When debugging, plan for the future, make changes to unit tests reusable for future development, not just current debug session. 
+- When not debugging, ensure tests run cleanly without debug output, and that they are efficient and reliable, managing verbosity and debug logging via appropriate `logging` module configurations.
+- To run the application, use `python run.py` from the project root. This will launch the GUI.
 - To run entire test suite, use `pytest` from the project root (PyQt6 must be installed for the widgets).
+- Regularly run `pylint` on the codebase to ensure there are no linting issues. Address any issues that arise, adhering to PEP 8 style guidelines and project conventions.
 
 ## 5) UI
- - Follows Google Material Design principles for UI layout and behavior, using qt_material for theming.
- - For buttons and icons, using Google Material Symbols font, accessible from `py_fade.gui.aux_google_icon_font` module, with `google_icon_font` singleton instance.
- - Facets, Tags, Export Templates are managed via sidebar navigation, details for view/edit in separate widgets.
+- Follows Google Material Design principles for UI layout and behavior, using qt_material for theming.
+- For buttons and icons, using Google Material Symbols font, accessible from `py_fade.gui.aux_google_icon_font` module, with `google_icon_font` singleton instance.
+- Facets, Tags, Export Templates are managed via sidebar navigation, details for view/edit in separate widgets.
 
 ## 6) Project layout (short map to important files and their purpose)
 
@@ -50,7 +55,6 @@ Top-level files (root):
 - `README.md` — project overview and features.
 - `requirements.txt` — core runtime dependencies (PyQt6, qt-material, SQLAlchemy, numpy, tiktoken, ollama).
 - `run.py` — application entrypoint; parses args and starts `py_fade.app.py`.
-- `detect_boundary.py` — standalone script that uses sentence-transformers and spaCy.
 - `Changelog.md` — summary of notable updates.
 
 Python package `py_fade/` (important modules):
