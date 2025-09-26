@@ -10,7 +10,6 @@ from PyQt6.QtGui import QColor, QIcon, QMouseEvent, QTextCharFormat, QTextCursor
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
-    QLabel,
     QMessageBox,
     QSizePolicy,
     QTextEdit,
@@ -117,41 +116,17 @@ class CompletionRatingWidget(QFrame):
         self._connect_signals()
 
     def _setup_ui(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 8, 0, 0)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
-
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.setSpacing(6)
-
-        self.header_label = QLabelWithIconAndText("star_rate", "Facet rating", size=13, parent=self)
-        header_layout.addWidget(self.header_label)
-
-        header_layout.addStretch()
-        self.rating_value_label = QLabel("-- / 10", self)
-        self.rating_value_label.setStyleSheet("font-weight: bold; color: #424242;")
-        header_layout.addWidget(self.rating_value_label)
-
-        layout.addLayout(header_layout)
-
-        stars_layout = QHBoxLayout()
-        stars_layout.setSpacing(4)
 
         self.star_buttons: list[_StarButton] = []
         for index in range(1, 6):
             button = _StarButton(index, self)
             button.setIconSize(QSize(self._star_icon_size, self._star_icon_size))
             button.setEnabled(False)
-            stars_layout.addWidget(button)
+            layout.addWidget(button)
             self.star_buttons.append(button)
-
-        stars_layout.addStretch()
-        layout.addLayout(stars_layout)
-
-        self.helper_label = QLabel("Select a facet to rate this completion.", self)
-        self.helper_label.setStyleSheet("color: #757575; font-size: 11px;")
-        layout.addWidget(self.helper_label)
 
         self._apply_rating_to_stars(0)
 
@@ -176,8 +151,7 @@ class CompletionRatingWidget(QFrame):
         if not completion or not facet:
             self._set_enabled_state(False)
             self._apply_rating_to_stars(0)
-            self.rating_value_label.setText("-- / 10")
-            self.helper_label.setText("Select a facet to rate this completion.")
+            self._update_star_tooltips()
             return
 
         try:
@@ -185,12 +159,12 @@ class CompletionRatingWidget(QFrame):
         except RuntimeError as exc:  # pragma: no cover - defensive guard
             self.log.error("Unable to fetch rating: %s", exc)
             self._set_enabled_state(False)
-            self.helper_label.setText("Unable to load ratings: check dataset session.")
+            self._apply_rating_to_stars(0)
+            self._update_star_tooltips()
             return
 
         self.current_rating = self.rating_record.rating if self.rating_record else 0
         self._set_enabled_state(True)
-        self._update_rating_labels()
         self._apply_rating_to_stars(self.current_rating)
         self._update_star_tooltips()
 
@@ -220,7 +194,6 @@ class CompletionRatingWidget(QFrame):
             return
         self.hover_rating = rating
         self._apply_rating_to_stars(rating or self.current_rating)
-        self._update_helper_for_hover(rating)
 
     def _on_star_clicked(self, rating: int) -> None:
         if not self.completion or not self.facet:
@@ -242,7 +215,6 @@ class CompletionRatingWidget(QFrame):
             )
             if answer != QMessageBox.StandardButton.Yes:
                 self._apply_rating_to_stars(self.current_rating)
-                self._update_helper_for_hover(0)
                 return
 
         self._persist_rating(rating)
@@ -265,40 +237,8 @@ class CompletionRatingWidget(QFrame):
         self.current_rating = self.rating_record.rating
         self.hover_rating = 0
         self._apply_rating_to_stars(self.current_rating)
-        self._update_rating_labels()
         self._update_star_tooltips()
         self.rating_saved.emit(self.current_rating)
-
-    def _update_helper_for_hover(self, rating: int) -> None:
-        if not self.facet:
-            return
-        if rating:
-            self.helper_label.setText(
-                f"Click to save {rating}/10 for '{self.facet.name}'."
-            )
-        elif self.rating_record:
-            self.helper_label.setText(
-                f"Saved {self.current_rating}/10 for '{self.facet.name}'."
-            )
-        else:
-            self.helper_label.setText(
-                f"Click a star to rate '{self.facet.name}'."
-            )
-
-    def _update_rating_labels(self) -> None:
-        if not self.facet:
-            self.rating_value_label.setText("-- / 10")
-            return
-        if self.rating_record:
-            self.rating_value_label.setText(f"{self.current_rating} / 10")
-            self.helper_label.setText(
-                f"Saved {self.current_rating}/10 for '{self.facet.name}'."
-            )
-        else:
-            self.rating_value_label.setText("Not rated")
-            self.helper_label.setText(
-                f"Click a star to rate '{self.facet.name}'."
-            )
 
     def _color_for_rating(self, rating: int) -> str:
         if rating >= 8:

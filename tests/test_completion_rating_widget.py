@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import pathlib
 from typing import TYPE_CHECKING, Tuple
 
 import pytest
@@ -13,10 +14,12 @@ from PyQt6.QtWidgets import QMessageBox
 
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_rating import PromptCompletionRating
+from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.gui.widget_completion import CompletionFrame
+from py_fade.gui.widget_dataset_top import WidgetDatasetTop
 from py_fade.gui.widget_sample import WidgetSample
 
 if TYPE_CHECKING:
@@ -107,8 +110,9 @@ def test_rating_saved_and_updated(
 
     saved_rating = PromptCompletionRating.get(temp_dataset, completion, facet)
     assert saved_rating is not None and saved_rating.rating == 8
-    assert rating_widget.rating_value_label.text() == "8 / 10"
-    assert "Saved 8/10" in rating_widget.helper_label.text()
+    assert rating_widget.rating_record is not None
+    assert rating_widget.rating_record.rating == 8
+    assert rating_widget.current_rating == 8
 
     questions: list[tuple] = []
 
@@ -124,7 +128,9 @@ def test_rating_saved_and_updated(
     assert questions, "Expected confirmation prompt when updating existing rating"
     updated_rating = PromptCompletionRating.get(temp_dataset, completion, facet)
     assert updated_rating is not None and updated_rating.rating == 5
-    assert rating_widget.rating_value_label.text() == "5 / 10"
+    assert rating_widget.rating_record is not None
+    assert rating_widget.rating_record.rating == 5
+    assert rating_widget.current_rating == 5
     tooltip_text = rating_widget.star_buttons[0].toolTip()
     assert f"{facet.name}: 5/10" in tooltip_text
 
@@ -169,7 +175,8 @@ def test_rating_is_scoped_per_facet(
     widget.set_active_context(facet_b, None)
     qt_app.processEvents()
     assert rating_widget.rating_record is None
-    assert rating_widget.rating_value_label.text() == "Not rated"
+    assert rating_widget.rating_record is None
+    assert rating_widget.current_rating == 0
 
     rating_widget._on_star_clicked(4)
     qt_app.processEvents()
@@ -181,13 +188,107 @@ def test_rating_is_scoped_per_facet(
 
     widget.set_active_context(facet_a, None)
     qt_app.processEvents()
-    assert rating_widget.rating_value_label.text() == "9 / 10"
+    assert rating_widget.rating_record is not None
+    assert rating_widget.rating_record.rating == 9
+    assert rating_widget.current_rating == 9
     tooltip_text = rating_widget.star_buttons[0].toolTip()
     assert f"{facet_a.name}: 9/10" in tooltip_text
 
     widget.set_active_context(None, None)
     qt_app.processEvents()
-    assert rating_widget.rating_value_label.text() == "-- / 10"
+    assert rating_widget.rating_record is None
+    assert rating_widget.current_rating == 0
+    assert all(not button.isEnabled() for button in rating_widget.star_buttons)
+
 
     widget.deleteLater()
     qt_app.processEvents()
+
+
+def test_default_facet_restored_on_dataset_reload(
+    qt_app: "QApplication",
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    ensure_google_icon_font: None,
+) -> None:
+    """Previously selected facet should be active when reopening the dataset."""
+
+    _ = ensure_google_icon_font
+
+    db_path = tmp_path / "persisted_ratings.db"
+    dataset = DatasetDatabase(db_path)
+    dataset.initialize()
+
+    sample, completion = _build_sample_with_completion(dataset)
+
+    facet = Facet.create(dataset, "Persisted", "Facet persisted across sessions")
+    dataset.commit()
+    PromptCompletionRating.set_rating(dataset, completion, facet, 6)
+
+    fake_home = tmp_path / "home"
+    fake_home.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(pathlib.Path, "home", lambda: fake_home)
+
+    from py_fade.app import pyFadeApp
+
+    config_path = fake_home / "config.yaml"
+
+    app = pyFadeApp(config_path=config_path)
+    app.current_dataset = dataset
+    widget = WidgetDatasetTop(None, app, dataset)
+    qt_app.processEvents()
+
+    try:
+        assert widget.facet_combo is not None
+        facet_index = widget.facet_combo.findData(facet.id)
+        assert facet_index >= 0
+        widget.facet_combo.setCurrentIndex(facet_index)
+        widget._on_facet_selection_changed(facet_index)  # pylint: disable=protected-access
+        qt_app.processEvents()
+    finally:
+        widget.deleteLater()
+        qt_app.processEvents()
+        app.current_dataset = None
+
+    dataset.dispose()
+
+    reopened_dataset = DatasetDatabase(db_path)
+    reopened_dataset.initialize()
+
+    app_reopened = pyFadeApp(config_path=config_path)
+    app_reopened.current_dataset = reopened_dataset
+    widget_reopened = WidgetDatasetTop(None, app_reopened, reopened_dataset)
+    qt_app.processEvents()
+
+    try:
+        assert widget_reopened.current_facet is not None
+        assert widget_reopened.current_facet.id == facet.id
+
+        session = reopened_dataset.session
+        assert session is not None
+        sample_reloaded = session.query(Sample).get(sample.id)
+        assert sample_reloaded is not None
+
+        widget_reopened._open_sample_by_id(sample_reloaded.id)  # pylint: disable=protected-access
+        qt_app.processEvents()
+
+        sample_widgets = [
+            info["widget"]
+            for info in widget_reopened.tabs.values()
+            if info["type"] == "sample" and info["id"] == sample_reloaded.id
+        ]
+        assert sample_widgets, "Expected sample tab with persisted completion"
+        reloaded_sample_widget = sample_widgets[0]
+
+        frame = _first_completion_frame(reloaded_sample_widget)
+        rating_widget = frame.rating_widget
+
+        assert all(button.isEnabled() for button in rating_widget.star_buttons)
+        assert rating_widget.rating_record is not None
+        assert rating_widget.rating_record.rating == 6
+        assert rating_widget.current_rating == 6
+    finally:
+        widget_reopened.deleteLater()
+        qt_app.processEvents()
+        app_reopened.current_dataset = None
+        reopened_dataset.dispose()

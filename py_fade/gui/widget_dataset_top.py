@@ -599,6 +599,7 @@ class WidgetDatasetTop(QMainWindow):
             self.current_facet_id = None
             return
 
+        self._facet_map.clear()
         self.facet_combo.blockSignals(True)
         self.facet_combo.clear()
         if not self.current_facet_id:
@@ -614,10 +615,24 @@ class WidgetDatasetTop(QMainWindow):
             self._facet_map[facet.id] = facet
             self.facet_combo.addItem(facet.name, facet.id)
 
+        selected_facet: Facet | None = None
         if self.current_facet_id and self.current_facet_id in self._facet_map:
-            index = self.facet_combo.findData(self.current_facet_id)
+            selected_facet = self._facet_map[self.current_facet_id]
+
+        if selected_facet is None and available_facets:
+            first_facet = available_facets[0]
+            selected_facet = first_facet
+
+        if selected_facet is not None:
+            index = self.facet_combo.findData(selected_facet.id)
             if index >= 0:
                 self.facet_combo.setCurrentIndex(index)
+            self.current_facet = selected_facet
+            self.current_facet_id = selected_facet.id
+        else:
+            self.current_facet = None
+            self.current_facet_id = None
+
         self.facet_combo.blockSignals(False)
 
     def set_models(self) -> None:
