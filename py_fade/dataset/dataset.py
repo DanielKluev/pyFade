@@ -195,7 +195,7 @@ class DatasetDatabase:
             return False
 
         try:
-            conn = sqlcipher3.connect(db_path)
+            conn = sqlcipher3.connect(db_path) # type: ignore
             cursor = conn.cursor()
             cursor.execute(f"PRAGMA key = '{password}';")
             cursor.execute("SELECT count(*) FROM sqlite_master;")

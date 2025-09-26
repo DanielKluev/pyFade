@@ -25,7 +25,7 @@ This file helps a code-writing agent onboard the pyFade repository quickly. It c
 - Follows PEP 8 style guidelines.
 - ALWAYS use 4 spaces for indentation (no tabs).
 - Type hints are used extensively.
-- All modules, classes, and functions should have docstrings. Docstrings should start on new line after triple double quotes. Docstrings for class should describe the purpose of the class and any important details. Docstrings for methods should describe the purpose of the method, its parameters, return values, and any important details.
+- All modules, classes, and functions should have docstrings. Docstrings should start on new line after triple double quotes. Docstrings for class should describe the purpose of the class and any important details. Docstrings for methods should describe the purpose of the method, its parameters, return values, and any important details. Test docstrings should describe what is being tested and the expected outcome.
 - Use `logging` module for logging, do not use print statements. Use appropriate log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL). Use per-class loggers via `self.log = logging.getLogger(CLASS_NAME)`. Use lazy evaluation of log messages via `%` of the logger methods, e.g. `logger.debug("Message: %s", variable)` whenever possible.
 - Do not use local imports unless absolutely necessary to avoid circular dependencies, prefer module-level imports.
 - Use f-strings for string formatting, except in logging calls where lazy evaluation via `%` is preferred.

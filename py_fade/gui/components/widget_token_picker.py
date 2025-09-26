@@ -31,9 +31,7 @@ class WidgetTokenPicker(QWidget):
 
     tokens_selected = pyqtSignal(list)  # Signal emitted with list of selected tokens
     tokens: list[tuple[str, float]]  # List of (token, logprob) tuples
-    tokens_map = dict[
-        str, tuple[str, float]
-    ]  # Map from token to (token, logprob) tuple for quick lookup
+    tokens_map: dict[str, tuple[str, float]]  # Token -> (token, logprob) tuple for quick lookup
 
     def __init__(
         self,
@@ -202,7 +200,7 @@ class WidgetTokenPicker(QWidget):
         else:
             self.selected_tokens.discard(self.tokens_map[token])
 
-    def _on_multi_select(self, token: LLMPTokenLogProbs, checked: bool):
+    def _on_multi_select(self, token: str, checked: bool):
         """Handle multi-select token selection."""
         if checked:
             self.selected_tokens.add(self.tokens_map[token])
