@@ -10,7 +10,7 @@ All widgets **MUST** follow methods convention:
 - `connect_signals()` method to connect signals to slots, called from `__init_()` after `setup_ui()`.
 - `set_XXX()` methods for setting data and populating the UI with values, e.g. `set_sample(self, sample: Sample|None)`. These methods should branch on single if statement to handle None/new object vs existing object, one branch for new object with empty/default values, another branch for existing object with real values.
 
-Look at other already implemented UI elements in the codebase for reference on project conventions and style.
+Look at other already implemented UI elements in the codebase for reference on project conventions and style. Avoid searching for empty or very short strings.
 
 Reuse existing components and theming from the pyFade project.
 
