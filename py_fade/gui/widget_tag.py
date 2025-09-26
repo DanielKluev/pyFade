@@ -13,9 +13,8 @@ import logging
 
 from PyQt6.QtCore import pyqtSignal
 
-from py_fade.gui.gui_helpers import (
+from PyQt6.QtWidgets import (
     QLabel,
-    QLabelWithIcon,
     QMessageBox,
     QGroupBox,
     QHBoxLayout,
@@ -25,6 +24,7 @@ from py_fade.gui.gui_helpers import (
     QWidget,
     QComboBox,
 )
+
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 
 from py_fade.dataset.dataset import DatasetDatabase
