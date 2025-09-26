@@ -1,4 +1,4 @@
-"""Material-themed widget for viewing and rating a single completion."""
+"""Material-themed widget for viewing a single completion with inline actions."""
 
 from __future__ import annotations
 
@@ -6,22 +6,24 @@ import logging
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QIcon, QMouseEvent, QTextCharFormat, QTextCursor
+from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
-    QMessageBox,
     QSizePolicy,
     QTextEdit,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.gui.auxillary import logprob_to_qcolor
 from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
-from py_fade.gui.components.widget_label_with_icon import QLabelWithIcon, QLabelWithIconAndText
+from py_fade.gui.components import (
+    CompletionRatingWidget,
+    QLabelWithIcon,
+    QLabelWithIconAndText,
+    QPushButtonWithIcon,
+)
 
 if TYPE_CHECKING:
     from py_fade.dataset.completion import PromptCompletion
@@ -31,248 +33,15 @@ if TYPE_CHECKING:
 
 PREFILL_COLOR = QColor("#FFF9C4")
 BEAM_TOKEN_COLOR = QColor("#C5E1A5")
-EMPTY_STAR_COLOR = "#B0BEC5"
-LOW_RATING_COLOR = "#d84315"
-MID_RATING_COLOR = "#f9a825"
-HIGH_RATING_COLOR = "#2e7d32"
-
-
-class _StarButton(QToolButton):
-    """Interactive button that emits half-star aware rating values."""
-
-    hover_rating = pyqtSignal(int)
-    rating_chosen = pyqtSignal(int)
-
-    def __init__(self, star_index: int, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.star_index = star_index
-        self.setAutoRaise(True)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.setMouseTracking(True)
-
-    def sizeHint(self) -> QSize:  # pylint: disable=invalid-name
-        """Return a slightly larger size hint to improve clickability."""
-
-        hint = super().sizeHint()
-        return QSize(max(hint.width(), 32), max(hint.height(), 32))
-
-    def _rating_from_position(self, pos_x: float) -> int:
-        width = max(1, self.width())
-        fraction = pos_x / width
-        half = 1 if fraction <= 0.5 else 2
-        return (self.star_index - 1) * 2 + half
-
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # pylint: disable=invalid-name
-        """Emit hover ratings while the pointer moves across the star."""
-
-        if self.isEnabled():
-            rating = self._rating_from_position(event.position().x())
-            self.hover_rating.emit(rating)
-        super().mouseMoveEvent(event)
-
-    def enterEvent(self, event) -> None:  # pylint: disable=invalid-name
-        """Highlight the star when the pointer enters its bounds."""
-
-        if self.isEnabled():
-            self.hover_rating.emit(self.star_index * 2)
-        super().enterEvent(event)
-
-    def leaveEvent(self, event) -> None:  # pylint: disable=invalid-name
-        """Clear the hover highlight when the pointer leaves the star."""
-
-        if self.isEnabled():
-            self.hover_rating.emit(0)
-        super().leaveEvent(event)
-
-    def mousePressEvent(self, event: QMouseEvent) -> None:  # pylint: disable=invalid-name
-        """Translate a click into a concrete rating value."""
-
-        if self.isEnabled() and event.button() == Qt.MouseButton.LeftButton:
-            rating = self._rating_from_position(event.position().x())
-            self.rating_chosen.emit(rating)
-            event.accept()
-            return
-        super().mousePressEvent(event)
-
-
-class CompletionRatingWidget(QFrame):
-    """Five-star rating control that persists ratings per facet."""
-
-    rating_saved = pyqtSignal(int)
-
-    def __init__(self, dataset: "DatasetDatabase", parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.log = logging.getLogger("CompletionRatingWidget")
-        self.dataset = dataset
-        self.completion: "PromptCompletion | None" = None
-        self.facet: "Facet | None" = None
-        self.rating_record: "PromptCompletionRating | None" = None
-        self.current_rating: int = 0
-        self.hover_rating: int = 0
-        self._star_icon_size = 28
-
-        self._setup_ui()
-        self._connect_signals()
-
-    def _setup_ui(self) -> None:
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
-
-        self.star_buttons: list[_StarButton] = []
-        for index in range(1, 6):
-            button = _StarButton(index, self)
-            button.setIconSize(QSize(self._star_icon_size, self._star_icon_size))
-            button.setEnabled(False)
-            layout.addWidget(button)
-            self.star_buttons.append(button)
-
-        self._apply_rating_to_stars(0)
-
-    def _connect_signals(self) -> None:
-        for button in self.star_buttons:
-            button.hover_rating.connect(self._on_star_hover)
-            button.rating_chosen.connect(self._on_star_clicked)
-
-    def set_context(
-        self,
-        completion: "PromptCompletion | None",
-        facet: "Facet | None",
-    ) -> None:
-        """Bind the widget to *completion* and *facet* and refresh UI state."""
-
-        self.completion = completion
-        self.facet = facet
-        self.rating_record = None
-        self.current_rating = 0
-        self.hover_rating = 0
-
-        if not completion or not facet:
-            self._set_enabled_state(False)
-            self._apply_rating_to_stars(0)
-            self._update_star_tooltips()
-            return
-
-        try:
-            self.rating_record = PromptCompletionRating.get(self.dataset, completion, facet)
-        except RuntimeError as exc:  # pragma: no cover - defensive guard
-            self.log.error("Unable to fetch rating: %s", exc)
-            self._set_enabled_state(False)
-            self._apply_rating_to_stars(0)
-            self._update_star_tooltips()
-            return
-
-        self.current_rating = self.rating_record.rating if self.rating_record else 0
-        self._set_enabled_state(True)
-        self._apply_rating_to_stars(self.current_rating)
-        self._update_star_tooltips()
-
-    def _set_enabled_state(self, enabled: bool) -> None:
-        for button in self.star_buttons:
-            button.setEnabled(enabled)
-
-    def _update_star_tooltips(self) -> None:
-        if not self.facet:
-            tooltip = "Select a facet to rate this completion."
-            for button in self.star_buttons:
-                button.setToolTip(tooltip)
-            return
-
-        facet_name = self.facet.name
-        if self.rating_record:
-            tooltip = f"{facet_name}: {self.current_rating}/10"
-        else:
-            tooltip = f"Click to rate {facet_name}"
-
-        for index, button in enumerate(self.star_buttons, start=1):
-            base = (index - 1) * 2
-            button.setToolTip(f"{tooltip} (≥ {base + 1}/10)")
-
-    def _on_star_hover(self, rating: int) -> None:
-        if self.rating_record is not None:
-            return
-        self.hover_rating = rating
-        self._apply_rating_to_stars(rating or self.current_rating)
-
-    def _on_star_clicked(self, rating: int) -> None:
-        if not self.completion or not self.facet:
-            return
-
-        if self.rating_record and self.rating_record.rating == rating:
-            return
-
-        if self.rating_record:
-            answer = QMessageBox.question(
-                self,
-                "Update rating",
-                (
-                    f"Replace the existing rating ({self.rating_record.rating}/10) "
-                    f"for facet '{self.facet.name}' with {rating}/10?"
-                ),
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if answer != QMessageBox.StandardButton.Yes:
-                self._apply_rating_to_stars(self.current_rating)
-                return
-
-        self._persist_rating(rating)
-
-    def _persist_rating(self, rating: int) -> None:
-        if not self.completion or not self.facet:
-            return
-
-        try:
-            self.rating_record = PromptCompletionRating.set_rating(
-                self.dataset,
-                self.completion,
-                self.facet,
-                rating,
-            )
-        except ValueError as exc:
-            self.log.error("Invalid rating: %s", exc)
-            return
-
-        self.current_rating = self.rating_record.rating
-        self.hover_rating = 0
-        self._apply_rating_to_stars(self.current_rating)
-        self._update_star_tooltips()
-        self.rating_saved.emit(self.current_rating)
-
-    def _color_for_rating(self, rating: int) -> str:
-        if rating >= 8:
-            return HIGH_RATING_COLOR
-        if rating >= 5:
-            return MID_RATING_COLOR
-        if rating > 0:
-            return LOW_RATING_COLOR
-        return EMPTY_STAR_COLOR
-
-    def _apply_rating_to_stars(self, rating: int) -> None:
-        color = self._color_for_rating(rating)
-        for index, button in enumerate(self.star_buttons, start=1):
-            star_progress = rating - (index - 1) * 2
-            if star_progress >= 2:
-                icon = google_icon_font.pixmap(
-                    "star_rate", size=self._star_icon_size, color=color, fill=1.0
-                )
-            elif star_progress == 1:
-                icon = google_icon_font.pixmap(
-                    "star_rate_half", size=self._star_icon_size, color=color, fill=1.0
-                )
-            else:
-                icon = google_icon_font.pixmap(
-                    "star_rate", size=self._star_icon_size, color=EMPTY_STAR_COLOR, fill=0.0
-                )
-            button.setIcon(QIcon(icon))
-
-
 class CompletionFrame(QFrame):
-    """Card-like presentation of a single completion and its metadata."""
+    """Card-style shell that wraps completion metadata, rating control, and inline actions."""
+
+    archive_toggled = pyqtSignal(object, bool)
+    resume_requested = pyqtSignal(object)
+    evaluate_requested = pyqtSignal(object, str)
 
     icons_size = 24
-
+    actions_icon_size = 22
     def __init__(
         self,
         dataset: "DatasetDatabase",
@@ -285,6 +54,12 @@ class CompletionFrame(QFrame):
         self.completion = completion
         self.current_facet: "Facet | None" = None
         self.temperature_label: QWidget | None = None
+        self.target_model: str | None = None
+
+        self.actions_layout: QHBoxLayout | None = None
+        self.archive_button: QPushButtonWithIcon | None = None
+        self.resume_button: QPushButtonWithIcon | None = None
+        self.evaluate_button: QPushButtonWithIcon | None = None
 
         self.setup_ui()
         self.connect_signals()
@@ -317,13 +92,41 @@ class CompletionFrame(QFrame):
         self.text_edit.setSizePolicy(policy)
         self.main_layout.addWidget(self.text_edit)
 
-        self.rating_widget = CompletionRatingWidget(self.dataset, self)
-        self.main_layout.addWidget(self.rating_widget)
+        self.actions_layout = QHBoxLayout()
+        self.actions_layout.setContentsMargins(0, 0, 0, 0)
+        self.actions_layout.setSpacing(0)
+
+        self.rating_widget = CompletionRatingWidget(self.dataset, self, icon_size=self.actions_icon_size)
+        self.actions_layout.addWidget(self.rating_widget)
+        self.actions_layout.addStretch()
+
+        self.resume_button = QPushButtonWithIcon("resume", parent=self, icon_size=self.actions_icon_size, button_size=40)
+        self.resume_button.setFlat(True)
+        self.resume_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.resume_button.hide()
+        self.actions_layout.addWidget(self.resume_button)
+
+        self.evaluate_button = QPushButtonWithIcon("search_insights", parent=self, icon_size=self.actions_icon_size, button_size=40)
+        self.evaluate_button.setFlat(True)
+        self.evaluate_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.evaluate_button.hide()
+        self.actions_layout.addWidget(self.evaluate_button)
+
+        self.archive_button = QPushButtonWithIcon("archive", parent=self, icon_size=self.actions_icon_size, button_size=40)
+        self.archive_button.setFlat(True)
+        self.archive_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.actions_layout.addWidget(self.archive_button)
+
+        self.main_layout.addLayout(self.actions_layout)
 
     def connect_signals(self) -> None:
         """Wire internal signals for logging purposes."""
-
+        if self.archive_button is None or self.resume_button is None or self.evaluate_button is None:
+            raise RuntimeError("Action buttons not initialized before connecting signals.")
         self.rating_widget.rating_saved.connect(self._log_rating_saved)
+        self.archive_button.clicked.connect(self._on_archive_clicked)
+        self.resume_button.clicked.connect(self._on_resume_clicked)
+        self.evaluate_button.clicked.connect(self._on_evaluate_clicked)
 
     def _log_rating_saved(self, rating: int) -> None:
         """Log rating persistence for debugging purposes."""
@@ -339,12 +142,89 @@ class CompletionFrame(QFrame):
         self._populate_status_icons(completion)
         self._update_text_display(completion)
         self.rating_widget.set_context(self.completion, self.current_facet)
+        self._update_action_buttons()
 
     def set_facet(self, facet: "Facet | None") -> None:
         """Update the currently active facet and refresh rating display."""
 
         self.current_facet = facet
         self.rating_widget.set_context(self.completion, facet)
+        self._update_action_buttons()
+
+    def set_target_model(self, model_name: str | None) -> None:
+        """Set the active evaluation model for logprob checks."""
+
+        self.target_model = model_name
+        self._update_action_buttons()
+
+    def _update_action_buttons(self) -> None:
+        if not self.archive_button or not self.resume_button or not self.evaluate_button:
+            return
+
+        self._update_archive_button()
+
+        if self.completion.is_truncated:
+            self.resume_button.show()
+            self.resume_button.setToolTip("Resume generation from this truncated completion.")
+        else:
+            self.resume_button.hide()
+
+        needs_evaluate = self._needs_evaluate_button()
+        self.evaluate_button.setVisible(needs_evaluate)
+        if needs_evaluate and self.target_model:
+            self.evaluate_button.setToolTip(
+                f"Evaluate logprobs for '{self.target_model}'."
+            )
+        elif needs_evaluate:
+            self.evaluate_button.setToolTip("Evaluate logprobs for the active model.")
+        else:
+            self.evaluate_button.setToolTip("Logprobs already available for the active model.")
+
+    def _update_archive_button(self) -> None:
+        if not self.archive_button:
+            return
+
+        if self.completion.is_archived:
+            self.archive_button.setIcon(google_icon_font.as_icon("unarchive"))
+            self.archive_button.setToolTip("Unarchive this completion")
+        else:
+            self.archive_button.setIcon(google_icon_font.as_icon("archive"))
+            self.archive_button.setToolTip("Archive this completion")
+
+    def _needs_evaluate_button(self) -> bool:
+        if not self.target_model:
+            return False
+
+        if not self.completion.logprobs:
+            return True
+
+        return not any(
+            logprob.logprobs_model_id == self.target_model for logprob in self.completion.logprobs
+        )
+
+    def _on_archive_clicked(self) -> None:
+        if not self.dataset.session:
+            self.log.error("Cannot toggle archive state without an active dataset session.")
+            return
+
+        new_state = not self.completion.is_archived
+        self.completion.is_archived = new_state
+        try:
+            self.dataset.commit()
+        except RuntimeError as exc:  # pragma: no cover - defensive guard
+            self.log.error("Failed to persist archive change: %s", exc)
+            self.completion.is_archived = not new_state
+            return
+
+        self._update_action_buttons()
+        self.archive_toggled.emit(self.completion, new_state)
+
+    def _on_resume_clicked(self) -> None:
+        self.resume_requested.emit(self.completion)
+
+    def _on_evaluate_clicked(self) -> None:
+        target = self.target_model or self.completion.model_id
+        self.evaluate_requested.emit(self.completion, target)
 
     def _update_temperature_label(self, completion: "PromptCompletion") -> None:
         if self.temperature_label is not None:

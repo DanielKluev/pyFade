@@ -16,6 +16,7 @@ common_icons_map = {
     "keep": "\ue6aa",  # Pin icon
     "keep_off": "\ue6f9",  # Pin off icon
     "inventory_2": "\ue1a1",  # archive icon
+    "unarchive": "\ue169",  # unarchive icon
     "label": "\ue892",  # label / tag icon
     "new_label": "\ue609",  # new label / tag icon
     "diamond": "\ue19c",  # diamond / facet icon
@@ -32,6 +33,7 @@ common_icons_map = {
     "mode_cool": "\uf166",  # snow flake icon, low temperature
     "star_rate": "\uf0ec",  # star / rating icon, if filled then filled star, else outlined
     "star_rate_half": "\uec45",  # half star icon
+    "resume": "\uf7d0",  # resume / play icon
 }
 
 # Important: icons_aliases holds higher priority than common_icons_map
@@ -43,6 +45,7 @@ icons_aliases = {
     "is_truncated": "auto_read_pause",
     "prefill": "transition_push",
     "temperature": "device_thermostat",
+    "archive": "inventory_2",
 }
 
 
@@ -139,7 +142,10 @@ class GoogleIconFontWrapper:
 
         label = QLabel(char)
         label.setFont(font)
-        label.setStyleSheet(f"color: {color}; font-family: 'Material Symbols Outlined'; font-size: {size}px;") ## **KEEP AS IS**
+        label.setStyleSheet(
+            f"color: {color}; font-family: 'Material Symbols Outlined'; "
+            f"font-size: {size}px;"
+        )  ## **KEEP AS IS**
         label.setFixedSize(size, size)
 
         pixmap = QPixmap(label.size())
@@ -151,11 +157,11 @@ class GoogleIconFontWrapper:
 
         return pixmap
 
-    def as_icon(self, name: str) -> QIcon:
+    def as_icon(self, name: str, size: int = 32) -> QIcon:
         """
         Get the icon as a QIcon for the given name.
         """
-        return QIcon(self.pixmap(name))
+        return QIcon(self.pixmap(name, size=size))
 
 
 MATERIAL_SYMBOLS_FONT_PATH = (

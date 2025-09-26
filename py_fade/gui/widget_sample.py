@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -32,6 +33,7 @@ from py_fade.gui.widget_new_completion import NewCompletionFrame
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
+    from py_fade.dataset.completion import PromptCompletion
     from py_fade.providers.llm_response import LLMResponse
 
 
@@ -58,6 +60,9 @@ class WidgetSample(QWidget):
 
     sample_saved = pyqtSignal(object)  # Signal emitted when sample is saved
     sample_copied = pyqtSignal(object)  # Signal emitted when sample is copied
+    completion_archive_toggled = pyqtSignal(object, bool)
+    completion_resume_requested = pyqtSignal(object)
+    completion_evaluate_requested = pyqtSignal(object, str)
 
     def __init__(self, parent: QWidget | None, app: "pyFadeApp", sample: Sample | None = None):
         super().__init__(parent)
@@ -180,9 +185,26 @@ class WidgetSample(QWidget):
         self.output_area.setWidgetResizable(True)
 
         self.output_container = QWidget()
+        self.output_container_layout = QVBoxLayout(self.output_container)
+        self.output_container_layout.setContentsMargins(8, 8, 8, 8)
+        self.output_container_layout.setSpacing(8)
+
+        self.completion_controls_layout = QHBoxLayout()
+        self.completion_controls_layout.setContentsMargins(0, 0, 0, 0)
+        self.completion_controls_layout.setSpacing(6)
+        self.show_archived_checkbox = QCheckBox(
+            "Show archived completions", self.output_container
+        )
+        self.show_archived_checkbox.setChecked(False)
+        self.completion_controls_layout.addWidget(self.show_archived_checkbox)
+        self.completion_controls_layout.addStretch()
+        self.output_container_layout.addLayout(self.completion_controls_layout)
+
         # Use a horizontal layout so completion frames are laid out side-by-side
-        self.output_layout = QHBoxLayout(self.output_container)
+        self.output_layout = QHBoxLayout()
         self.output_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.output_container_layout.addLayout(self.output_layout)
+
         # Make the scroll area scroll horizontally and avoid vertical scrolling
         self.output_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.output_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -202,6 +224,7 @@ class WidgetSample(QWidget):
         self.new_completion_frame.completion_accepted.connect(self.add_completion)
         # Force a fixed width so frames are displayed side-by-side
         self.new_completion_frame.setFixedWidth(500)
+        self.show_archived_checkbox.toggled.connect(self._on_show_archived_toggled)
 
     def update_token_usage(self):
         """Update the token usage label with current prompt and settings."""
@@ -291,6 +314,18 @@ class WidgetSample(QWidget):
                 widget.setParent(None)
                 widget.deleteLater()
 
+    def _create_completion_frame(self, completion: "PromptCompletion") -> CompletionFrame:
+        """Instantiate a completion frame wired with the current context."""
+
+        frame = CompletionFrame(self.dataset, completion, parent=self.output_container)
+        frame.setFixedWidth(360)
+        frame.set_facet(self.active_facet)
+        frame.set_target_model(self.active_model_name)
+        frame.archive_toggled.connect(self._on_completion_archive_toggled)
+        frame.resume_requested.connect(self._on_completion_resume_requested)
+        frame.evaluate_requested.connect(self._on_completion_evaluate_requested)
+        return frame
+
     def populate_outputs(self):
         """Populate the scroll area with completion frames from the sample."""
         self.clear_outputs()
@@ -302,12 +337,40 @@ class WidgetSample(QWidget):
             # No existing completions, just show the NewCompletionFrame
             return
 
-        for c in self.sample.prompt_revision.completions:
-            frame = CompletionFrame(self.dataset, c, parent=self.output_container)
-            # Keep completion frames a fixed width so they appear side-by-side
-            frame.setFixedWidth(360)
-            frame.set_facet(self.active_facet)
+        show_archived = self.show_archived_checkbox.isChecked()
+
+        for completion in self.sample.prompt_revision.completions:
+            if completion.is_archived and not show_archived:
+                continue
+            frame = self._create_completion_frame(completion)
             self.output_layout.addWidget(frame)
+
+    def _on_show_archived_toggled(self, checked: bool) -> None:  # pylint: disable=unused-argument
+        """Repopulate completions when the archived toggle changes."""
+
+        self.populate_outputs()
+
+    def _on_completion_archive_toggled(
+        self,
+        completion: "PromptCompletion",
+        archived: bool,
+    ) -> None:
+        """Forward archive events and refresh visible completions."""
+
+        self.completion_archive_toggled.emit(completion, archived)
+        self.populate_outputs()
+
+    def _on_completion_resume_requested(self, completion: "PromptCompletion") -> None:
+        """Emit a resume request for the given completion."""
+
+        self.completion_resume_requested.emit(completion)
+
+    def _on_completion_evaluate_requested(
+        self, completion: "PromptCompletion", model_name: str
+    ) -> None:
+        """Emit an evaluate request for logprob generation."""
+
+        self.completion_evaluate_requested.emit(completion, model_name)
 
     def add_completion(self, response: "LLMResponse"):
         """
@@ -318,9 +381,10 @@ class WidgetSample(QWidget):
         )
         self.last_prompt_revision = prompt_revision
         # Create a new CompletionFrame for the saved completion
-        frame = CompletionFrame(self.dataset, completion, parent=self.output_container)
-        frame.setFixedWidth(360)
-        frame.set_facet(self.active_facet)
+        frame = self._create_completion_frame(completion)
+        if completion.is_archived and not self.show_archived_checkbox.isChecked():
+            frame.deleteLater()
+            return
         # Insert it after the NewCompletionFrame (index 1)
         self.output_layout.insertWidget(1, frame)
 
@@ -395,3 +459,4 @@ class WidgetSample(QWidget):
             widget = item.widget() if item is not None else None
             if isinstance(widget, CompletionFrame):
                 widget.set_facet(self.active_facet)
+                widget.set_target_model(self.active_model_name)

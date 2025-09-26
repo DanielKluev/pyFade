@@ -12,7 +12,9 @@ from typing import TYPE_CHECKING, Tuple
 import pytest
 from PyQt6.QtWidgets import QMessageBox
 
+from py_fade.app import pyFadeApp
 from py_fade.dataset.completion import PromptCompletion
+from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.facet import Facet
@@ -24,13 +26,12 @@ from py_fade.gui.widget_sample import WidgetSample
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
-    from py_fade.app import pyFadeApp
-    from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.providers.llm_response import LLMResponse
 
 
 def _build_sample_with_completion(
     dataset: "DatasetDatabase",
+    **completion_overrides,
 ) -> Tuple[Sample, PromptCompletion]:
     """Create a persisted sample with a single completion for tests."""
 
@@ -45,21 +46,24 @@ def _build_sample_with_completion(
         session.commit()
 
     completion_text = "Once upon a midnight dreary, while I pondered, weak and weary."
-    completion = PromptCompletion(
-        prompt_revision=prompt_revision,
-        sha256=hashlib.sha256(completion_text.encode("utf-8")).hexdigest(),
-        model_id="mock-echo",
-        temperature=0.3,
-        top_k=1,
-        prefill="Once upon",
-        beam_token="upon",
-        completion_text=completion_text,
-        tags=None,
-        context_length=2048,
-        max_tokens=128,
-        is_truncated=False,
-        is_archived=False,
-    )
+    completion_defaults = {
+        "prompt_revision": prompt_revision,
+        "sha256": hashlib.sha256(completion_text.encode("utf-8")).hexdigest(),
+        "model_id": "mock-echo",
+        "temperature": 0.3,
+        "top_k": 1,
+        "prefill": "Once upon",
+        "beam_token": "upon",
+        "completion_text": completion_text,
+        "tags": None,
+        "context_length": 2048,
+        "max_tokens": 128,
+        "is_truncated": False,
+        "is_archived": False,
+    }
+    completion_defaults.update(completion_overrides)
+
+    completion = PromptCompletion(**completion_defaults)
     session.add(completion)
     session.commit()
     session.refresh(completion)
@@ -229,8 +233,6 @@ def test_default_facet_restored_on_dataset_reload(
     fake_home.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(pathlib.Path, "home", lambda: fake_home)
 
-    from py_fade.app import pyFadeApp
-
     config_path = fake_home / "config.yaml"
 
     app = pyFadeApp(config_path=config_path)
@@ -292,3 +294,147 @@ def test_default_facet_restored_on_dataset_reload(
         qt_app.processEvents()
         app_reopened.current_dataset = None
         reopened_dataset.dispose()
+
+
+def test_archive_button_hides_completion_until_toggle_enabled(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+    ensure_google_icon_font: None,
+) -> None:
+    """Archiving a completion hides it unless the archived toggle is enabled."""
+
+    _ = ensure_google_icon_font
+
+    sample, completion = _build_sample_with_completion(temp_dataset)
+
+    widget = WidgetSample(None, app_with_dataset, sample)
+    qt_app.processEvents()
+
+    archive_events: list[tuple[PromptCompletion, bool]] = []
+    widget.completion_archive_toggled.connect(
+        lambda completion_obj, archived: archive_events.append((completion_obj, archived))
+    )
+
+    frame = _first_completion_frame(widget)
+    assert frame.archive_button is not None
+    frame.archive_button.click()
+    qt_app.processEvents()
+
+    assert archive_events, "Archive signal should fire when toggled"
+    assert archive_events[0][0].id == completion.id
+    assert archive_events[0][1] is True
+    assert completion.is_archived is True
+
+    with pytest.raises(AssertionError):
+        _first_completion_frame(widget)
+
+    widget.show_archived_checkbox.setChecked(True)
+    qt_app.processEvents()
+
+    archived_frame = _first_completion_frame(widget)
+    assert archived_frame.completion.is_archived is True
+    assert archived_frame.archive_button is not None
+
+    archived_frame.archive_button.click()
+    qt_app.processEvents()
+
+    assert archive_events[-1][1] is False
+    assert completion.is_archived is False
+
+    widget.show_archived_checkbox.setChecked(False)
+    qt_app.processEvents()
+    unarchived_frame = _first_completion_frame(widget)
+    assert unarchived_frame.completion.is_archived is False
+
+    widget.deleteLater()
+    qt_app.processEvents()
+
+
+def test_resume_button_emits_signal_for_truncated_completion(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+    ensure_google_icon_font: None,
+) -> None:
+    """Truncated completions surface a resume action that emits through WidgetSample."""
+
+    _ = ensure_google_icon_font
+
+    sample, completion = _build_sample_with_completion(temp_dataset, is_truncated=True)
+
+    widget = WidgetSample(None, app_with_dataset, sample)
+    qt_app.processEvents()
+
+    resume_events: list[PromptCompletion] = []
+    widget.completion_resume_requested.connect(resume_events.append)
+
+    frame = _first_completion_frame(widget)
+    assert frame.resume_button is not None
+    assert not frame.resume_button.isHidden()
+
+    frame.resume_button.click()
+    qt_app.processEvents()
+
+    assert resume_events and resume_events[0].id == completion.id
+
+    widget.deleteLater()
+    qt_app.processEvents()
+
+
+def test_evaluate_button_respects_logprob_availability(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+    ensure_google_icon_font: None,
+) -> None:
+    """Evaluate button appears only when logprobs for the target model are missing."""
+
+    _ = ensure_google_icon_font
+
+    sample, completion = _build_sample_with_completion(temp_dataset)
+
+    widget = WidgetSample(None, app_with_dataset, sample)
+    qt_app.processEvents()
+
+    widget.set_active_context(None, "target-model")
+    qt_app.processEvents()
+
+    evaluate_events: list[tuple[PromptCompletion, str]] = []
+    widget.completion_evaluate_requested.connect(
+        lambda completion_obj, model_name: evaluate_events.append((completion_obj, model_name))
+    )
+
+    frame = _first_completion_frame(widget)
+    assert frame.evaluate_button is not None
+    assert not frame.evaluate_button.isHidden()
+
+    frame.evaluate_button.click()
+    qt_app.processEvents()
+
+    assert evaluate_events and evaluate_events[0][0].id == completion.id
+    assert evaluate_events[0][1] == "target-model"
+
+    session = temp_dataset.session
+    assert session is not None
+    session.add(
+        PromptCompletionLogprobs(
+            prompt_completion_id=completion.id,
+            logprobs_model_id="target-model",
+            logprobs=[{"token": "a", "logprob": -1.0, "top_logprobs": []}],
+            min_logprob=-1.0,
+            avg_logprob=-1.0,
+        )
+    )
+    session.commit()
+    session.refresh(completion)
+
+    widget.populate_outputs()
+    qt_app.processEvents()
+
+    refreshed_frame = _first_completion_frame(widget)
+    assert refreshed_frame.evaluate_button is not None
+    assert refreshed_frame.evaluate_button.isHidden()
+
+    widget.deleteLater()
+    qt_app.processEvents()
