@@ -7,8 +7,9 @@ pyFADE supports encrypting datasets using SQLCipher, which is an extension to SQ
 To use SQLCipher encryption in pyFADE, the following steps are necessary:
 - The `sqlcipher3` Python package must be installed. On Windows, it requires compiling it from source, which can be complex. Precompiled binaries are available for some platforms.
 - When creating or opening a dataset, a password must be provided. This password is used to derive the encryption key.
-- Non-encrypted datasets can be encrypted at any moment, via File -> Encrypt Dataset menu action.
-- Encrypted datasets can be decrypted via File -> Decrypt Dataset menu action.
+- Non-encrypted datasets can be encrypted at any moment via **File → Encrypt and Save As…**, which writes a SQLCipher copy without modifying the original file.
+- Encrypted datasets expose **File → Change Password…** to rotate credentials in place and **File → Save Unencrypted Copy As…** to create a plain SQLite export.
+- After any encryption state change the workspace prompts you to reopen the dataset so cached state and active widgets refresh cleanly.
 
 ## Exported datasets encryption
 

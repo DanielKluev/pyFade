@@ -3,7 +3,7 @@
 import importlib
 import importlib.util
 import logging
-
+import sys
 
 class FeaturesChecker:
     """Probe the runtime to discover availability of optional dependencies."""
@@ -58,12 +58,16 @@ class FeaturesChecker:
         try:
             if importlib.util.find_spec(module_name) is None:
                 raise ImportError("sqlcipher3 module not found")
-            sqlcipher3 = importlib.import_module(module_name)
+            # Resort to direct import attempt as importlib fails to load sqlcipher3 correctly
+            import sqlcipher3  # type: ignore[import]
             if not hasattr(sqlcipher3, "connect"):
+                self.log.error("sqlcipher3 module: %s, module is present, but connect function is missing", dir(sqlcipher3))
                 raise ImportError("sqlcipher3 module does not have 'connect' attribute")
             result = True
         except ImportError as exc:
-            self.log.debug("Feature '%s' check failed: %s", feature_name, exc)
+            self.log.error("Feature '%s' check failed: %s", feature_name, exc)
+            paths = sys.path
+            self.log.debug("sys.path: %s", paths)
 
         self.features[feature_name] = result
         return result

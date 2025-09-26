@@ -10,11 +10,16 @@ import logging
 import pathlib
 import sys
 
+## MUST keep it on top of imports, as they may rely on path changes. **NEVER** move this.
+from py_fade.app_config import AppConfig
+
+## MUST keep it on top of imports, as they may rely on path changes. **NEVER** move this. Disable pylint warning as it's intentional.
+from py_fade.features_checker import SUPPORTED_FEATURES # pylint: disable=unused-import,wrong-import-order
+
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication, QWidget
 from qt_material import apply_stylesheet
 
-from py_fade.app_config import AppConfig
 from py_fade.controllers.text_generation_controller import TextGenerationController
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.prompt import PromptRevision
@@ -120,6 +125,32 @@ class PyFadeApp:
         self.show_dataset_gui(dataset)
         return dataset
 
+    def close_current_dataset(self, *, show_launcher_window: bool = False) -> None:
+        """Dispose of the active dataset workspace and optionally present the launcher."""
+
+        if self.dataset_widget is not None:
+            self.dataset_widget.close()
+            self.dataset_widget = None
+
+        if self.current_dataset is not None:
+            self.current_dataset.dispose()
+            self.current_dataset = None
+
+        self.cached_text_generation_controllers.clear()
+        self.cached_text_generation_controllers_list.clear()
+
+        if show_launcher_window:
+            self.launcher = show_launcher(self)
+            q_app = self._require_q_app()
+            apply_stylesheet(q_app, theme=self.config.theme)
+
+    def reload_dataset(self, path: str | pathlib.Path, password: str) -> DatasetDatabase | None:
+        """Reopen a dataset from *path* ensuring a fresh application state."""
+
+        self.close_current_dataset(show_launcher_window=False)
+        self.current_dataset = None
+        return self.open_dataset(path, password)
+
     def get_or_create_text_generation_controller(
         self,
         mapped_model: MappedModel | str,
@@ -135,7 +166,8 @@ class PyFadeApp:
         if dataset is None:
             if self.current_dataset is None:
                 raise RuntimeError(
-                    "No dataset is currently open. Please open a dataset first or provide a dataset parameter."
+                    "No dataset is currently open. Please open a dataset first "
+                    "or provide a dataset parameter."
                 )
             dataset = self.current_dataset
 

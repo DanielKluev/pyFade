@@ -1,6 +1,10 @@
+"""Tests for the dataset workspace QMainWindow."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+
+from PyQt6.QtWidgets import QMainWindow
 
 from py_fade.dataset.facet import Facet
 from py_fade.gui.widget_dataset_top import WidgetDatasetTop
@@ -11,13 +15,24 @@ if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
 
 
-def _create_dataset_widget(app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase", qt_app: "QApplication") -> WidgetDatasetTop:
+def _create_dataset_widget(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+) -> WidgetDatasetTop:
     widget = WidgetDatasetTop(None, app_with_dataset, temp_dataset)
     qt_app.processEvents()
     return widget
 
 
-def test_context_selection_persisted_and_reloaded(app_with_dataset, temp_dataset, ensure_google_icon_font, qt_app):
+def test_context_selection_persisted_and_reloaded(
+    app_with_dataset,
+    temp_dataset,
+    ensure_google_icon_font,
+    qt_app,
+):
+    """Context changes persist to config and reapply when widget reloads."""
+    _ = ensure_google_icon_font
     facet = Facet.create(temp_dataset, "Primary Facet", "Facet used for context tests")
     temp_dataset.commit()
 
@@ -28,7 +43,9 @@ def test_context_selection_persisted_and_reloaded(app_with_dataset, temp_dataset
         facet_index = widget.facet_combo.findText(facet.name)
         assert facet_index >= 0
         widget.facet_combo.setCurrentIndex(facet_index)
-        widget._on_facet_selection_changed(facet_index)
+        widget._on_facet_selection_changed(  # pylint: disable=protected-access
+            facet_index
+        )
         qt_app.processEvents()
 
         key = str(temp_dataset.db_path.resolve())
@@ -36,7 +53,9 @@ def test_context_selection_persisted_and_reloaded(app_with_dataset, temp_dataset
         assert prefs.get("facet_id") == facet.id
         assert prefs.get("model_name") == widget.current_model_name
 
-        sample_widgets = [info["widget"] for info in widget.tabs.values() if info["type"] == "sample"]
+        sample_widgets = [
+            info["widget"] for info in widget.tabs.values() if info["type"] == "sample"
+        ]
         assert sample_widgets
         sample_widget = sample_widgets[0]
         assert sample_widget.active_facet is not None
@@ -56,7 +75,14 @@ def test_context_selection_persisted_and_reloaded(app_with_dataset, temp_dataset
         qt_app.processEvents()
 
 
-def test_close_tab_keeps_overview_and_removes_sample(app_with_dataset, temp_dataset, ensure_google_icon_font, qt_app):
+def test_close_tab_keeps_overview_and_removes_sample(
+    app_with_dataset,
+    temp_dataset,
+    ensure_google_icon_font,
+    qt_app,
+):
+    """Closing a tab removes it while keeping non-closable overview tab present."""
+    _ = ensure_google_icon_font
     Facet.create(temp_dataset, "Aux", "Facet for close tab test")
     temp_dataset.commit()
 
@@ -82,6 +108,39 @@ def test_close_tab_keeps_overview_and_removes_sample(app_with_dataset, temp_data
 
         assert id(widget.overview_widget) in widget.tabs
         assert widget.tab_widget.count() > 0
+    finally:
+        widget.deleteLater()
+        qt_app.processEvents()
+
+
+def test_qmainwindow_menu_bar_is_external(
+    app_with_dataset,
+    temp_dataset,
+    ensure_google_icon_font,
+    qt_app,
+):
+    """Dataset workspace should use QMainWindow with menu bar outside central widget."""
+
+    _ = ensure_google_icon_font
+    Facet.create(temp_dataset, "Menu Test Facet", "Facet to ensure menu layout")
+    temp_dataset.commit()
+
+    widget = _create_dataset_widget(app_with_dataset, temp_dataset, qt_app)
+    try:
+        assert isinstance(widget, QMainWindow)
+        assert widget.menu_bar is widget.menuBar()
+        assert widget.menu_bar is not None
+        assert widget.menu_bar.parentWidget() is widget
+
+        central_widget = widget.centralWidget()
+        assert central_widget is not None
+        layout = central_widget.layout()
+        assert layout is not None
+        assert layout.count() == 1
+        first_item = layout.itemAt(0)
+        assert first_item is not None
+        assert first_item.widget() is widget.main_splitter
+        assert widget.main_splitter.parentWidget() is central_widget
     finally:
         widget.deleteLater()
         qt_app.processEvents()

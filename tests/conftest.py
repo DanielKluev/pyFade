@@ -1,14 +1,19 @@
 """Pytest fixtures for GUI and dataset tests."""
+# pylint: disable=redefined-outer-name,unused-argument,import-outside-toplevel
 from __future__ import annotations
 
 import logging
 import os
 import pathlib
+
 from collections.abc import Generator
 from typing import TYPE_CHECKING, cast
 
 import pytest
 from PyQt6.QtWidgets import QApplication
+
+## MUST keep it before any other py_fade imports, as they may rely on path changes.
+from py_fade.features_checker import SUPPORTED_FEATURES  # pylint: disable=unused-import # Handle fragile imports first.
 
 from py_fade.dataset.dataset import DatasetDatabase
 
@@ -44,9 +49,7 @@ def temp_dataset(tmp_path: pathlib.Path) -> Generator[DatasetDatabase, None, Non
     try:
         yield dataset
     finally:
-        if dataset.session:
-            dataset.session.close()
-        dataset.engine.dispose()
+        dataset.dispose()
 
 
 @pytest.fixture
