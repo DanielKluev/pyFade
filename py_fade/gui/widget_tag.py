@@ -28,7 +28,7 @@ from PyQt6.QtWidgets import (
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.tag import Tag
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
-from py_fade.gui.components.widget_label_with_icon import QLabelWithIcon
+from py_fade.gui.components.widget_label_with_icon import QLabelWithIconAndText
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -79,7 +79,7 @@ class WidgetTag(QWidget):
         main_layout.setSpacing(12)
 
         header_layout = QHBoxLayout()
-        self.header_label = QLabelWithIcon("label", "Tag Details")
+        self.header_label = QLabelWithIconAndText("label", "Tag Details")
         self.header_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #00796B;")
         header_layout.addWidget(self.header_label)
         header_layout.addStretch()

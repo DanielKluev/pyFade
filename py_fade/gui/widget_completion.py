@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 
 from py_fade.gui.auxillary import logprob_to_qcolor
 from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
+from py_fade.gui.components.widget_label_with_icon import QLabelWithIcon, QLabelWithIconAndText
 
 if TYPE_CHECKING:
     from py_fade.dataset.completion import PromptCompletion
@@ -31,61 +32,52 @@ class CompletionFrame(QFrame):
 
         layout = QVBoxLayout(self)
 
-        header = QLabel(
-            f"""<span style="font-family: 'Material Symbols Outlined';">{google_icon_font.codepoint('model')}</span> {completion.model_id} <span style="font-family: 'Material Symbols Outlined';">{google_icon_font.codepoint('temperature')}</span> {completion.temperature} | top_k={completion.top_k}"""
-        )
-        header.setFont(google_icon_font.icon_font)
-        # header.setStyleSheet("font-family: 'Material Symbols Outlined'; font-size: 16px; font-weight: bold;")
+        header_layout = QHBoxLayout()
+
+        ## Model ID with icon
+        self.model_label = QLabelWithIconAndText(
+            "model", completion.model_id, size=14, parent=self
+            )
+        header_layout.addWidget(self.model_label)
+        header_layout.addStretch()
+
+        ## Temperature and top_k
+        if completion.temperature is not None and completion.top_k is not None and completion.top_k == 1:
+            self.temperature_label = QLabelWithIcon("mode_cool", size=14, parent=self, color="blue", tooltip=f"Temperature: {completion.temperature}, top_k: {completion.top_k}")
+        else:
+            self.temperature_label = QLabelWithIconAndText("temperature", f"{completion.temperature}, K: {completion.top_k}", size=14, parent=self, color="red", tooltip=f"Temperature: {completion.temperature}, top_k: {completion.top_k}")
+        header_layout.addWidget(self.temperature_label)
+
+        status_layout = QHBoxLayout()
+        # Is truncated?
+        if completion.is_truncated:
+            self.truncated_label = QLabelWithIcon("is_truncated", size=self.icons_size, color="red", tooltip="Completion was truncated due to max tokens limit.")
+            status_layout.addWidget(self.truncated_label)
+
+       # Prefill
+        if completion.prefill:
+            self.prefill_label = QLabelWithIcon("prefill", size=self.icons_size, tooltip=f"Prefill used: {completion.prefill}")
+            status_layout.addWidget(self.prefill_label)
+
+        # Beam token
+        if completion.beam_token:
+            self.beam_label = QLabelWithIcon("beaming", size=self.icons_size, tooltip=f"Beam token used: '{completion.beam_token}'")
+            status_layout.addWidget(self.beam_label)
+
+        # Metrics (logprobs)
+        if completion.logprobs and completion.logprobs[0].min_logprob is not None:
+            self.metrics_label = QLabelWithIcon("metrics", size=self.icons_size, color="logprob", logprob=completion.logprobs[0].min_logprob, tooltip=f"Logprobs min: {completion.logprobs[0].min_logprob:.3f}, avg: {completion.logprobs[0].avg_logprob:.3f}")
+        else:
+            self.metrics_label = QLabelWithIcon("metrics", size=self.icons_size, color="gray", tooltip="No logprobs available.")
+        status_layout.addWidget(self.metrics_label)
+
+        status_layout.addStretch()
 
         text = QTextEdit(self)
         text.setReadOnly(True)
 
         # Set the full text first
         text.setPlainText(str(completion.completion_text))
-
-        status_layout = QHBoxLayout()
-        if completion.is_truncated:
-            self.truncated_label = QLabel()
-            self.truncated_label.setPixmap(
-                google_icon_font.pixmap("is_truncated", size=self.icons_size, color="red")
-            )
-            self.truncated_label.setToolTip("Completion was truncated due to max tokens limit.")
-            status_layout.addWidget(self.truncated_label)
-
-        self.metrics_label = QLabel()
-        if completion.logprobs and completion.logprobs[0].min_logprob is not None:
-            self.metrics_label.setPixmap(
-                google_icon_font.pixmap(
-                    "metrics",
-                    size=self.icons_size,
-                    color=logprob_to_qcolor(completion.logprobs[0].min_logprob),
-                )
-            )
-            self.metrics_label.setToolTip(
-                f"Logprobs min: {completion.logprobs[0].min_logprob:.2f}, avg: {completion.logprobs[0].avg_logprob:.2f}"
-            )
-        else:
-            self.metrics_label.setPixmap(
-                google_icon_font.pixmap("metrics", size=self.icons_size, color="gray")
-            )
-            self.metrics_label.setToolTip("No logprobs available.")
-
-        # Prefill
-        if completion.prefill:
-            self.prefill_label = QLabel()
-            self.prefill_label.setPixmap(google_icon_font.pixmap("prefill", size=self.icons_size))
-            self.prefill_label.setToolTip(f"Prefill used: {completion.prefill}")
-            status_layout.addWidget(self.prefill_label)
-
-        # Beam token
-        if completion.beam_token:
-            self.beam_label = QLabel()
-            self.beam_label.setPixmap(google_icon_font.pixmap("beaming", size=self.icons_size))
-            self.beam_label.setToolTip(f"Beam token used: '{completion.beam_token}'")
-            status_layout.addWidget(self.beam_label)
-
-        status_layout.addWidget(self.metrics_label)
-        status_layout.addStretch()
 
         # Highlight prefill in the completion text if present
         if completion.prefill is not None:
@@ -106,6 +98,6 @@ class CompletionFrame(QFrame):
         policy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         text.setSizePolicy(policy)
 
-        layout.addWidget(header)
+        layout.addLayout(header_layout)
         layout.addLayout(status_layout)
         layout.addWidget(text)

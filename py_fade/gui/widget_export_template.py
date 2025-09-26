@@ -39,7 +39,7 @@ from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.export_template import ExportTemplate
 from py_fade.dataset.facet import Facet
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
-from py_fade.gui.components.widget_label_with_icon import QLabelWithIcon
+from py_fade.gui.components.widget_label_with_icon import QLabelWithIconAndText
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -91,7 +91,7 @@ class WidgetExportTemplate(QWidget):
         main_layout.setSpacing(14)
 
         header_layout = QHBoxLayout()
-        self.header_label = QLabelWithIcon("description", "Export Template")
+        self.header_label = QLabelWithIconAndText("description", "Export Template")
         self.header_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #3949AB;")
         header_layout.addWidget(self.header_label)
         header_layout.addStretch()

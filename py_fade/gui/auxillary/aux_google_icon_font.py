@@ -27,6 +27,9 @@ common_icons_map = {
     "add": "\ue145",  # plus / add icon
     "no_encryption": "\ue641",  # no encryption / lock open icon
     "shield_locked": "\uf592",  # shield with lock icon, encrypted
+    "mode_cool": "\uf166",  # snow flake icon, low temperature
+    "star_rate": "\uf0ec",  # star / rating icon, if filled then filled star, else outlined
+    "star_rate_half": "\uec45",  # half star icon
 }
 
 # Important: icons_aliases holds higher priority than common_icons_map
