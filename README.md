@@ -28,10 +28,13 @@ At same time, some personal preferences and biases are cross-domain, implying fa
 
 - [Changelog](Changelog.md)
 
-# Key features
+# Key Features
+- Many completions per prompt, from different models and sampling parameters, including assistant reply prefilling.
+- [Encryption of datasets and exports at rest.](docs/encryption.md)
+
+# Key features (Planned)
  - top_k = 1 generations by different models
  - high temperature generations by different models
- - prefilling generations by different models. Prefilled prefix must be stored separately and displayed in highlighted fashion.
  - manual edits, each edit is a new frame, keeping connections and history
  - ranking of various outputs for DPO/PPO
  - per-model "correct" marking for SFT, markings different for different datasets/facets.

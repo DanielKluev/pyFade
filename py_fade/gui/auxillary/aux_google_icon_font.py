@@ -23,6 +23,8 @@ common_icons_map = {
     "transition_push": "\uf50b", 
     "device_thermostat": "\ue1ff", # temperature / thermostat icon
     "add": "\ue145", # plus / add icon
+    "no_encryption": "\ue641", # no encryption / lock open icon
+    "shield_locked": "\uf592", # shield with lock icon, encrypted
 }
 
 # Important: icons_aliases holds higher priority than common_icons_map

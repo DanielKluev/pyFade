@@ -1,4 +1,4 @@
-import pathlib, hashlib, json
+import pathlib, hashlib, json, math, logging
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.session import Session
@@ -12,6 +12,7 @@ from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.dataset.sample import Sample
 
 from py_fade.providers.llm_response import LLMResponse
+from py_fade.features_checker import SUPPORTED_FEATURES
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -27,9 +28,20 @@ class DatasetDatabase:
     """
     session: Session | None = None
     def __init__(self, db_path: str | pathlib.Path, password: str = ""):
+        self.log = logging.getLogger("DatasetDatabase")
         self.db_path = pathlib.Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.engine = create_engine(f"sqlite:///{self.db_path}")
+        if password: 
+            if not SUPPORTED_FEATURES["sqlcipher3"]:
+                raise RuntimeError("SQLCipher support is not available. Cannot open encrypted database.")
+            if not self.check_password(db_path, password):
+                raise ValueError("Incorrect password for SQLCipher database.")
+            self.log.info(f"Opening SQLCipher encrypted database at {self.db_path}")
+            self.engine = create_engine(f"sqlite+pysqlcipher://:{password}@/{self.db_path}")
+        else:
+            self.log.info(f"Opening unencrypted SQLite database at {self.db_path}")
+            self.engine = create_engine(f"sqlite:///{self.db_path}")
+            
         self.SessionFactory = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         self.dataset_base = dataset_base
         self.password = password
@@ -102,3 +114,68 @@ class DatasetDatabase:
             response = LLMResponse.from_completion_and_logprobs(logprobs.prompt_completion, logprobs)
             responses.append(response)
         return responses
+    
+    @classmethod
+    def check_db_type(cls, db_path: str | pathlib.Path) -> str:
+        """
+        Check if the database at db_path is a valid SQLite, possible SQLCipher or something else.
+        Returns 'sqlite', 'sqlcipher', or 'unknown'.
+        """
+        db_path = pathlib.Path(db_path)
+        if not db_path.exists():
+            return "unknown"
+        
+        with open(db_path, "rb") as f:
+            header = f.read(1024)
+
+        # Check plain SQLite magic header
+        if header.startswith(b"SQLite format 3\000"):
+            return "sqlite"
+
+        # Compute Shannon entropy on first 1 KB
+        freq = {}
+        for byte in header:
+            freq[byte] = freq.get(byte, 0) + 1
+
+        entropy = 0.0
+        length = len(header)
+        for count in freq.values():
+            p = count / length
+            entropy -= p * math.log2(p)
+
+        # Heuristic thresholds:
+        # - Random/encrypted data ~7.9–8.0 bits/byte
+        # - Text/structured file significantly lower
+        if entropy > 7.5:
+            return "sqlcipher"
+        return "unknown"
+    
+    @classmethod
+    def check_password(cls, db_path: str | pathlib.Path, password: str) -> bool:
+        """
+        Check if the provided password can successfully open the SQLCipher database.
+        Returns True if successful, False otherwise.
+        """
+        if not SUPPORTED_FEATURES["sqlcipher3"]:
+            return False
+        
+        db_path = pathlib.Path(db_path)
+        if not db_path.exists():
+            return False
+        
+        try:
+            import sqlcipher3 # type: ignore
+        except ImportError:
+            return False
+        
+        try:
+            conn = sqlcipher3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute(f"PRAGMA key = '{password}';")
+            cursor.execute("SELECT count(*) FROM sqlite_master;")
+            cursor.fetchone()
+            conn.close()
+            return True
+        except Exception:
+            return False
+
