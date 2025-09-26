@@ -14,15 +14,11 @@ from PyQt6.QtWidgets import (
     QFrame,
     QComboBox,
     QSpinBox,
-    QDoubleSpinBox,
     QPushButton,
-    QPlainTextEdit,
     QLineEdit,
-    QGroupBox,
     QMessageBox,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QTextCharFormat, QColor
 
 from py_fade.gui.widget_completion import CompletionFrame
 from py_fade.gui.widget_new_completion import NewCompletionFrame

@@ -4,27 +4,17 @@ Widget navigation sidebar for the application.
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
-    QHBoxLayout,
-    QSplitter,
-    QTextEdit,
-    QScrollArea,
     QSizePolicy,
     QLabel,
     QFrame,
     QComboBox,
-    QSpinBox,
-    QDoubleSpinBox,
-    QPushButton,
-    QPlainTextEdit,
     QTreeWidget,
     QTreeWidgetItem,
     QTreeWidgetItemIterator,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QTextCharFormat, QColor
 
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
-from py_fade.gui.components.widget_label_with_icon import QLabelWithIcon
 
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.facet import Facet
@@ -224,7 +214,6 @@ class WidgetNavigationTree(QWidget):
         if not dataset.session:
             raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
-        from py_fade.dataset.tag import Tag
 
         tags = Tag.get_all(dataset)
 

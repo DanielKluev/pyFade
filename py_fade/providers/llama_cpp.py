@@ -1,4 +1,6 @@
-import logging, time, os, pathlib, json
+import logging
+import time
+import os
 
 # Patch path for AMD if needed
 # For Windows, if HIP_PATH is set and value is not in PATH, add it
@@ -9,8 +11,8 @@ if os.name == 'nt':
         os.environ['PATH'] = hip_paths + ";" + os.environ.get('PATH', '')
 
 from py_fade.providers.llm_response import LLMResponse, LLMPTokenLogProbs
-from py_fade.providers.base_provider import BasePrefillAwareProvider, LOGPROB_LEVEL_NONE, LOGPROB_LEVEL_SAMPLED_TOKEN, LOGPROB_LEVEL_TOP_LOGPROBS
-from typing import TYPE_CHECKING, Callable, Optional
+from py_fade.providers.base_provider import BasePrefillAwareProvider, LOGPROB_LEVEL_TOP_LOGPROBS
+from typing import Optional
 
 try:
     import llama_cpp

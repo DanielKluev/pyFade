@@ -1,17 +1,16 @@
 """
 Single sampled completion of single specific prompt under specific parameters.
 """
-import datetime, hashlib, json
-from sqlalchemy import Column, Float, ForeignKey, Integer, String
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy.types import JSON, DateTime
+import hashlib
+from sqlalchemy import ForeignKey, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import JSON
 from py_fade.dataset.dataset_base import dataset_base
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from py_fade.dataset.prompt import PromptRevision
-    from py_fade.dataset.sample import Sample
     from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.providers.llm_response import LLMResponse
 
@@ -67,7 +66,10 @@ class PromptCompletion(dataset_base):
 
         # Also create associated logprobs entry if logprobs are present
         if response.logprobs and len(response.logprobs) > 0 and response.check_full_response_logprobs():
-            logprobs_instance = PromptCompletionLogprobs.get_or_create_from_llm_response(dataset, instance, response)
+            # Create associated logprobs entry if logprobs are present. The helper
+            # handles persistence and returns the instance if needed; we don't use
+            # the return value here.
+            PromptCompletionLogprobs.get_or_create_from_llm_response(dataset, instance, response)
         else:
             print("LLMResponse does not contain valid logprobs for PromptCompletionLogprobs creation.")
         return instance

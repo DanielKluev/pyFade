@@ -9,7 +9,6 @@ from PyQt6.QtWidgets import (
     QCheckBox
 )
 from PyQt6.QtCore import pyqtSignal, Qt
-from PyQt6.QtGui import QPalette
 
 from py_fade.providers.llm_response import LLMPTokenLogProbs
 

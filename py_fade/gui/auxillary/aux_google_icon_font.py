@@ -1,5 +1,6 @@
-import logging, pathlib
-from PyQt6.QtGui import QFontDatabase, QFont, QRawFont, QIcon, QPixmap, QPainter, QColor
+import logging
+import pathlib
+from PyQt6.QtGui import QFontDatabase, QFont, QIcon, QPixmap, QPainter, QColor
 from PyQt6.QtWidgets import QLabel
 from PyQt6.QtCore import Qt
 

@@ -1,8 +1,9 @@
-import pathlib, logging
+import pathlib
+import logging
 
 from py_fade.providers.llm_response import LLMResponse, LLMPTokenLogProbs
 from py_fade.providers.llm_templates import get_template_function
-from py_fade.providers.base_provider import BasePrefillAwareProvider, LOGPROB_LEVEL_NONE, LOGPROB_LEVEL_SAMPLED_TOKEN, LOGPROB_LEVEL_TOP_LOGPROBS
+from py_fade.providers.base_provider import BasePrefillAwareProvider
 from py_fade.providers.mock_provider import MockLLMProvider
 from py_fade.providers.llama_cpp import PrefillAwareLlamaCppInternal, is_llama_cpp_available
 from py_fade.providers.ollama import PrefillAwareOllama, OllamaRegistry
@@ -116,7 +117,7 @@ class InferenceProvidersManager:
         else:
             provider_instance = self.providers[provider_key]
 
-        if not model_id in self.models:
+        if model_id not in self.models:
             self.models[model_id] = {}
         
         mapped_model = MappedModel(model_id, provider_instance, provider_params)

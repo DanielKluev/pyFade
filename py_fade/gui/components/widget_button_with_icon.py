@@ -1,21 +1,6 @@
 from PyQt6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QSplitter,
-    QTextEdit,
-    QScrollArea,
-    QSizePolicy,
-    QLabel,
-    QFrame,
-    QComboBox,
-    QSpinBox,
-    QDoubleSpinBox,
     QPushButton,
-    QPlainTextEdit,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QTextCharFormat, QColor, QTextCursor
 from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
 
 class QPushButtonWithIcon(QPushButton):

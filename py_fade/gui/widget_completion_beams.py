@@ -12,13 +12,11 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QPlainTextEdit,
     QProgressBar,
-    QSizePolicy,
     QDialog,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, pyqtSlot
 from PyQt6.QtGui import QFont
 
-from py_fade.gui.widget_new_completion import NewCompletionFrame
 from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
 from py_fade.gui.components.widget_token_picker import WidgetTokenPicker
 from py_fade.providers.llm_response import LLMResponse
@@ -55,13 +53,15 @@ class BeamGenerationWorker(QThread):
     def run(self):
         try:            
             # Generate beams
-            beams = self.beam_controller.beam_out_on_token_one_level(
+            # Call beam_out_on_token_one_level which uses callbacks to report
+            # each completed beam. We don't need the return value here.
+            self.beam_controller.beam_out_on_token_one_level(
                 prefix=self.prefill,
                 width=self.width,
                 length=self.depth,
                 beam_tokens=self.beam_tokens,
                 on_beam_completed=lambda beam: self.beam_completed.emit(beam),
-                on_check_stop=lambda: self.is_stopped()
+                on_check_stop=lambda: self.is_stopped(),
             )
             
             self.generation_finished.emit()            
@@ -250,10 +250,7 @@ class WidgetCompletionBeams(QWidget):
             return
         
         beam_controller = self._get_or_create_beam_controller()
-        
-        cached_beams = []
-        if self.app.current_dataset:
-            cached_beams = self.app.current_dataset.get_beams_for_prompt_and_model(self.prompt, mapped_model.model_id)
+
         
         # Start worker thread
         self.worker_thread = BeamGenerationWorker(
@@ -277,10 +274,9 @@ class WidgetCompletionBeams(QWidget):
     def _get_or_create_beam_controller(self) -> TextGenerationController:
         """Get or create the beam controller for the current parameters."""
         model_path = self.model_combo.currentText()
-        prompt_text = self.prompt
-        temp = self.temp_spin.value()
-        top_k = self.topk_spin.value()
-        controller = self.app.get_or_create_text_generation_controller(mapped_model=model_path, prompt_revision=prompt_text)
+        controller = self.app.get_or_create_text_generation_controller(
+            mapped_model=model_path, prompt_revision=self.prompt
+        )
         return controller
 
     def selective_beams(self):

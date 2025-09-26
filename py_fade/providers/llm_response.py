@@ -74,7 +74,7 @@ class LLMResponse:
         Go through logprobs and match tokens to full_response_text.
         True if all tokens match and cover full text, False otherwise.
         """
-        if not self.is_full_response_logprobs is None:
+        if self.is_full_response_logprobs is not None:
             return self.is_full_response_logprobs
         if not self.logprobs:
             print("No logprobs available to match full response.")

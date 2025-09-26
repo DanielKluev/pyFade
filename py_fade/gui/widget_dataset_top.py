@@ -34,7 +34,6 @@ from py_fade.dataset.sample import Sample
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.tag import Tag
-from py_fade.dataset.data_filter import DataFilter
 from py_fade.dataset.export_template import ExportTemplate
 
 from typing import TYPE_CHECKING
@@ -143,9 +142,9 @@ class WidgetDatasetTop(QWidget):
         """Connect signals between components."""
         self.sidebar.item_selected.connect(self._on_navigation_item_selected)
         self.sidebar.new_item_requested.connect(self._on_new_item_requested)
-        if not self.facet_combo is None:
+        if self.facet_combo is not None:
             self.facet_combo.currentIndexChanged.connect(self._on_facet_selection_changed)
-        if not self.model_combo is None:
+        if self.model_combo is not None:
             self.model_combo.currentTextChanged.connect(self._on_model_selection_changed)
 
     def _dataset_pref_key(self) -> str:

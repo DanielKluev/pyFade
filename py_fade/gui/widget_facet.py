@@ -1,4 +1,14 @@
-from py_fade.gui.gui_helpers import * # Common GUI imports and types
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGroupBox,
+    QLabel,
+    QLineEdit,
+    QPlainTextEdit,
+    QMessageBox,
+)
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.gui.components.widget_label_with_icon import QLabelWithIcon
 

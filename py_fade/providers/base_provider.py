@@ -1,7 +1,5 @@
-import logging
-from ollama import chat, ChatResponse
 from py_fade.providers.llm_response import LLMResponse, LLMPTokenLogProbs
-from py_fade.providers.flat_prefix_template import parse_flat_prefix_string, FLAT_PREFIX_SYSTEM, FLAT_PREFIX_USER, FLAT_PREFIX_ASSISTANT
+from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 from tiktoken import get_encoding
 
 cl100k_base_encoding = None

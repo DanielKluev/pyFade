@@ -1,18 +1,17 @@
 """
 Main entry point for the application. Starts up GUI if needed, loads configs, databases and so on.
 """
-import pathlib, logging, yaml, json, sys, os
+import pathlib
+import logging
+import sys
 from py_fade.app_config import AppConfig
 
 ## Dataset / DB
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.prompt import PromptRevision
-from py_fade.dataset.sample import Sample
 
 ## Providers
-from py_fade.providers.base_provider import BasePrefillAwareProvider
 from py_fade.providers.providers_manager import InferenceProvidersManager, MappedModel
-from py_fade.providers.ollama import PrefillAwareOllama
 
 ## Controllers
 from py_fade.controllers.text_generation_controller import TextGenerationController
@@ -132,7 +131,7 @@ class pyFadeApp:
             prompt_revision = PromptRevision.get_or_create(dataset, prompt_revision, context_length, max_tokens)
             
         key = f"{mapped_model.model_id}|{mapped_model.provider.id}|{dataset.db_path}|{prompt_revision.id}"
-        if not key in self.cached_text_generation_controllers:
+        if key not in self.cached_text_generation_controllers:
             controller = TextGenerationController(self, mapped_model, dataset, prompt_revision)
             controller.load_cache()
             self.cached_text_generation_controllers[key] = controller

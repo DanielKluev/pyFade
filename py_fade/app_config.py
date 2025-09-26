@@ -1,8 +1,11 @@
 """
-Wrapper around dynaconf for user configuration management.
+Application configuration management using YAML files.
+Ensure we have sane defaults and keep all user preferences outside of the repository.
 """
-import os, pathlib, sys, logging, yaml
-from dynaconf import Dynaconf
+import os
+import pathlib
+import logging
+import yaml
 from typing import Optional
 
 class AppConfig:

@@ -1,27 +1,16 @@
 from PyQt6.QtWidgets import (
-    QWidget,
     QVBoxLayout,
     QHBoxLayout,
-    QSplitter,
     QTextEdit,
-    QScrollArea,
     QSizePolicy,
     QLabel,
     QFrame,
-    QComboBox,
-    QSpinBox,
-    QDoubleSpinBox,
-    QPushButton,
-    QPlainTextEdit,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QTextCharFormat, QColor, QTextCursor
 from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
 from py_fade.gui.auxillary import logprob_to_qcolor
-from py_fade.dataset.sample import Sample
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from py_fade.app import pyFadeApp
     from py_fade.dataset.completion import PromptCompletion
 
 class CompletionFrame(QFrame):
@@ -81,7 +70,7 @@ class CompletionFrame(QFrame):
         status_layout.addStretch()
 
         # Highlight prefill in the completion text if present
-        if not completion.prefill is None:
+        if completion.prefill is not None:
             if completion.prefill != "" and completion.prefill in completion.completion_text:
                 prefill_start = completion.completion_text.index(completion.prefill)
                 prefill_end = prefill_start + len(completion.prefill)

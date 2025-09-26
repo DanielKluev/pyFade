@@ -34,6 +34,8 @@ class FeaturesChecker:
             if importlib.util.find_spec(module_name) is None:
                 raise ImportError
             import llama_cpp  # type: ignore
+            if not hasattr(llama_cpp, "Llama"):
+                raise ImportError("llama_cpp module does not have 'Llama' attribute")
             result = True            
         except Exception as e:
             self.log.debug(f"Feature '{feature_name}' check failed: {e}")
@@ -49,6 +51,8 @@ class FeaturesChecker:
             if importlib.util.find_spec(module_name) is None:
                 raise ImportError
             import sqlcipher3  # type: ignore
+            if not hasattr(sqlcipher3, "connect"):
+                raise ImportError("sqlcipher3 module does not have 'connect' attribute")
             result = True
         except Exception as e:
             self.log.debug(f"Feature '{feature_name}' check failed: {e}")

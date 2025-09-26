@@ -1,11 +1,8 @@
 import logging
 from dataclasses import dataclass
-from py_fade.providers.base_provider import BasePrefillAwareProvider, LOGPROB_LEVEL_NONE, LOGPROB_LEVEL_SAMPLED_TOKEN, LOGPROB_LEVEL_TOP_LOGPROBS
 from py_fade.providers.llm_response import LLMResponse, LLMPTokenLogProbs
 
 from py_fade.dataset.prompt import PromptRevision
-from py_fade.dataset.completion import PromptCompletion
-from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 
 from typing import Callable
 from typing import TYPE_CHECKING

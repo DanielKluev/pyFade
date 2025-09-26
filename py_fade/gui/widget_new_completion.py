@@ -2,10 +2,8 @@ from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
-    QSplitter,
     QTextEdit,
     QScrollArea,
-    QSizePolicy,
     QLabel,
     QFrame,
     QComboBox,
@@ -14,14 +12,12 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QPlainTextEdit,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QTextCharFormat, QColor
 
-from py_fade.dataset.sample import Sample
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
-    from py_fade.providers.llm_response import LLMResponse
 
 
 

@@ -1,14 +1,12 @@
-import datetime, hashlib, json
-from sqlalchemy import Column, Float, ForeignKey, Integer, String, BLOB
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+import datetime
+from sqlalchemy import Float, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON, DateTime
 from py_fade.dataset.dataset_base import dataset_base
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from py_fade.dataset.prompt import PromptRevision
     from py_fade.dataset.completion import PromptCompletion
-    from py_fade.dataset.sample import Sample
     from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.providers.llm_response import LLMResponse
 
