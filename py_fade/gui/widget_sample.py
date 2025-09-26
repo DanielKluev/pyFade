@@ -39,7 +39,8 @@ class WidgetSample(QWidget):
     """
     Top-level widget showing prompt, sample controls and scrollable completion frames.
     Horizontal splitter with prompt and sample controls on top, completions below.
-    Completions are `NewCompletionFrame` pinned to the left, existing completions `CompletionFrame` to the right.
+    Completions are `NewCompletionFrame` pinned to the left,
+    existing completions `CompletionFrame` to the right.
 
     Sample controls are:
     - Non-editable input field showing sample ID or "New Sample" if new
@@ -67,6 +68,7 @@ class WidgetSample(QWidget):
 
         self.app = app
         self.dataset = app.current_dataset
+        self.beam_search_widget: WidgetCompletionBeams | None = None
 
         self.setup_ui()
         self.set_sample(sample)
@@ -119,7 +121,9 @@ class WidgetSample(QWidget):
         group_label = QLabel("Group Path:", self)
         self.group_field = QComboBox(self)
         self.group_field.setEditable(True)
-        self.group_field.lineEdit().setPlaceholderText("Example: Big Bench Hard/Math")  # type: ignore
+        group_line_edit = self.group_field.lineEdit()
+        if group_line_edit is not None:
+            group_line_edit.setPlaceholderText("Example: Big Bench Hard/Math")
         # Populate with existing group paths
         group_paths = self.dataset.list_unique_group_paths()
         self.group_field.addItems([""] + group_paths)
@@ -217,16 +221,22 @@ class WidgetSample(QWidget):
         total_tokens = prompt_tokens + max_tokens
 
         # Update label text
-        label_text = f"Tokens: Prompt: {prompt_tokens} | Response: {max_tokens} | Total: {total_tokens} / {context_length}"
+        label_text = (
+            f"Tokens: Prompt: {prompt_tokens} | Response: {max_tokens} | Total: "
+            f"{total_tokens} / {context_length}"
+        )
         self.token_usage_label.setText(label_text)
 
         # Highlight if total exceeds context length
         if total_tokens > context_length:
             self.token_usage_label.setStyleSheet(
-                "color: #ff4444; font-weight: bold; font-size: 11px; padding: 4px; background-color: #ffe6e6;"
+                "color: #ff4444; font-weight: bold; font-size: 11px; padding: 4px; "
+                "background-color: #ffe6e6;"
             )
         else:
-            self.token_usage_label.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
+            self.token_usage_label.setStyleSheet(
+                "color: #666; font-size: 11px; padding: 4px;"
+            )
 
     def set_sample(self, sample: Sample | None):
         """Set the sample and populate UI with sample data."""
@@ -271,6 +281,7 @@ class WidgetSample(QWidget):
         self.populate_outputs()
 
     def clear_outputs(self):
+        """Remove all completion frames except the creation widget."""
         while self.output_layout.count():
             item = self.output_layout.takeAt(0)
             if not item:
@@ -292,9 +303,10 @@ class WidgetSample(QWidget):
             return
 
         for c in self.sample.prompt_revision.completions:
-            frame = CompletionFrame(c, parent=self.output_container)
+            frame = CompletionFrame(self.dataset, c, parent=self.output_container)
             # Keep completion frames a fixed width so they appear side-by-side
             frame.setFixedWidth(360)
+            frame.set_facet(self.active_facet)
             self.output_layout.addWidget(frame)
 
     def add_completion(self, response: "LLMResponse"):
@@ -306,8 +318,9 @@ class WidgetSample(QWidget):
         )
         self.last_prompt_revision = prompt_revision
         # Create a new CompletionFrame for the saved completion
-        frame = CompletionFrame(completion, parent=self.output_container)
+        frame = CompletionFrame(self.dataset, completion, parent=self.output_container)
         frame.setFixedWidth(360)
+        frame.set_facet(self.active_facet)
         # Insert it after the NewCompletionFrame (index 1)
         self.output_layout.insertWidget(1, frame)
 
@@ -377,3 +390,8 @@ class WidgetSample(QWidget):
         self.active_model_name = model_name
         if hasattr(self, "new_completion_frame"):
             self.new_completion_frame.set_selected_model(model_name)
+        for index in range(self.output_layout.count()):
+            item = self.output_layout.itemAt(index)
+            widget = item.widget() if item is not None else None
+            if isinstance(widget, CompletionFrame):
+                widget.set_facet(self.active_facet)

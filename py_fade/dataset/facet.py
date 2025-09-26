@@ -4,13 +4,14 @@ import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Integer, String, desc
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import DateTime
 
 from py_fade.dataset.dataset_base import dataset_base
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
+    from py_fade.dataset.completion_rating import PromptCompletionRating
 
 
 class Facet(dataset_base):
@@ -26,6 +27,12 @@ class Facet(dataset_base):
     total_samples: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     date_created: Mapped[datetime.datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.datetime.now
+    )
+    completion_ratings: Mapped[list["PromptCompletionRating"]] = relationship(
+        "PromptCompletionRating",
+        back_populates="facet",
+        cascade="all, delete-orphan",
+        lazy="selectin",
     )
 
     @classmethod
@@ -60,9 +67,6 @@ class Facet(dataset_base):
         Args:
             dataset: The dataset database instance
             order_by_date: If True, order by date_created descending (newest first)
-
-        Returns:
-            List of all facets
         """
         if not dataset.session:
             raise RuntimeError(
@@ -160,4 +164,7 @@ class Facet(dataset_base):
 
     def __repr__(self) -> str:
         """Detailed string representation of the facet."""
-        return f"Facet(id={self.id}, name='{self.name}', description='{self.description[:50]}...', total_samples={self.total_samples}, date_created={self.date_created})"
+        return (
+            f"Facet(id={self.id}, name='{self.name}', description='{self.description[:50]}...', "
+            f"total_samples={self.total_samples}, date_created={self.date_created})"
+        )

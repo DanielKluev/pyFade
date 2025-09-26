@@ -3,7 +3,8 @@
 ## Version 0.0.1 (to be released)
 
 - Initial public release of pyFADE.
-- Dataset database encryption using SQLCipher with `sqlcipher3` package.
-- Option to encrypt/decrypt/change password of dataset databases.
-- Implemented CRUD UI for Tags, Facets, and Export Templates in the dataset workspace.
-- Added basic unit tests for various parts of the GUI.
+- Major: ⭐ **Per-facet completion ratings** – Completions now include a five-star control with half-star support for fine-grained quality ratings. Ratings are foundation for preparing and exporting datasets for actual fine-tuning.
+- Major: **Dataset database encryption** using SQLCipher with `sqlcipher3` package.
+- Minor: Option to encrypt/decrypt/change password of dataset databases.
+- Minor: CRUD UI for Tags, Facets, and Export Templates in the dataset workspace.
+- QA: Basic unit tests for various parts of the GUI.

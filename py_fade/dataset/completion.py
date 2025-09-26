@@ -10,12 +10,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
+from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.dataset_base import dataset_base
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.dataset.prompt import PromptRevision
     from py_fade.providers.llm_response import LLMResponse
+    from py_fade.dataset.facet import Facet
 
 
 class PromptCompletion(dataset_base):
@@ -38,16 +40,22 @@ class PromptCompletion(dataset_base):
         cascade="all, delete-orphan",
         lazy="select",
     )
+    ratings: Mapped[list["PromptCompletionRating"]] = relationship(
+        "PromptCompletionRating",
+        back_populates="prompt_completion",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
     sha256: Mapped[str] = mapped_column(
         String(64), nullable=False
-    )  # SHA256 hash of completion_text for deduplication. Allow different (prompt_revision_id, sha256) pairs.
+    )  # SHA256 hash of completion_text for deduplication.
+    # Allow different (prompt_revision_id, sha256) pairs.
     model_id: Mapped[str] = mapped_column(nullable=False)
     temperature: Mapped[float] = mapped_column(nullable=False)
     top_k: Mapped[int] = mapped_column(nullable=False)
     prefill: Mapped[str | None] = mapped_column(nullable=True)
-    beam_token: Mapped[str | None] = mapped_column(
-        nullable=True
-    )  # token at which beam tree was forked, if any
+    beam_token: Mapped[str | None] = mapped_column(nullable=True)
+    # Token at which beam tree was forked, if any.
     completion_text: Mapped[str] = mapped_column(nullable=False)
     tags: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     context_length: Mapped[int] = mapped_column(nullable=False)
@@ -105,3 +113,10 @@ class PromptCompletion(dataset_base):
                 "LLMResponse does not contain valid logprobs for PromptCompletionLogprobs creation."
             )
         return instance
+
+    def rating_for_facet(self, facet: "Facet | None") -> "PromptCompletionRating | None":
+        """Return the cached rating for *facet* if it has been loaded."""
+
+        if not facet:
+            return None
+        return next((rating for rating in self.ratings if rating.facet_id == facet.id), None)

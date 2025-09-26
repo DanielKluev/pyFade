@@ -1,3 +1,5 @@
+"""Utilities for rendering Google Material Symbols icons within Qt widgets."""
+
 import logging
 import pathlib
 
@@ -45,72 +47,99 @@ icons_aliases = {
 
 
 class GoogleIconFontWrapper:
-    """
-    Loads and provides access to Google Material Symbols font.
-    """
+    """Loads and provides access to Google Material Symbols font."""
 
     def __init__(self, font_path: str | pathlib.Path):
         self.log = logging.getLogger("GoogleIconFontWrapper")
         self.font_path = pathlib.Path(font_path)
+        self.font_id: int | None = None
+        self.font_family: str | None = None
+        self.icon_font: QFont | None = None
         if not self.font_path.exists():
-            self.log.error(f"Google Material Symbols font file does not exist: {self.font_path}")
+            self.log.error(
+                "Google Material Symbols font file does not exist: %s", self.font_path
+            )
             raise FileNotFoundError(
                 f"Google Material Symbols font file does not exist: {self.font_path}"
             )
 
     def load(self):
-        self.font_id = QFontDatabase.addApplicationFont(str(self.font_path))
-        if self.font_id == -1:
-            self.log.error(f"Failed to load Google Material Symbols font from: {self.font_path}")
+        """Load the Material Symbols font into the application."""
+
+        font_id = QFontDatabase.addApplicationFont(str(self.font_path))
+        if font_id == -1:
+            self.log.error(
+                "Failed to load Google Material Symbols font from: %s", self.font_path
+            )
             raise RuntimeError(
                 f"Failed to load Google Material Symbols font from: {self.font_path}"
             )
-        self.font_family = QFontDatabase.applicationFontFamilies(self.font_id)
-        if not self.font_family:
+        self.font_id = font_id
+
+        families = QFontDatabase.applicationFontFamilies(font_id)
+        if not families:
             self.log.error(
-                f"No font families found in Google Material Symbols font: {self.font_path}"
+                "No font families found in Google Material Symbols font: %s", self.font_path
             )
             raise RuntimeError(
                 f"No font families found in Google Material Symbols font: {self.font_path}"
             )
-        self.font_family = self.font_family[0]
+        self.font_family = families[0]
         self.log.info(
-            f"Loaded Google Material Symbols font '{self.font_family}' from: {self.font_path}"
+            "Loaded Google Material Symbols font '%s' from: %s",
+            self.font_family,
+            self.font_path,
         )
 
-        self.icon_font = QFont(self.font_family)
-        self.icon_font.setPointSize(24)  # Default size, can be changed later
+        icon_font = QFont(self.font_family)
+        icon_font.setPointSize(24)  # Default size, can be changed later
         # self.icon_font.setWeight(QFont.Weight.Thin)
         # self.icon_font.setStyleHint(QFont.StyleHint.TypeWriter)
-        self.icon_font.setVariableAxis(QFont.Tag("wght"), 400.0)
-        self.icon_font.setVariableAxis(QFont.Tag("FILL"), 0.0)  # 0 for outlined, 1 for filled
-        self.icon_font.setVariableAxis(QFont.Tag("GRAD"), 0.0)  # Default; adjust for emphasis
-        self.icon_font.setVariableAxis(
+        icon_font.setVariableAxis(QFont.Tag("wght"), 400.0)
+        icon_font.setVariableAxis(QFont.Tag("FILL"), 0.0)  # 0 for outlined, 1 for filled
+        icon_font.setVariableAxis(QFont.Tag("GRAD"), 0.0)  # Default; adjust for emphasis
+        icon_font.setVariableAxis(
             QFont.Tag("opsz"), 24.0
         )  # Matches font size; use 48 for larger icons
+        self.icon_font = icon_font
 
     def codepoint(self, name: str) -> str:
         """
         Get the icon character for the given name.
         """
-        if name in icons_aliases:
-            name = icons_aliases[name]
-        return common_icons_map.get(name, name)
+        alias = icons_aliases.get(name, name)
+        return common_icons_map.get(alias, alias)
 
-    def pixmap(self, name: str, size: int = 32, color: str | QColor = "black") -> QPixmap:
+    def pixmap(
+        self,
+        name: str,
+        size: int = 32,
+        color: str | QColor = "black",
+        *,
+        fill: float | None = None,
+    ) -> QPixmap:
+        """Render an icon glyph to a pixmap."""
+
         char = self.codepoint(name)
         if not char:
-            self.log.warning(f"Icon name '{name}' not found.")
+            self.log.warning("Icon name '%s' not found.", name)
             char = "?"
 
         if isinstance(color, QColor):
             color = color.name()
 
+        if self.icon_font is None:
+            raise RuntimeError("Google icon font was not loaded. Call google_icon_font.load().")
+
+        font = QFont(self.icon_font)
+        font.setPointSizeF(float(size))
+        font.setVariableAxis(QFont.Tag("opsz"), float(size))
+        if fill is not None:
+            font.setVariableAxis(QFont.Tag("FILL"), float(fill))
+
         label = QLabel(char)
-        label.setFont(self.icon_font)
-        label.setStyleSheet(
-            f"color: {color}; font-family: 'Material Symbols Outlined'; font-size: {size}px;"
-        )
+        label.setFont(font)
+        label.setStyleSheet(f"color: {color}; font-family: 'Material Symbols Outlined'; font-size: {size}px;") ## **KEEP AS IS**
         label.setFixedSize(size, size)
 
         pixmap = QPixmap(label.size())
@@ -129,12 +158,11 @@ class GoogleIconFontWrapper:
         return QIcon(self.pixmap(name))
 
 
-font_path = (
+MATERIAL_SYMBOLS_FONT_PATH = (
     pathlib.Path(__file__).parent.parent.parent.parent
     / "assets"
     / "fonts"
     / "MaterialSymbolsOutlined-VariableFont_FILL,GRAD,opsz,wght.ttf"
 )
-# font_path = pathlib.Path(__file__).parent.parent.parent / "assets" / "fonts" / "MaterialSymbolsOutlined-Light.ttf"
 
-google_icon_font = GoogleIconFontWrapper(font_path)
+google_icon_font = GoogleIconFontWrapper(MATERIAL_SYMBOLS_FONT_PATH)
