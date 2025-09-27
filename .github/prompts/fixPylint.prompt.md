@@ -6,9 +6,15 @@ tools: ['edit', 'search', 'runCommands', 'usages', 'think', 'problems', 'runTest
 
 Your task is to run pylint on the entire pyFade codebase and fix all reported issues. Ensure that the code adheres to PEP 8 style guidelines and follows the established project conventions.
 
-Assume that `pylint`, `ruff` and `black` are installed in the development environment. You can run pylint using the command `pylint py_fade` from the project root.
+Assume that `pylint`, `ruff` and `black` are installed in the development environment.
 
-Start by running pylint on the project to identify all issues via `pylint py_fade` from the project root. Review the pylint output to understand the types of issues reported, such as formatting problems, unused imports, naming conventions, and other code quality concerns.
+Running pylint: 
+ - Use the command `pylint py_fade` from the project root to run pylint on the entire pyFade codebase.
+ - Wait for pylint to complete, as Pylint may take a while to complete, especially on larger codebases.
+ - Collect and review the terminal output for any issues that need to be addressed.
+ - As backup, check `pylint_output.txt` file in the project root for the pylint output. May run `pylint py_fade > pylint_output.txt` to generate the file if it does not exist.
+ 
+Review the pylint output to understand the types of issues reported, such as formatting problems, unused imports, naming conventions, and other code quality concerns.
 Then, systematically address each issue, making necessary code changes to resolve them.
 
 Ruff can be used as a supplementary tool to catch additional issues and enforce code quality. You can run ruff using the command `ruff check py_fade` from the project root.
@@ -19,6 +25,8 @@ Exceptions:
  - R0914: Too many local variables: This is acceptable in complex functions where breaking down the function further would reduce readability.
  - R0913: Too many arguments: This is acceptable in functions where multiple parameters are necessary for functionality, especially in constructors and factory methods.
  - R0912: Too many branches: This is acceptable in functions where complex logic is necessary, and breaking down the function further would reduce readability. One such case is form validation functions.
+
+Code duplications should be addressed by refactoring the code to eliminate redundancy. Look for opportunities to create reusable functions or classes that encapsulate the duplicated logic. Ensure that the refactored code maintains the same functionality while improving maintainability and reducing complexity. Aim for less code, less methods, less classes, less files, while keeping the code readable and maintainable. Do not introduce unnecessary abstractions or over-engineering.
 
 Docstring warnings (C0114, C0115, C0116) should be addressed by adding or improving docstrings to ensure that all modules, classes, and functions are properly documented. Analyze code, its usage, and purpose to write clear and concise docstrings that explain the functionality, usage of the code components and any important details and nuances that developers need to know.
 
