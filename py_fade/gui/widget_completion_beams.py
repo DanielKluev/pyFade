@@ -32,7 +32,6 @@ from py_fade.providers.llm_response import LLMResponse
 if TYPE_CHECKING:
     from py_fade.app import PyFadeApp
     from py_fade.gui.widget_sample import WidgetSample
-    from py_fade.gui.components.widget_completion import CompletionFrame
 
 
 class BeamGenerationWorker(QThread):
@@ -114,7 +113,7 @@ class WidgetCompletionBeams(QWidget):
         self.app = app
         self.prompt = prompt
         self.sample_widget = sample_widget
-        self.beam_frames: list[tuple[LLMResponse, "CompletionFrame"]] = []
+        self.beam_frames: list[tuple[LLMResponse, "BeamCompletionFrame"]] = []
         self.worker_thread: BeamGenerationWorker | None = None
         self.beam_controller: TextGenerationController | None = None  # Reusable beam controller
         self.token_picker_window: QDialog | None = None  # Token picker window
@@ -446,27 +445,15 @@ class WidgetCompletionBeams(QWidget):
 
     def add_beam_frame(self, beam: LLMResponse):
         """Add a beam result to the display grid."""
-        # Import here to avoid circular imports
-        from py_fade.gui.components.widget_completion import CompletionFrame
-        
-        # Ensure we have a dataset to work with
-        if not self.app.current_dataset:
-            raise RuntimeError("No dataset available for beam frame creation")
-        
-        # Create CompletionFrame in beam mode
-        frame = CompletionFrame(
-            dataset=self.app.current_dataset,
-            beam=beam,
-            display_mode="beam",
-            parent=self.beams_container
-        )
+        # Create a modified NewCompletionFrame to display the beam
+        frame = BeamCompletionFrame(self.beams_container, beam)
         frame.setFixedWidth(400)
         frame.setFixedHeight(300)
 
-        # Connect enhanced CompletionFrame signals
-        frame.discarded.connect(self.on_beam_discarded)
-        frame.saved.connect(self.on_beam_accepted)  # Use saved signal as beam accepted
-        frame.pinned.connect(self.on_beam_pinned)
+        # Connect beam frame signals
+        frame.beam_discarded.connect(self.on_beam_discarded)
+        frame.beam_accepted.connect(self.on_beam_accepted)
+        frame.beam_pinned.connect(self.on_beam_pinned)
 
         self.beam_frames.append((beam, frame))
 
@@ -509,21 +496,17 @@ class WidgetCompletionBeams(QWidget):
         # Re-arrange remaining frames in grid
         self.rearrange_beam_grid()
 
-    @pyqtSlot(object, object)
-    def on_beam_accepted(self, frame, completion):
-        """Handle beam acceptance/save - add as completion to sample."""
+    @pyqtSlot(object)
+    def on_beam_accepted(self, frame: "BeamCompletionFrame"):
+        """Handle beam acceptance - add as completion to sample."""
         if self.sample_widget:
-            # For beam mode, we get the frame and completion (or None if not saved yet)
-            # Get the beam from the frame
-            beam = frame.beam
-            if beam:
-                self.sample_widget.add_completion(beam)
+            # Add to sample widget
+            self.sample_widget.add_completion(frame.beam)
 
-    @pyqtSlot(object, bool)
-    def on_beam_pinned(self, frame, is_pinned):
+    @pyqtSlot(object)
+    def on_beam_pinned(self, frame: "BeamCompletionFrame"):
         """Handle beam pin/unpin - update visual state."""
         # Visual feedback is handled in the frame itself
-        # We could add additional logic here if needed
 
     def rearrange_beam_grid(self):
         """Re-arrange beam frames in grid after removal."""
@@ -561,3 +544,118 @@ class WidgetCompletionBeams(QWidget):
 
         # Re-arrange pinned frames in grid
         self.rearrange_beam_grid()
+
+
+class BeamCompletionFrame(QFrame):
+    """Frame for displaying a single beam result."""
+
+    # Signals for beam actions
+    beam_discarded = pyqtSignal(object)  # BeamCompletionFrame
+    beam_accepted = pyqtSignal(object)  # BeamCompletionFrame
+    beam_pinned = pyqtSignal(object)  # BeamCompletionFrame
+
+    beam: LLMResponse
+
+    def __init__(self, parent: QWidget, beam: LLMResponse):
+        super().__init__(parent)
+        self.beam = beam
+        self.is_pinned = False
+        self.is_accepted = False
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setup_ui()
+
+    def setup_ui(self):
+        """Create widgets for displaying beam details and actions."""
+        layout = QVBoxLayout(self)
+
+        # Header with beam info
+        header = QLabel(f"Beam - {self.beam.model_id}")
+        header.setStyleSheet("font-weight: bold; color: #4169e1;")
+        layout.addWidget(header)
+
+        # Stats
+        stats_text = f"Tokens: {len(self.beam.full_response_text.split())}"
+        if hasattr(self.beam, "min_logprob") and self.beam.min_logprob is not None:
+            stats_text += f" | Min logprob: {self.beam.min_logprob:.3f}"
+        stats_label = QLabel(stats_text)
+        stats_label.setStyleSheet("font-size: 11px; color: #666;")
+        layout.addWidget(stats_label)
+
+        # Response text
+        self.response_edit = QPlainTextEdit(self)
+        self.response_edit.setPlainText(self.beam.full_response_text)
+        self.response_edit.setReadOnly(True)
+        layout.addWidget(self.response_edit)
+
+        # Buttons layout
+        buttons_layout = QHBoxLayout()
+
+        # Discard button
+        self.discard_btn = QPushButton(google_icon_font.codepoint("delete"), self)
+        self.discard_btn.setFont(google_icon_font.icon_font)
+        self.discard_btn.setStyleSheet(
+            (
+                "font-family: 'Material Symbols Outlined'; font-size: 24px; "
+                "background-color: #ff6b6b; color: white;"
+            )
+        )
+        self.discard_btn.setFixedSize(48, 48)
+        self.discard_btn.clicked.connect(self.discard_beam)
+        buttons_layout.addWidget(self.discard_btn)
+
+        # Accept button
+        self.accept_btn = QPushButton(google_icon_font.codepoint("check"), self)
+        self.accept_btn.setFont(google_icon_font.icon_font)
+        self.accept_btn.setStyleSheet(
+            (
+                "font-family: 'Material Symbols Outlined'; font-size: 24px; "
+                "background-color: #51cf66; color: white;"
+            )
+        )
+        self.accept_btn.setFixedSize(48, 48)
+        self.accept_btn.clicked.connect(self.accept_beam)
+        buttons_layout.addWidget(self.accept_btn)
+
+        # Pin button
+        self.pin_btn = QPushButton(google_icon_font.codepoint("keep"), self)
+        self.pin_btn.setFont(google_icon_font.icon_font)
+        self.pin_btn.setStyleSheet(
+            (
+                "font-family: 'Material Symbols Outlined'; font-size: 24px; "
+                "background-color: #ffd43b; color: black;"
+            )
+        )
+        self.pin_btn.setFixedSize(48, 48)
+        self.pin_btn.clicked.connect(self.pin_beam)
+        buttons_layout.addWidget(self.pin_btn)
+
+        # Add stretch to push buttons to the left
+        buttons_layout.addStretch()
+
+        layout.addLayout(buttons_layout)
+
+    def discard_beam(self):
+        """Discard this beam and remove frame."""
+        self.beam_discarded.emit(self)
+
+    def accept_beam(self):
+        """Accept this beam as completion."""
+        if not self.is_accepted:
+            self.is_accepted = True
+            self.accept_btn.setEnabled(False)
+            self.accept_btn.setText("Accepted")
+            self.accept_btn.setStyleSheet("background-color: #51cf66; color: white; opacity: 0.5;")
+            self.beam_accepted.emit(self)
+
+    def pin_beam(self):
+        """Toggle pin state of this beam."""
+        self.is_pinned = not self.is_pinned
+        if self.is_pinned:
+            self.pin_btn.setText("Unpin")
+            self.pin_btn.setStyleSheet("background-color: #ff8c00; color: white;")
+            self.setStyleSheet("border: 2px solid #ff8c00; background-color: #fff8dc;")
+        else:
+            self.pin_btn.setText("Pin")
+            self.pin_btn.setStyleSheet("background-color: #ffd43b; color: black;")
+            self.setStyleSheet("")
+        self.beam_pinned.emit(self)

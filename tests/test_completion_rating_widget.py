@@ -20,7 +20,7 @@ from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
-from py_fade.gui.components.widget_completion import CompletionFrame
+from py_fade.gui.widget_completion import CompletionFrame
 from py_fade.gui.widget_dataset_top import WidgetDatasetTop
 from py_fade.gui.widget_sample import WidgetSample
 
