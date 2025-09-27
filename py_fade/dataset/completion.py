@@ -34,6 +34,16 @@ class PromptCompletion(dataset_base):
     prompt_revision: Mapped["PromptRevision"] = relationship(
         "PromptRevision", back_populates="completions"
     )
+    parent_completion_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prompt_completions.id"), nullable=True
+    )
+    parent_completion: Mapped["PromptCompletion | None"] = relationship(
+        "PromptCompletion", remote_side=[id], back_populates="child_completions", lazy="select"
+    )
+    child_completions: Mapped[list["PromptCompletion"]] = relationship(
+        "PromptCompletion", back_populates="parent_completion", lazy="select"
+    )
+
     logprobs: Mapped[list["PromptCompletionLogprobs"]] = relationship(
         "PromptCompletionLogprobs",
         back_populates="prompt_completion",
