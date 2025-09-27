@@ -65,6 +65,7 @@ class ClassName1:
 
 ## 4) Testing, build, and run instructions
 - For testing, scripts in `tests/` can be created or modified to test various components, functionality, and performance. Use `pytest` framework for unit tests.
+- Use `pytest-qt` for testing PyQt6 widgets. Tests should run in Qt offscreen mode to avoid GUI popups.
 - By default, tests should use only the `mock-echo-model` provider to avoid dependencies on external model backends and high computational requirements. Tests for real LLM providers should be isolated and clearly marked, ensuring they do not interfere with the main test suite and never get run by default.
 - Tests that involve mock or real generation should use FLAT_PREFIX_SYSTEM/FLAT_PREFIX_USER/FLAT_PREFIX_ASSISTANT markers for system/user/assistant messages, as defined in `py_fade.providers.flat_prefix_template`. Provider implementations will call `flat_prefix_template_to_messages()` with prompt and prefill to convert these flat prefixes to common Messages API format.
 - For debugging purposes, you **MUST** improve and expand unit tests, adding state logging as nessesary, with log-level DEBUG and running tests with debug output enabled. When debugging, plan for the future, make changes to unit tests reusable for future development, not just current debug session. Run `pytest --log-cli-level=DEBUG` to see debug output, possibly targeting specific test modules or classes.
