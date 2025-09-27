@@ -23,8 +23,10 @@ from sqlalchemy.orm.session import Session
 
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
+from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.data_filter import DataFilter
 from py_fade.dataset.dataset_base import dataset_base
+from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.providers.llm_response import LLMResponse
