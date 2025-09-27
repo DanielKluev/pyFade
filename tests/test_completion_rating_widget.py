@@ -268,7 +268,7 @@ def test_default_facet_restored_on_dataset_reload(
 
         session = reopened_dataset.session
         assert session is not None
-        sample_reloaded = session.query(Sample).get(sample.id)
+        sample_reloaded = session.get(Sample, sample.id)
         assert sample_reloaded is not None
 
         widget_reopened._open_sample_by_id(sample_reloaded.id)  # pylint: disable=protected-access

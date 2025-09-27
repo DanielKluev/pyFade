@@ -943,7 +943,7 @@ class WidgetDatasetTop(QMainWindow):
 
         sample = None
         if self.dataset.session is not None:
-            sample = self.dataset.session.query(Sample).get(sample_id)
+            sample = self.dataset.session.get(Sample, sample_id)
         if not sample:
             return
         widget_id = self.create_sample_tab(sample, focus=True)
@@ -954,7 +954,7 @@ class WidgetDatasetTop(QMainWindow):
 
         if self.dataset.session is None:
             return
-        prompt = self.dataset.session.query(PromptRevision).get(prompt_id)
+        prompt = self.dataset.session.get(PromptRevision, prompt_id)
         if not prompt:
             return
         sample = Sample.from_prompt_revision(self.dataset, prompt)
@@ -966,7 +966,7 @@ class WidgetDatasetTop(QMainWindow):
 
         if self.dataset.session is None:
             return
-        facet = self.dataset.session.query(Facet).get(facet_id)
+        facet = self.dataset.session.get(Facet, facet_id)
         if not facet:
             return
         widget_id = self.create_facet_tab(facet, focus=True)
