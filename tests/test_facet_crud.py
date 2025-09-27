@@ -1,3 +1,6 @@
+"""
+Test Facet Crud test module.
+"""
 from __future__ import annotations
 
 import pytest

@@ -171,7 +171,7 @@ class TestCompletionFrameButtonVisibility:
 
     def test_beam_mode_buttons(
         self,
-        temp_dataset: "DatasetDatabase", 
+        temp_dataset: "DatasetDatabase",
         qt_app: "QApplication",
         ensure_google_icon_font: None,
     ) -> None:
@@ -210,7 +210,7 @@ class TestCompletionFrameButtonVisibility:
 
         # For unsaved beam
         assert frame.save_button.isVisible()
-        assert frame.pin_button.isVisible() 
+        assert frame.pin_button.isVisible()
         assert not frame.archive_button.isVisible()
 
 
@@ -560,7 +560,7 @@ class TestCompletionFrameStatusIcons:
         frame.show()
         qt_app.processEvents()
 
-        # Should have status icons in the layout  
+        # Should have status icons in the layout
         assert frame.status_layout.count() > 0
 
 
@@ -575,7 +575,7 @@ class TestCompletionFrameButtonBehavior:
     ) -> None:
         """Resume button only visible for truncated, non-archived completions."""
         _ = ensure_google_icon_font
-        
+
         # Test truncated, non-archived completion
         _, completion = _build_sample_with_completion(
             temp_dataset, is_truncated=True, is_archived=False
@@ -587,7 +587,7 @@ class TestCompletionFrameButtonBehavior:
 
         assert frame.resume_button.isVisible()
 
-        # Test non-truncated completion  
+        # Test non-truncated completion
         _, completion2 = _build_sample_with_completion(
             temp_dataset, is_truncated=False, is_archived=False
         )
@@ -645,7 +645,7 @@ class TestCompletionFrameButtonBehavior:
 
         # Initially not pinned
         initial_style = frame.styleSheet()
-        
+
         # Pin it
         frame.pin_button.click()
         frame.show()
@@ -678,10 +678,10 @@ class TestCompletionFrameConfirmationDialogs:
     ) -> None:
         """Discard shows confirmation dialog for saved completions."""
         _ = ensure_google_icon_font
-        
+
         # Mock the confirmation dialog to return "No"
         mock_question.return_value = QMessageBox.StandardButton.No
-        
+
         _, completion = _build_sample_with_completion(temp_dataset)
 
         frame = CompletionFrame(temp_dataset, completion, display_mode="sample")
@@ -703,7 +703,7 @@ class TestCompletionFrameConfirmationDialogs:
 
         # Should show confirmation dialog
         mock_question.assert_called_once()
-        
+
         # Signal should NOT be emitted if user clicked "No"
         assert not signal_emitted
 
@@ -717,10 +717,10 @@ class TestCompletionFrameConfirmationDialogs:
     ) -> None:
         """Discard proceeds when user confirms."""
         _ = ensure_google_icon_font
-        
+
         # Mock the confirmation dialog to return "Yes"
         mock_question.return_value = QMessageBox.StandardButton.Yes
-        
+
         _, completion = _build_sample_with_completion(temp_dataset)
 
         frame = CompletionFrame(temp_dataset, completion, display_mode="sample")
@@ -744,7 +744,7 @@ class TestCompletionFrameConfirmationDialogs:
 
         # Should show confirmation dialog
         mock_question.assert_called_once()
-        
+
         # Signal SHOULD be emitted if user clicked "Yes"
         assert signal_emitted
         assert emitted_completion is completion
@@ -816,7 +816,7 @@ class TestCompletionFrameEdgeCases:
 
     def test_target_model_setting(
         self,
-        temp_dataset: "DatasetDatabase", 
+        temp_dataset: "DatasetDatabase",
         qt_app: "QApplication",
         ensure_google_icon_font: None,
     ) -> None:

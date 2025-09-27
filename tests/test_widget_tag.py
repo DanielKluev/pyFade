@@ -1,39 +1,24 @@
+"""
+Test suite for WidgetTag GUI component.
+
+Tests tag creation, editing, deletion, validation, and navigation functionality.
+"""
 from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, List, Tuple
 
 import pytest
-from PyQt6.QtWidgets import QMessageBox
 
 from py_fade.dataset.tag import Tag
 from py_fade.gui.widget_dataset_top import WidgetDatasetTop
 from py_fade.gui.widget_tag import WidgetTag
+from tests.helpers.ui_helpers import patch_message_boxes
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
     from py_fade.app import pyFadeApp
     from py_fade.dataset.dataset import DatasetDatabase
-
-
-def _patch_message_boxes(monkeypatch: pytest.MonkeyPatch, logger: logging.Logger) -> None:
-    """Replace modal message boxes with logging stubs for deterministic tests."""
-
-    def _info(*args, **kwargs):
-        logger.debug("QMessageBox.information args=%s kwargs=%s", args, kwargs)
-        return QMessageBox.StandardButton.Ok
-
-    def _critical(*args, **kwargs):
-        logger.debug("QMessageBox.critical args=%s kwargs=%s", args, kwargs)
-        return QMessageBox.StandardButton.Ok
-
-    def _question(*args, **kwargs):
-        logger.debug("QMessageBox.question args=%s kwargs=%s", args, kwargs)
-        return QMessageBox.StandardButton.Yes
-
-    monkeypatch.setattr(QMessageBox, "information", staticmethod(_info))
-    monkeypatch.setattr(QMessageBox, "critical", staticmethod(_critical))
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(_question))
 
 
 def test_widget_tag_crud_flow(
@@ -44,10 +29,16 @@ def test_widget_tag_crud_flow(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    """
+    Test complete CRUD operations for tags through the WidgetTag interface.
+
+    Verifies creation, reading, updating, and deletion of tags with proper
+    validation and UI state management.
+    """
     caplog.set_level(logging.DEBUG, logger="WidgetTag")
     test_logger = logging.getLogger("test_widget_tag.crud")
     test_logger.setLevel(logging.DEBUG)
-    _patch_message_boxes(monkeypatch, test_logger)
+    patch_message_boxes(monkeypatch, test_logger)
 
     widget = WidgetTag(None, app_with_dataset, temp_dataset, None)
     widget.tag_saved.connect(lambda tag: test_logger.debug("tag_saved id=%s", getattr(tag, "id", None)))
@@ -109,6 +100,12 @@ def test_widget_tag_validation_prevents_duplicates(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    """
+    Test tag name validation prevents duplicate names.
+
+    Verifies that the widget properly validates unique tag names and shows
+    appropriate error messages when duplicates are attempted.
+    """
     Tag.create(temp_dataset, "Alpha", "Existing alpha tag")
     session = temp_dataset.session
     assert session is not None
@@ -118,7 +115,7 @@ def test_widget_tag_validation_prevents_duplicates(
     caplog.set_level(logging.DEBUG, logger="WidgetTag")
     test_logger = logging.getLogger("test_widget_tag.validation")
     test_logger.setLevel(logging.DEBUG)
-    _patch_message_boxes(monkeypatch, test_logger)
+    patch_message_boxes(monkeypatch, test_logger)
 
     widget = WidgetTag(None, app_with_dataset, temp_dataset, None)
     qt_app.processEvents()
@@ -149,9 +146,15 @@ def test_navigation_opens_tag_tab(
     ensure_google_icon_font: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """
+    Test navigation from sidebar opens appropriate tag tabs.
+
+    Verifies that clicking on tags in the navigation sidebar opens the correct
+    tag editing interface with proper state initialization.
+    """
     logger = logging.getLogger("test_widget_tag.navigation")
     logger.setLevel(logging.DEBUG)
-    _patch_message_boxes(monkeypatch, logger)
+    patch_message_boxes(monkeypatch, logger)
 
     tag = Tag.create(temp_dataset, "Review", "Marks samples for peer review")
     session = temp_dataset.session
