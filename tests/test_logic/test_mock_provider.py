@@ -1,3 +1,6 @@
+"""
+Test Mock Provider test module.
+"""
 import pytest
 
 from py_fade.providers.mock_provider import (
@@ -9,6 +12,11 @@ from py_fade.providers.flat_prefix_template import apply_flat_prefix_template
 
 
 def _logprob_signature(sequence):
+    """
+    Extract signature from logprob sequence for test comparison.
+    
+    Creates a comparable representation of logprob data for deterministic testing.
+    """
     result = []
     for entry in sequence:
         top = tuple(entry.top_logprobs) if entry.top_logprobs else tuple()
@@ -17,6 +25,12 @@ def _logprob_signature(sequence):
 
 
 def test_mock_generator_is_deterministic():
+    """
+    Test that mock generator produces deterministic outputs for same inputs.
+    
+    Verifies that the MockResponseGenerator produces identical outputs when
+    given the same input parameters, ensuring test reproducibility.
+    """
     messages = [
         {
             "role": "user",
@@ -33,6 +47,12 @@ def test_mock_generator_is_deterministic():
 
 
 def test_mock_generator_prefill_boundary_split():
+    """
+    Test mock generator handles prefill boundary splitting correctly.
+    
+    Verifies that when a prefill ends in the middle of a token, the generator
+    properly splits the token boundary for streaming behavior.
+    """
     generator = MockResponseGenerator(
         messages=[{"role": "user", "content": "continue the word"}],
         prefill="Hel",
@@ -51,6 +71,12 @@ def test_mock_generator_prefill_boundary_split():
 
 
 def test_mock_provider_generate_returns_top_logprobs():
+    """
+    Test mock provider returns top logprobs in generation response.
+    
+    Verifies that the mock provider properly generates logprob data
+    matching the requested top_logprobs parameter.
+    """
     provider = MockLLMProvider()
 
     response = provider.generate(
@@ -77,6 +103,12 @@ def test_mock_provider_generate_returns_top_logprobs():
 
 
 def test_mock_provider_generate_accepts_prefill_and_flat_prefix_prompt():
+    """
+    Test mock provider handles prefill and flat prefix prompt templates.
+    
+    Verifies that the provider correctly processes flat prefix template
+    format and incorporates prefill text into the generation.
+    """
     provider = MockLLMProvider()
     messages = [
         {"role": "system", "content": "You are a concise assistant."},
@@ -101,6 +133,12 @@ def test_mock_provider_generate_accepts_prefill_and_flat_prefix_prompt():
 
 
 def test_mock_provider_evaluate_completion_matches_completion():
+    """
+    Test mock provider evaluation matches the original completion.
+    
+    Verifies that when evaluating a completion, the mock provider returns
+    logprobs that match the structure and content of the original completion.
+    """
     provider = MockLLMProvider()
     completion = "Sure, this is a tiny completion."
 

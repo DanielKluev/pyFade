@@ -1,6 +1,7 @@
+"""
+Test Flat Prefix Template test module.
+"""
 from __future__ import annotations
-
-import pytest
 
 from py_fade.providers.flat_prefix_template import (
     FLAT_PREFIX_ASSISTANT,
@@ -11,19 +12,23 @@ from py_fade.providers.flat_prefix_template import (
 
 
 def test_parse_none_returns_empty():
-    assert parse_flat_prefix_string(None) == []
+    """Test parsing None returns empty message list."""
+    assert not parse_flat_prefix_string(None)
 
 
 def test_parse_blank_returns_empty():
-    assert parse_flat_prefix_string("\n\t  ") == []
+    """Test parsing blank string returns empty message list."""
+    assert not parse_flat_prefix_string("\n\t  ")
 
 
 def test_parse_without_tokens_defaults_to_user():
+    """Test parsing text without role tokens defaults to user role."""
     content = "Hello\nWorld"
     assert parse_flat_prefix_string(content) == [{"role": "user", "content": content}]
 
 
 def test_parse_inline_tokens_trims_content():
+    """Test parsing inline tokens properly trims whitespace from content."""
     flat_prefix = (
         f"{FLAT_PREFIX_SYSTEM} System prompt  "
         f"{FLAT_PREFIX_USER}\nUser question\n"
@@ -40,6 +45,7 @@ def test_parse_inline_tokens_trims_content():
 
 
 def test_parse_multi_line_tokens():
+    """Test parsing multi-line content with role tokens."""
     flat_prefix = (
         f"{FLAT_PREFIX_SYSTEM}\nYou are helpful.\n\n"
         f"{FLAT_PREFIX_USER}\n Answer politely. \n"
@@ -56,6 +62,7 @@ def test_parse_multi_line_tokens():
 
 
 def test_parse_leading_text_before_first_token():
+    """Test parsing text before the first role token defaults to user."""
     flat_prefix = "Lead in text\n" f"{FLAT_PREFIX_ASSISTANT}Response"
 
     messages = parse_flat_prefix_string(flat_prefix)
@@ -67,6 +74,7 @@ def test_parse_leading_text_before_first_token():
 
 
 def test_parse_consecutive_tokens_preserves_empty_message():
+    """Test parsing consecutive role tokens preserves empty messages."""
     flat_prefix = (
         f"{FLAT_PREFIX_USER}" f"{FLAT_PREFIX_ASSISTANT}Response" f"{FLAT_PREFIX_SYSTEM}"
     )

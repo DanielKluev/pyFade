@@ -1,3 +1,6 @@
+"""
+Test Token Picker test module.
+"""
 from __future__ import annotations
 
 from PyQt6.QtWidgets import QCheckBox, QPushButton

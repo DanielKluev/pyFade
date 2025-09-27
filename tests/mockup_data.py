@@ -1,13 +1,21 @@
 """
 Generator for mockup data used in tests and UI previews.
 """
-import datetime, os, sys, pathlib, logging, hashlib, argparse
+import argparse
+import logging
+import os
+import pathlib
+import sys
+
 from py_fade.dataset.dataset import DatasetDatabase
-from py_fade.dataset.prompt import PromptRevision
-from py_fade.dataset.sample import Sample
 
-
-lorem_ipsum_text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+LOREM_IPSUM_TEXT = (
+    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et "
+    "dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip "
+    "ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu "
+    "fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt "
+    "mollit anim id est laborum."
+)
 
 class TestDatasetGenerator:
     """
@@ -18,7 +26,10 @@ class TestDatasetGenerator:
         self.dataset = dataset
 
     def fill_dataset(self):
-        self.log.info(f"Filling dataset {self.dataset} with mockup data.")
+        """
+        Fill the dataset with mockup data for testing purposes.
+        """
+        self.log.info("Filling dataset %s with mockup data.", self.dataset)
 
 
 if __name__ == "__main__":

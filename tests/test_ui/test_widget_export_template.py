@@ -1,3 +1,8 @@
+"""
+Test suite for WidgetExportTemplate GUI component.
+
+Tests export template creation, configuration, and navigation functionality.
+"""
 from __future__ import annotations
 
 import logging
@@ -5,12 +10,14 @@ from typing import TYPE_CHECKING, List
 
 import pytest
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QMessageBox, QComboBox, QDoubleSpinBox
+from PyQt6.QtWidgets import QComboBox, QDoubleSpinBox
 
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.export_template import ExportTemplate
 from py_fade.gui.widget_export_template import WidgetExportTemplate
 from py_fade.gui.widget_dataset_top import WidgetDatasetTop
+from tests.helpers.ui_helpers import patch_message_boxes
+from tests.helpers.data_helpers import ensure_test_facets
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -18,27 +25,12 @@ if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
 
 
-def _patch_message_boxes(monkeypatch: pytest.MonkeyPatch, logger: logging.Logger) -> None:
-    """Replace modal dialogs with logging helpers for deterministic tests."""
-
-    def _info(*args, **kwargs):
-        logger.debug("QMessageBox.information args=%s kwargs=%s", args, kwargs)
-        return QMessageBox.StandardButton.Ok
-
-    def _critical(*args, **kwargs):
-        logger.debug("QMessageBox.critical args=%s kwargs=%s", args, kwargs)
-        return QMessageBox.StandardButton.Ok
-
-    def _question(*args, **kwargs):
-        logger.debug("QMessageBox.question args=%s kwargs=%s", args, kwargs)
-        return QMessageBox.StandardButton.Yes
-
-    monkeypatch.setattr(QMessageBox, "information", staticmethod(_info))
-    monkeypatch.setattr(QMessageBox, "critical", staticmethod(_critical))
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(_question))
-
-
 def _ensure_facets(dataset: "DatasetDatabase") -> List[Facet]:
+    """
+    Create test facets for export template testing.
+
+    This creates specific facets needed for export template tests.
+    """
     session = dataset.session
     if session is None:
         raise RuntimeError("Dataset session must be initialized for tests.")
@@ -58,12 +50,18 @@ def test_widget_export_template_crud_flow(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    """
+    Test complete CRUD operations for export templates.
+
+    Verifies template creation, configuration with facets and models,
+    and proper UI state management throughout the workflow.
+    """
     facets = _ensure_facets(temp_dataset)
 
     caplog.set_level(logging.DEBUG, logger="WidgetExportTemplate")
     test_logger = logging.getLogger("test_widget_export_template.crud")
     test_logger.setLevel(logging.DEBUG)
-    _patch_message_boxes(monkeypatch, test_logger)
+    patch_message_boxes(monkeypatch, test_logger)
 
     widget = WidgetExportTemplate(None, app_with_dataset, temp_dataset, None)
     qt_app.processEvents()
@@ -165,6 +163,12 @@ def test_navigation_creates_export_template_tab(
     ensure_google_icon_font: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """
+    Test that navigation sidebar can create and access export template tabs.
+
+    Verifies that clicking on export templates in the navigation opens the
+    appropriate editing interface with properly loaded template data.
+    """
     session = temp_dataset.session
     if session is None:
         raise RuntimeError("Dataset session must be initialized for tests.")
@@ -193,7 +197,7 @@ def test_navigation_creates_export_template_tab(
 
     logger = logging.getLogger("test_widget_export_template.navigation")
     logger.setLevel(logging.DEBUG)
-    _patch_message_boxes(monkeypatch, logger)
+    patch_message_boxes(monkeypatch, logger)
 
     widget = WidgetDatasetTop(None, app_with_dataset, temp_dataset)
     qt_app.processEvents()
