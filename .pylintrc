@@ -11,3 +11,6 @@ disable=
 
 [REPORTS]
 score=yes
+
+[FORMAT]
+max-line-length=140

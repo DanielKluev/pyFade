@@ -374,7 +374,6 @@ class MockLLMProvider(BasePrefillAwareProvider):
 
     def __init__(
         self,
-        default_model_id: str = "mock-echo-model",
         default_temperature: float = 0.7,
         default_top_k: int = 40,
         default_context_length: int = 1024,

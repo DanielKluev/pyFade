@@ -41,7 +41,7 @@ from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.export_template import ExportTemplate
 from py_fade.dataset.facet import Facet
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
-from py_fade.gui.components.widget_label_with_icon import QLabelWithIconAndText
+from py_fade.gui.components.widget_crud_form_base import CrudButtonStyles, CrudFormWidget
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -50,7 +50,7 @@ if TYPE_CHECKING:
 FacetRow = dict[str, Any]
 
 
-class WidgetExportTemplate(QWidget):
+class WidgetExportTemplate(CrudFormWidget):
     """Interactive editor that manages the lifecycle of an export template."""
 
     template_saved = pyqtSignal(object)
@@ -68,81 +68,95 @@ class WidgetExportTemplate(QWidget):
         dataset: DatasetDatabase,
         template: ExportTemplate | None,
     ) -> None:
-        super().__init__(parent)
         self.log = logging.getLogger("WidgetExportTemplate")
         self.app = app
         self.dataset = dataset
         self.template = template
         self._available_facets: dict[int, Facet] = {}
 
-        self.setup_ui()
+        button_styles = CrudButtonStyles(
+            save=(
+                "QPushButton { background-color: #3949AB; color: white; padding: 8px 16px; }"
+            ),
+            cancel=(
+                "QPushButton { background-color: #9E9E9E; color: white; padding: 8px 16px; }"
+            ),
+            delete=(
+                "QPushButton { background-color: #D32F2F; color: white; padding: 8px 16px; }"
+            ),
+        )
+
+        super().__init__(
+            parent,
+            header_icon="description",
+            header_title="Export Template",
+            header_color="#3949AB",
+            button_styles=button_styles,
+            minimum_size=(760, 560),
+        )
+
+        self.save_button.setText("Save Template")
+        self.cancel_button.setText("Revert")
+        self.delete_button.setText("Delete")
+
+        self.copy_button = QPushButtonWithIcon("content_copy", "Duplicate", parent=self)
+        self.copy_button.setStyleSheet(
+            "QPushButton { background-color: #5C6BC0; color: white; padding: 8px 16px; }"
+        )
+        self.insert_button(1, self.copy_button)
+
         self.connect_signals()
         self.refresh_facets()
+        self.populate_output_formats(self.training_combo.currentData())
+        self.toggle_encryption_controls(False)
         self.set_template(template)
 
     # ------------------------------------------------------------------
     # UI lifecycle helpers
     # ------------------------------------------------------------------
-    def setup_ui(self) -> None:
+    def build_form(self, form_layout: QVBoxLayout) -> None:
         """Build and arrange the widget hierarchy."""
 
-        self.setMinimumSize(760, 560)
+        form_layout.setSpacing(14)
 
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(16, 16, 16, 16)
-        main_layout.setSpacing(14)
-
-        header_layout = QHBoxLayout()
-        self.header_label = QLabelWithIconAndText("description", "Export Template")
-        self.header_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #3949AB;")
-        header_layout.addWidget(self.header_label)
-        header_layout.addStretch()
-
-        self.validation_label = QLabel()
-        self.validation_label.setStyleSheet("color: #d32f2f; font-size: 12px;")
-        self.validation_label.hide()
-        header_layout.addWidget(self.validation_label)
-        main_layout.addLayout(header_layout)
-
-        # General information -------------------------------------------------
-        info_group = QGroupBox("Template Details")
+        info_group = QGroupBox("Template Details", parent=self)
         info_layout = QGridLayout(info_group)
         info_layout.setContentsMargins(12, 12, 12, 12)
         info_layout.setHorizontalSpacing(12)
         info_layout.setVerticalSpacing(10)
 
-        name_label = QLabel("Name:")
+        name_label = QLabel("Name:", parent=info_group)
         name_label.setStyleSheet("font-weight: bold;")
-        self.name_input = QLineEdit()
+        self.name_input = QLineEdit(parent=info_group)
         self.name_input.setPlaceholderText("Unique template name…")
         info_layout.addWidget(name_label, 0, 0)
         info_layout.addWidget(self.name_input, 0, 1)
 
-        description_label = QLabel("Description:")
+        description_label = QLabel("Description:", parent=info_group)
         description_label.setStyleSheet("font-weight: bold;")
-        self.description_input = QLineEdit()
+        self.description_input = QLineEdit(parent=info_group)
         self.description_input.setPlaceholderText("How will this export be used?")
         info_layout.addWidget(description_label, 1, 0)
         info_layout.addWidget(self.description_input, 1, 1)
 
-        training_label = QLabel("Training Type:")
+        training_label = QLabel("Training Type:", parent=info_group)
         training_label.setStyleSheet("font-weight: bold;")
-        self.training_combo = QComboBox()
+        self.training_combo = QComboBox(parent=info_group)
         for value in ExportTemplate.TRAINING_TYPES:
             label = "SFT" if value == "SFT" else "DPO"
             self.training_combo.addItem(label, value)
         info_layout.addWidget(training_label, 2, 0)
         info_layout.addWidget(self.training_combo, 2, 1)
 
-        output_label = QLabel("Output Format:")
+        output_label = QLabel("Output Format:", parent=info_group)
         output_label.setStyleSheet("font-weight: bold;")
-        self.output_combo = QComboBox()
+        self.output_combo = QComboBox(parent=info_group)
         info_layout.addWidget(output_label, 3, 0)
         info_layout.addWidget(self.output_combo, 3, 1)
 
-        model_label = QLabel("Model Families:")
+        model_label = QLabel("Model Families:", parent=info_group)
         model_label.setStyleSheet("font-weight: bold;")
-        self.model_list = QListWidget()
+        self.model_list = QListWidget(parent=info_group)
         self.model_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.model_list.setFixedHeight(96)
         for family in ExportTemplate.SUPPORTED_MODEL_FAMILIES:
@@ -153,50 +167,50 @@ class WidgetExportTemplate(QWidget):
         info_layout.addWidget(model_label, 4, 0)
         info_layout.addWidget(self.model_list, 4, 1)
 
-        filename_label = QLabel("Filename Template:")
+        filename_label = QLabel("Filename Template:", parent=info_group)
         filename_label.setStyleSheet("font-weight: bold;")
-        self.filename_input = QLineEdit()
+        self.filename_input = QLineEdit(parent=info_group)
         self.filename_input.setPlaceholderText(ExportTemplate.DEFAULT_FILENAME_TEMPLATE)
         info_layout.addWidget(filename_label, 5, 0)
         info_layout.addWidget(self.filename_input, 5, 1)
 
-        normalize_label = QLabel("Normalize Dialogue Style:")
+        normalize_label = QLabel("Normalize Dialogue Style:", parent=info_group)
         normalize_label.setStyleSheet("font-weight: bold;")
-        self.normalize_checkbox = QCheckBox("Apply chat-style formatting helpers")
+        self.normalize_checkbox = QCheckBox("Apply chat-style formatting helpers", parent=info_group)
         info_layout.addWidget(normalize_label, 6, 0)
         info_layout.addWidget(self.normalize_checkbox, 6, 1)
 
-        main_layout.addWidget(info_group)
+        form_layout.addWidget(info_group)
 
         # Encryption ---------------------------------------------------------
-        encryption_group = QGroupBox("Encryption")
+        encryption_group = QGroupBox("Encryption", parent=self)
         encryption_layout = QGridLayout(encryption_group)
         encryption_layout.setContentsMargins(12, 12, 12, 12)
         encryption_layout.setHorizontalSpacing(12)
 
-        self.encrypt_checkbox = QCheckBox("Encrypt exported files with SQLCipher")
+        self.encrypt_checkbox = QCheckBox("Encrypt exported files with SQLCipher", parent=encryption_group)
         encryption_layout.addWidget(self.encrypt_checkbox, 0, 0, 1, 2)
 
-        password_label = QLabel("Password (optional):")
+        password_label = QLabel("Password (optional):", parent=encryption_group)
         password_label.setStyleSheet("font-weight: bold;")
-        self.password_input = QLineEdit()
+        self.password_input = QLineEdit(parent=encryption_group)
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_input.setPlaceholderText("Leave blank to request during export…")
         encryption_layout.addWidget(password_label, 1, 0)
         encryption_layout.addWidget(self.password_input, 1, 1)
 
-        main_layout.addWidget(encryption_group)
+        form_layout.addWidget(encryption_group)
 
         # Facets -------------------------------------------------------------
-        facets_group = QGroupBox("Facet Selection")
+        facets_group = QGroupBox("Facet Selection", parent=self)
         facets_layout = QVBoxLayout(facets_group)
         facets_layout.setContentsMargins(12, 12, 12, 12)
         facets_layout.setSpacing(10)
 
         selector_layout = QHBoxLayout()
-        self.facet_selector = QComboBox()
+        self.facet_selector = QComboBox(parent=facets_group)
         self.facet_selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        self.add_facet_button = QPushButtonWithIcon("add", "Add Facet")
+        self.add_facet_button = QPushButtonWithIcon("add", "Add Facet", parent=facets_group)
         selector_layout.addWidget(self.facet_selector)
         selector_layout.addWidget(self.add_facet_button)
         selector_layout.addStretch()
@@ -227,42 +241,7 @@ class WidgetExportTemplate(QWidget):
         self.facets_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         facets_layout.addWidget(self.facets_table)
 
-        main_layout.addWidget(facets_group)
-
-        # Action buttons -----------------------------------------------------
-        button_layout = QHBoxLayout()
-        button_layout.setSpacing(10)
-
-        self.save_button = QPushButtonWithIcon("save", "Save Template")
-        self.save_button.setStyleSheet(
-            "QPushButton { background-color: #3949AB; color: white; padding: 8px 16px; }"
-        )
-
-        self.copy_button = QPushButtonWithIcon("content_copy", "Duplicate")
-        self.copy_button.setStyleSheet(
-            "QPushButton { background-color: #5C6BC0; color: white; padding: 8px 16px; }"
-        )
-
-        self.cancel_button = QPushButtonWithIcon("cancel", "Revert")
-        self.cancel_button.setStyleSheet(
-            "QPushButton { background-color: #9E9E9E; color: white; padding: 8px 16px; }"
-        )
-
-        self.delete_button = QPushButtonWithIcon("delete", "Delete")
-        self.delete_button.setStyleSheet(
-            "QPushButton { background-color: #D32F2F; color: white; padding: 8px 16px; }"
-        )
-
-        button_layout.addWidget(self.save_button)
-        button_layout.addWidget(self.copy_button)
-        button_layout.addWidget(self.cancel_button)
-        button_layout.addStretch()
-        button_layout.addWidget(self.delete_button)
-
-        main_layout.addLayout(button_layout)
-
-        self.populate_output_formats(self.training_combo.currentData())
-        self.toggle_encryption_controls(False)
+        form_layout.addWidget(facets_group)
 
     def connect_signals(self) -> None:
         """Wire up state change handlers for the form controls."""
@@ -279,11 +258,8 @@ class WidgetExportTemplate(QWidget):
         self.encrypt_checkbox.stateChanged.connect(self.on_encryption_toggled)
         self.password_input.textChanged.connect(self.validate_form)
         self.add_facet_button.clicked.connect(self.add_selected_facet)
-        self.save_button.clicked.connect(self.save_template)
-        self.copy_button.clicked.connect(self.copy_template)
-        self.delete_button.clicked.connect(self.delete_template)
-        self.cancel_button.clicked.connect(lambda: self.set_template(self.template))
         self.model_list.itemChanged.connect(lambda _: self.validate_form())
+        self.copy_button.clicked.connect(self.copy_template)
 
     # ------------------------------------------------------------------
     # Dataset loading
@@ -316,7 +292,7 @@ class WidgetExportTemplate(QWidget):
 
         if template is None:
             self.log.debug("Preparing export template widget for new entry")
-            self.header_label.setText("New Export Template")
+            self.set_header_text("New Export Template")
             self.name_input.setText("")
             self.description_input.setText("")
             self.training_combo.setCurrentIndex(0)
@@ -328,11 +304,11 @@ class WidgetExportTemplate(QWidget):
             self.encrypt_checkbox.setChecked(False)
             self.password_input.setText("")
             self.copy_button.setEnabled(False)
-            self.delete_button.setVisible(False)
+            self.set_delete_visible(False)
             self.clear_facets_table()
         else:
             self.log.debug("Loading export template id=%s", template.id)
-            self.header_label.setText(f"Edit Export Template: {template.name}")
+            self.set_header_text(f"Edit Export Template: {template.name}")
             self.name_input.setText(template.name)
             self.description_input.setText(template.description)
             self.training_combo.setCurrentIndex(
@@ -348,7 +324,7 @@ class WidgetExportTemplate(QWidget):
             self.encrypt_checkbox.setChecked(template.encrypt)
             self.password_input.setText(template.encryption_password or "")
             self.copy_button.setEnabled(True)
-            self.delete_button.setVisible(True)
+            self.set_delete_visible(True)
             self.populate_facets_table(template.facets_json)
 
         self.toggle_encryption_controls(self.encrypt_checkbox.isChecked())
@@ -617,13 +593,7 @@ class WidgetExportTemplate(QWidget):
             except ValueError as exc:
                 errors.append(str(exc))
 
-        if errors:
-            self.validation_label.setText("\n".join(errors))
-            self.validation_label.show()
-            self.save_button.setEnabled(False)
-        else:
-            self.validation_label.hide()
-            self.save_button.setEnabled(True)
+        self.set_validation_errors(errors)
 
     def _collect_selected_models(self) -> list[str]:
         """Return the list of model families currently checked in the UI."""
@@ -714,7 +684,7 @@ class WidgetExportTemplate(QWidget):
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
-    def save_template(self) -> None:
+    def handle_save(self) -> None:
         """Persist the form state to the dataset."""
 
         try:
@@ -757,7 +727,7 @@ class WidgetExportTemplate(QWidget):
         self.template_saved.emit(self.template)
         self.set_template(self.template)
 
-    def delete_template(self) -> None:
+    def handle_delete(self) -> None:
         """Delete the current export template after confirmation."""
 
         if self.template is None or not getattr(self.template, "id", None):
@@ -792,6 +762,21 @@ class WidgetExportTemplate(QWidget):
         QMessageBox.information(self, "Deleted", "Export template deleted successfully.")
         self.template_deleted.emit(template)
         self.set_template(None)
+
+    def handle_cancel(self) -> None:
+        """Revert the form to the last saved template state."""
+
+        self.set_template(self.template)
+
+    def save_template(self) -> None:
+        """Compatibility wrapper that delegates to :meth:`handle_save`."""
+
+        self.handle_save()
+
+    def delete_template(self) -> None:
+        """Compatibility wrapper that delegates to :meth:`handle_delete`."""
+
+        self.handle_delete()
 
     def copy_template(self) -> None:
         """Duplicate the current template and emit :pyattr:`template_copied`."""

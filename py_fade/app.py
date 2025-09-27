@@ -3,6 +3,7 @@
 Starts up the GUI, loads configuration, initializes providers, and coordinates dataset
 access.
 """
+# pylint: disable=wrong-import-order,ungrouped-imports,unused-import
 
 from __future__ import annotations
 

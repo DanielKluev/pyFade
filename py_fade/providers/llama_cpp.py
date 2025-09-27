@@ -368,7 +368,9 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
     def _convert_simple_completion_logprobs(self, logprobs_dict: dict) -> list[LLMPTokenLogProbs]:
         """
         Convert simple completion logprobs dict to list of LLMPTokenLogProbs.
-        Example input: {'tokens': ['Okay'], 'text_offset': [59], 'token_logprobs': [np.float32(-0.0774431)], 'top_logprobs': [{'Okay': np.float32(-0.0774431), 'Ping': np.float32(-2.9264612), 'You': np.float32(-4.4990206)}]}
+        Example input: {'tokens': ['Okay'], 'text_offset': [59], 'token_logprobs': 
+            [np.float32(-0.0774431)], 'top_logprobs': [{'Okay': np.float32(-0.0774431), 'Ping': np.float32(-2.9264612),
+            'You': np.float32(-4.4990206)}]}
         """
         logprobs_list = []
         tokens = logprobs_dict.get("tokens", [])
@@ -391,7 +393,8 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         self, logprobs: list[LLMPTokenLogProbs], mask_str: str, max_skip: int
     ) -> list[LLMPTokenLogProbs] | None:
         """
-        Given a list of LLMPTokenLogProbs and a mask string, return a new list where only tokens that are exact match over mask_str are kept.
+        Given a list of LLMPTokenLogProbs and a mask string, return a new list where only tokens that are 
+            exact match over mask_str are kept.
         At most max_skip tokens can be skipped from the end of the logprobs list.
         If more than max_skip tokens would be skipped or not entire mask_str is matched, return None.
         """

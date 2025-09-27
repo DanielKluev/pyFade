@@ -1,6 +1,6 @@
 """High level dataset access helpers backed by SQLAlchemy with SQLCipher support."""
 
-# pylint: disable=no-member
+# pylint: disable=no-member,ungrouped-imports
 
 from __future__ import annotations
 

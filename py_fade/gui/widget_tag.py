@@ -27,14 +27,13 @@ from PyQt6.QtWidgets import (
 
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.tag import Tag
-from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
-from py_fade.gui.components.widget_label_with_icon import QLabelWithIconAndText
+from py_fade.gui.components.widget_crud_form_base import CrudButtonStyles, CrudFormWidget
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
 
 
-class WidgetTag(QWidget):
+class WidgetTag(CrudFormWidget):
     """Material-themed editor that provides CRUD operations for :class:`Tag`."""
 
     SCOPE_CHOICES = [
@@ -58,138 +57,93 @@ class WidgetTag(QWidget):
         dataset: DatasetDatabase,
         tag: Tag | None,
     ) -> None:
-        """Build the widget and populate its fields from *tag* when provided."""
-
-        super().__init__(parent)
         self.log = logging.getLogger("WidgetTag")
         self.app = app
         self.dataset = dataset
         self.tag = tag
 
-        self._build_ui()
+        button_styles = CrudButtonStyles(
+            save="QPushButton { background-color: #00796B; color: white; padding: 8px 16px; }",
+            cancel="QPushButton { background-color: #757575; color: white; padding: 8px 16px; }",
+            delete="QPushButton { background-color: #d32f2f; color: white; padding: 8px 16px; }",
+        )
+
+        super().__init__(
+            parent,
+            header_icon="label",
+            header_title="Tag Details",
+            header_color="#00796B",
+            button_styles=button_styles,
+            minimum_size=(360, 280),
+        )
+
         self.set_tag(tag)
 
-    def _build_ui(self) -> None:
-        """Create and wire all UI controls used by the tag editor."""
+    def build_form(self, form_layout: QVBoxLayout) -> None:
+        """Create all tag-specific input controls."""
 
-        self.setMinimumSize(360, 280)
+        form_group = QGroupBox("Tag Information", parent=self)
+        group_layout = QVBoxLayout(form_group)
+        group_layout.setSpacing(12)
 
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(16, 16, 16, 16)
-        main_layout.setSpacing(12)
-
-        header_layout = QHBoxLayout()
-        self.header_label = QLabelWithIconAndText("label", "Tag Details")
-        self.header_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #00796B;")
-        header_layout.addWidget(self.header_label)
-        header_layout.addStretch()
-        main_layout.addLayout(header_layout)
-
-        form_group = QGroupBox("Tag Information")
-        form_group_layout = QVBoxLayout(form_group)
-        form_group_layout.setSpacing(12)
-
-        # Name field
         name_container = QVBoxLayout()
-        name_label = QLabel("Name:")
+        name_label = QLabel("Name:", parent=form_group)
         name_label.setStyleSheet("font-weight: bold;")
-        self.name_field = QLineEdit()
+        self.name_field = QLineEdit(parent=form_group)
         self.name_field.setPlaceholderText("Enter tag name…")
-        self.name_field.textChanged.connect(self.validate_form)
+        self.name_field.textChanged.connect(self.validate_form)  # type: ignore[arg-type]
         name_container.addWidget(name_label)
         name_container.addWidget(self.name_field)
-        form_group_layout.addLayout(name_container)
+        group_layout.addLayout(name_container)
 
-        # Description field
         description_container = QVBoxLayout()
-        description_label = QLabel("Description:")
+        description_label = QLabel("Description:", parent=form_group)
         description_label.setStyleSheet("font-weight: bold;")
-        self.description_field = QPlainTextEdit()
+        self.description_field = QPlainTextEdit(parent=form_group)
         self.description_field.setPlaceholderText("Describe how the tag should be used…")
         self.description_field.setMaximumHeight(120)
-        self.description_field.textChanged.connect(self.validate_form)
+        self.description_field.textChanged.connect(self.validate_form)  # type: ignore[arg-type]
         description_container.addWidget(description_label)
         description_container.addWidget(self.description_field)
-        form_group_layout.addLayout(description_container)
+        group_layout.addLayout(description_container)
 
-        # Scope selector
         scope_container = QVBoxLayout()
-        scope_label = QLabel("Scope:")
+        scope_label = QLabel("Scope:", parent=form_group)
         scope_label.setStyleSheet("font-weight: bold;")
-        self.scope_combo = QComboBox()
+        self.scope_combo = QComboBox(parent=form_group)
         self.scope_combo.setEditable(False)
         for value, label in self.SCOPE_CHOICES:
             self.scope_combo.addItem(label, value)
-        self.scope_combo.currentIndexChanged.connect(self.validate_form)
+        self.scope_combo.currentIndexChanged.connect(self.validate_form)  # type: ignore[arg-type]
         scope_container.addWidget(scope_label)
         scope_container.addWidget(self.scope_combo)
-        form_group_layout.addLayout(scope_container)
+        group_layout.addLayout(scope_container)
 
-        # Read-only metadata fields
-        self.total_samples_field = QLineEdit()
+        self.total_samples_field = QLineEdit(parent=form_group)
         self.total_samples_field.setReadOnly(True)
         self.total_samples_field.setStyleSheet("background-color: #f5f5f5; color: #666;")
 
-        self.date_created_field = QLineEdit()
+        self.date_created_field = QLineEdit(parent=form_group)
         self.date_created_field.setReadOnly(True)
         self.date_created_field.setStyleSheet("background-color: #f5f5f5; color: #666;")
 
         total_samples_layout = QHBoxLayout()
-        total_samples_label = QLabel("Total Samples:")
+        total_samples_label = QLabel("Total Samples:", parent=form_group)
         total_samples_label.setStyleSheet("font-weight: bold;")
         total_samples_layout.addWidget(total_samples_label)
         total_samples_layout.addWidget(self.total_samples_field)
         total_samples_layout.addStretch()
+        group_layout.addLayout(total_samples_layout)
 
         date_created_layout = QHBoxLayout()
-        date_created_label = QLabel("Date Created:")
+        date_created_label = QLabel("Date Created:", parent=form_group)
         date_created_label.setStyleSheet("font-weight: bold;")
         date_created_layout.addWidget(date_created_label)
         date_created_layout.addWidget(self.date_created_field)
         date_created_layout.addStretch()
+        group_layout.addLayout(date_created_layout)
 
-        form_group_layout.addLayout(total_samples_layout)
-        form_group_layout.addLayout(date_created_layout)
-
-        main_layout.addWidget(form_group)
-
-        # Validation message label
-        self.validation_label = QLabel()
-        self.validation_label.setStyleSheet("color: #d32f2f; font-size: 12px;")
-        self.validation_label.setWordWrap(True)
-        self.validation_label.hide()
-        main_layout.addWidget(self.validation_label)
-
-        main_layout.addStretch(1)
-
-        # Action buttons
-        button_layout = QHBoxLayout()
-        button_layout.setSpacing(8)
-
-        self.save_button = QPushButtonWithIcon("save", "Save")
-        self.save_button.setStyleSheet(
-            "QPushButton { background-color: #00796B; color: white; padding: 8px 16px; }"
-        )
-        self.save_button.clicked.connect(self.save_tag)
-
-        self.cancel_button = QPushButtonWithIcon("cancel", "Cancel")
-        self.cancel_button.setStyleSheet(
-            "QPushButton { background-color: #757575; color: white; padding: 8px 16px; }"
-        )
-        self.cancel_button.clicked.connect(self.cancel_editing)
-
-        self.delete_button = QPushButtonWithIcon("delete", "Delete")
-        self.delete_button.setStyleSheet(
-            "QPushButton { background-color: #d32f2f; color: white; padding: 8px 16px; }"
-        )
-        self.delete_button.clicked.connect(self.delete_tag)
-
-        button_layout.addWidget(self.save_button)
-        button_layout.addWidget(self.cancel_button)
-        button_layout.addStretch()
-        button_layout.addWidget(self.delete_button)
-
-        main_layout.addLayout(button_layout)
+        form_layout.addWidget(form_group)
 
     def set_tag(self, tag: Tag | None) -> None:
         """Populate the form with *tag* or reset it for a new tag."""
@@ -198,22 +152,22 @@ class WidgetTag(QWidget):
 
         if tag is None:
             self.log.debug("Preparing widget for new tag entry")
-            self.header_label.setText("New Tag")
+            self.set_header_text("New Tag")
             self.name_field.setText("")
             self.description_field.setPlainText("")
             self.total_samples_field.setText("0")
             self.date_created_field.setText("Will be set on save")
-            self.delete_button.hide()
+            self.set_delete_visible(False)
             default_index = self.scope_combo.findData(Tag.DEFAULT_SCOPE)
             self.scope_combo.setCurrentIndex(default_index if default_index >= 0 else 0)
         else:
             self.log.debug("Loading tag into editor: id=%s name=%s", tag.id, tag.name)
-            self.header_label.setText(f"Edit Tag: {tag.name}")
+            self.set_header_text(f"Edit Tag: {tag.name}")
             self.name_field.setText(tag.name)
             self.description_field.setPlainText(tag.description)
             self.total_samples_field.setText(str(tag.total_samples))
             self.date_created_field.setText(tag.date_created.strftime("%Y-%m-%d %H:%M:%S"))
-            self.delete_button.show()
+            self.set_delete_visible(True)
             index = self.scope_combo.findData(tag.scope)
             if index >= 0:
                 self.scope_combo.setCurrentIndex(index)
@@ -259,15 +213,9 @@ class WidgetTag(QWidget):
         except ValueError as exc:
             errors.append(str(exc))
 
-        if errors:
-            self.validation_label.setText("\n".join(errors))
-            self.validation_label.show()
-            self.save_button.setEnabled(False)
-        else:
-            self.validation_label.hide()
-            self.save_button.setEnabled(True)
+        self.set_validation_errors(errors)
 
-    def save_tag(self) -> None:
+    def handle_save(self) -> None:
         """Persist the current form data to the dataset."""
 
         if not self.dataset.session:
@@ -306,7 +254,7 @@ class WidgetTag(QWidget):
         self.tag_saved.emit(self.tag)
         self.set_tag(self.tag)
 
-    def delete_tag(self) -> None:
+    def handle_delete(self) -> None:
         """Delete the current tag from the dataset after confirmation."""
 
         if not self.tag or not self.tag.id:
@@ -347,7 +295,7 @@ class WidgetTag(QWidget):
             self.tag_deleted.emit(deleted_tag)
         self.set_tag(None)
 
-    def cancel_editing(self) -> None:
+    def handle_cancel(self) -> None:
         """Prompt the user and emit :pyattr:`tag_cancelled` if confirmed."""
 
         reply = QMessageBox.question(
@@ -362,3 +310,18 @@ class WidgetTag(QWidget):
             self.log.debug("Editing cancelled by user")
             self.tag_cancelled.emit()
             self.set_tag(self.tag)
+
+    def save_tag(self) -> None:
+        """Compatibility wrapper that delegates to :meth:`handle_save`."""
+
+        self.handle_save()
+
+    def delete_tag(self) -> None:
+        """Compatibility wrapper that delegates to :meth:`handle_delete`."""
+
+        self.handle_delete()
+
+    def cancel_editing(self) -> None:
+        """Compatibility wrapper that delegates to :meth:`handle_cancel`."""
+
+        self.handle_cancel()

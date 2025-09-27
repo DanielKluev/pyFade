@@ -60,9 +60,12 @@ class FeaturesChecker:
             if importlib.util.find_spec(module_name) is None:
                 raise ImportError("sqlcipher3 module not found")
             # Resort to direct import attempt as importlib fails to load sqlcipher3 correctly
-            import sqlcipher3  # type: ignore[import]
+            import sqlcipher3  # type: ignore[import] # pylint: disable=import-outside-toplevel
             if not hasattr(sqlcipher3, "connect"):
-                self.log.error("sqlcipher3 module: %s, module is present, but connect function is missing", dir(sqlcipher3))
+                self.log.error(
+                    "sqlcipher3 module: %s, module is present, but connect function is missing",
+                    sqlcipher3
+                    )
                 raise ImportError("sqlcipher3 module does not have 'connect' attribute")
             result = True
         except ImportError as exc:
