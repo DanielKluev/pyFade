@@ -9,11 +9,8 @@ import pathlib
 import tempfile
 from typing import TYPE_CHECKING
 
-import pytest
-
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.facet import Facet
-from py_fade.dataset.sample import Sample
 
 if TYPE_CHECKING:
     pass
