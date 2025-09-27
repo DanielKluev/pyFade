@@ -1,4 +1,42 @@
-"""Material-themed widget for viewing a single completion with inline actions."""
+"""
+Material-themed widget for viewing a single completion with inline actions.
+
+TODO:
+ - Move this module to components/
+ - `__init__` should take `display_mode:str` parameter that can be "sample" or "beam", supporting future modes as needed.
+ - Make `widget_completion_beams.py` use this CompletionFrame, but expand it to properly support interactive beaming nuances:
+    - Remove `BeamCompletionFrame` entirely, `CompletionFrame` should be universal completion display.
+ - For `beam` mode:
+    - Hide rating control
+    - Hide model and temperature row, as beaming is always deterministic over single model. We will display this info on saved completions back in original Sample widget after done with beaming.
+    - Add save and pin/unpin buttons similar how they are currently implemented in the `BeamCompletionFrame`, but adapted to `CompletionFrame` style.
+        - These buttons emit signals that the parent widget should handle.
+        - Pin state is currently transient, not persisted in db. Active only during single interactive beaming session.
+    - Save button should follow existing logic in `BeamCompletionFrame`, creating a new `PromptCompletion` in db with same parameters as the beam, but with `beam_token` set to the currently selected beam token.
+    - After saving, parent widget should replace this `CompletionFrame` with a new one for the saved completion, but still `beam` mode (so no rating, no model/temp, but with archive button).
+    
+ - Add discard button for both `beam` and `sample` modes:
+    - If completion is transient (not saved in db), simply discard it.
+    - If completion is persisted in db (having an id), ask user to confirm discard, as this will permanently delete the completion from db.
+    - Use standard Qt dialog for confirmation.
+    - Parent widget should handle removing appropriate `CompletionFrame` from display.
+ - For `sample` mode, add "Edit" button:
+    - Open `ThreeWayCompletionEditorWindow` from `py_fade/gui/window_three_way_completion_editor.py` in blocking mode, for manual edit of the completion text.
+    - Editor will handle saving new completion and archiving the old one, this widget just emits signal.
+    - When editing is done, parent widget should handle changes regarding `CompletionFrame` display. Depending on user action in editor, this might involve:
+        - Removing this `CompletionFrame` if user archived the original completion and created a new one
+        - Keeping both this `CompletionFrame` and a new one if user didn't archive original and created a new one
+        - Keeping this `CompletionFrame` if user didn't create a new completion
+        - Old completions **NEVER** get modified, only archived if user chooses to do so.
+ - "Resume" button should only be visible if `is_truncated` is True and completion is not archived. On Resume:
+    - Open `ThreeWayCompletionEditorWindow` from `py_fade/gui/window_three_way_completion_editor.py` in blocking mode, for continuation generation of the completion text.
+    - Editor will handle saving new completion and archiving the old one, this widget just emits signal.
+    - When editing is done, parent widget should handle changes regarding `CompletionFrame` display. Depending on user action in editor, this might involve:
+        - Removing this `CompletionFrame` if user archived the original completion and created a new one
+        - Keeping both this `CompletionFrame` and a new one if user didn't archive original and created a new one
+        - Keeping this `CompletionFrame` if user didn't create a new completion
+        - Old completions **NEVER** get modified, only archived if user chooses to do so.
+"""
 
 from __future__ import annotations
 
