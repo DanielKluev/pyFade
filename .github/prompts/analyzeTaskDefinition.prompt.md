@@ -12,4 +12,9 @@ If you identify any ambiguities or areas that require clarification, make note o
 Document your analysis clearly, providing a structured overview of the task definition and your proposed approach to addressing it. 
 Separately provide section on any potential missing design or architectural choices, requirements and explanations required for high quality implementation of the task. Request that major changes to other components, which block implementation of this task should be clearly outlined in the task definition docstring.
 
-Additionally, compile comprehensive task definition that could be used for new GitHub Issue, ensuring it captures all necessary details and context for someone unfamiliar with the project. This should include a clear description of the task, its objectives, and any relevant background information, formatted in such way that Issue could be delegated to Copilot or similar AI assistant for implementation. Refer to `.github/prompts/*.prompt.md` files for task type specific instructions.
+Finally, compile thorough and comprehensive task definition that could be used for new GitHub Issue:
+ - Issue draft should be in markdown format, fenced with triple backticks and `markdown` language tag.
+ - Issue draft should be self-contained, with all details and nuances from original TODO items, docstrings, and your analysis included.
+ - Issue draft should contain preliminary implementation plan and list of related components that may be affected by the changes.
+ - Issue draft should contain all instructions from the relevant prompt files from `.github/prompts/*.prompt.md`, especially regarding project conventions, testing, linting, and documentation updates.
+ - Double-check that the Issue draft is thorough and contains all necessary information, assume it will be handed off to a developer unfamiliar with the project or AI assistant.
