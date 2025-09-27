@@ -29,12 +29,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.tag import Tag
-from py_fade.gui.components.widget_crud_form_base import CrudFormWidget
-from py_fade.gui.gui_helpers import (
-    build_crud_button_styles,
-    validate_description,
-    validate_entity_name,
-)
+from py_fade.gui.components.widget_crud_form_base import CrudFormWidget, build_crud_button_styles
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -57,16 +52,13 @@ class WidgetTag(CrudFormWidget):
     dataset: DatasetDatabase
     tag: Tag | None
 
-    def __init__(
-        self,
-        parent: QWidget | None,
-        app: "pyFadeApp",
-        dataset: DatasetDatabase,
-        tag: Tag | None,
-    ) -> None:
+    def __init__(self, parent: QWidget | None, app: "pyFadeApp", dataset: DatasetDatabase, tag: Tag | None) -> None:
         self.log = logging.getLogger("WidgetTag")
         self.app = app
         self.dataset = dataset
+        if not dataset.session:
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+        self.dataset_session = dataset.session  # type: ignore[attr-defined]
         self.tag = tag
 
         button_styles = build_crud_button_styles(save_color="#00796B")
@@ -181,35 +173,17 @@ class WidgetTag(CrudFormWidget):
         self.validate_form()
 
     def validate_form(self) -> None:
-        """Validate user input and toggle the save button/validation message."""
+        """
+        Validate user input and toggle the save button/validation message.
+        """
 
         name = self.name_field.text()
         description = self.description_field.toPlainText()
-
+        current_id = self.tag.id if self.tag else None
         errors: list[str] = []
 
-        current_id = self.tag.id if self.tag else None
-        errors.extend(
-            validate_entity_name(
-                dataset=self.dataset,
-                name=name,
-                current_entity_id=current_id,
-                fetch_existing=Tag.get_by_name,
-                min_length=2,
-                max_length=100,
-                duplicate_message="A tag with this name already exists",
-            )
-        )
-        errors.extend(
-            validate_description(
-                description,
-                min_length=5,
-                max_length=2000,
-                empty_message="Description is required",
-                short_message="Description must be at least 5 characters",
-                long_message="Description must be less than 2000 characters",
-            )
-        )
+        errors.extend(self.validate_name_unique(name, current_id, self.dataset, Tag))
+        errors.extend(self.validate_description(description))
 
         scope_value = self.scope_combo.currentData()
         try:
@@ -220,12 +194,9 @@ class WidgetTag(CrudFormWidget):
         self.set_validation_errors(errors)
 
     def handle_save(self) -> None:
-        """Persist the current form data to the dataset."""
-
-        if not self.dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+        """
+        Persist the current form data to the dataset.
+        """
 
         name = self.name_field.text().strip()
         description = self.description_field.toPlainText().strip()
@@ -242,10 +213,10 @@ class WidgetTag(CrudFormWidget):
                     self.dataset, name=name, description=description, scope=normalized_scope
                 )
 
-            self.dataset.session.flush()
-            self.dataset.session.commit()
+            self.dataset_session.flush()
+            self.dataset_session.commit()
             if self.tag is not None:
-                self.dataset.session.refresh(self.tag)
+                self.dataset_session.refresh(self.tag)
 
         except SQLAlchemyError as exc:
             self.log.exception("Failed to save tag", exc_info=exc)
@@ -264,11 +235,6 @@ class WidgetTag(CrudFormWidget):
         if not self.tag or not self.tag.id:
             return
 
-        if not self.dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
-
         reply = QMessageBox.question(
             self,
             "Confirm Deletion",
@@ -286,11 +252,11 @@ class WidgetTag(CrudFormWidget):
             self.log.debug("Deleting tag id=%s", deleted_tag.id if deleted_tag else None)
             if deleted_tag is not None:
                 deleted_tag.delete(self.dataset)
-            self.dataset.session.commit()
+            self.dataset_session.commit()
         except SQLAlchemyError as exc:
             self.log.exception("Failed to delete tag", exc_info=exc)
-            if self.dataset.session:
-                self.dataset.session.rollback()
+            if self.dataset_session:
+                self.dataset_session.rollback()
             QMessageBox.critical(self, "Error", f"Failed to delete tag: {exc}")
             return
 
@@ -314,18 +280,3 @@ class WidgetTag(CrudFormWidget):
             self.log.debug("Editing cancelled by user")
             self.tag_cancelled.emit()
             self.set_tag(self.tag)
-
-    def save_tag(self) -> None:
-        """Compatibility wrapper that delegates to :meth:`handle_save`."""
-
-        self.handle_save()
-
-    def delete_tag(self) -> None:
-        """Compatibility wrapper that delegates to :meth:`handle_delete`."""
-
-        self.handle_delete()
-
-    def cancel_editing(self) -> None:
-        """Compatibility wrapper that delegates to :meth:`handle_cancel`."""
-
-        self.handle_cancel()

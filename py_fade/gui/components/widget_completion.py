@@ -1,65 +1,5 @@
 """
 Material-themed widget for viewing a single completion with inline actions.
-
-TODO:
- - Move this module to components/ ✓ DONE
- - `__init__` should take `display_mode:str` parameter that can be "sample" or
-   "beam", supporting future modes as needed. ✓ DONE
- - Make `widget_completion_beams.py` use this CompletionFrame, but expand it to
-   properly support interactive beaming nuances:
-    - Remove `BeamCompletionFrame` entirely, `CompletionFrame` should be
-      universal completion display. ✓ DONE
- - For `beam` mode:
-    - Hide rating control ✓ DONE
-    - Hide model and temperature row, as beaming is always deterministic over
-      single model. We will display this info on saved completions back in
-      original Sample widget after done with beaming. ✓ DONE
-    - Add save and pin/unpin buttons similar how they are currently implemented
-      in the `BeamCompletionFrame`, but adapted to `CompletionFrame` style.
-        - These buttons emit signals that the parent widget should handle.
-          ✓ DONE
-        - Pin state is currently transient, not persisted in db. Active only
-          during single interactive beaming session. ✓ DONE
-    - Save button should follow existing logic in `BeamCompletionFrame`,
-      creating a new `PromptCompletion` in db with same parameters as the beam,
-      but with `beam_token` set to the currently selected beam token. ✓ DONE
-    - After saving, parent widget should replace this `CompletionFrame` with a
-      new one for the saved completion, but still `beam` mode (so no rating,
-      no model/temp, but with archive button). ✓ DONE
-
- - Add discard button for both `beam` and `sample` modes:
-    - If completion is transient (not saved in db), simply discard it. ✓ DONE
-    - If completion is persisted in db (having an id), ask user to confirm
-      discard, as this will permanently delete the completion from db. ✓ DONE
-    - Use standard Qt dialog for confirmation. ✓ DONE
-    - Parent widget should handle removing appropriate `CompletionFrame` from
-      display. ✓ DONE
- - For `sample` mode, add "Edit" button:
-    - Open `ThreeWayCompletionEditorWindow` from
-      `py_fade/gui/window_three_way_completion_editor.py` in blocking mode, for
-      manual edit of the completion text. ✓ DONE
-    - Editor will handle saving new completion and archiving the old one, this
-      widget just emits signal. ✓ DONE
-    - When editing is done, parent widget should handle changes regarding
-      `CompletionFrame` display. Depending on user action in editor, this
-      might involve:
-        - Removing this `CompletionFrame` if user archived the original
-          completion and created a new one ✓ DONE
-        - Keeping both this `CompletionFrame` and a new one if user didn't
-          archive original and created a new one ✓ DONE
-        - Keeping this `CompletionFrame` if user didn't create a new completion
-          ✓ DONE
-        - Old completions **NEVER** get modified, only archived if user chooses
-          to do so. ✓ DONE
- - "Resume" button should only be visible if `is_truncated` is True and
-   completion is not archived. On Resume:
-    - Open `ThreeWayCompletionEditorWindow` from
-      `py_fade/gui/window_three_way_completion_editor.py` in blocking mode, for
-      continuation generation of the completion text. ✓ DONE
-    - Editor will handle saving new completion and archiving the old one, this
-      widget just emits signal. ✓ DONE
-    - When editing is done, parent widget should handle changes regarding
-      `CompletionFrame` display. ✓ DONE
 """
 
 from __future__ import annotations
@@ -81,12 +21,9 @@ from PyQt6.QtWidgets import (
 
 from py_fade.gui.auxillary import logprob_to_qcolor
 from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
-from py_fade.gui.components import (
-    CompletionRatingWidget,
-    QLabelWithIcon,
-    QLabelWithIconAndText,
-    QPushButtonWithIcon,
-)
+from py_fade.gui.components.widget_completion_rating import CompletionRatingWidget
+from py_fade.gui.components.widget_label_with_icon import QLabelWithIcon, QLabelWithIconAndText
+from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 
 if TYPE_CHECKING:
     from py_fade.dataset.completion import PromptCompletion

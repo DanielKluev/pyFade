@@ -1,4 +1,5 @@
 """Ollama LLM provider implementation with local model registry support."""
+# pylint: disable=too-few-public-methods,no-member,duplicate-code
 
 import json
 import logging

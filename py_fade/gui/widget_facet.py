@@ -19,12 +19,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.facet import Facet
-from py_fade.gui.components.widget_crud_form_base import CrudFormWidget
-from py_fade.gui.gui_helpers import (
-    build_crud_button_styles,
-    validate_description,
-    validate_entity_name,
-)
+from py_fade.gui.components.widget_crud_form_base import CrudFormWidget, build_crud_button_styles
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -125,14 +120,14 @@ class WidgetFacet(CrudFormWidget):
 
         form_layout.addWidget(form_frame)
 
-    def set_facet(self, facet: "Facet | None") -> None:
+    def set_facet(self, facet: "Facet | None") -> None: # pylint: disable=duplicate-code
         """Set the facet data and populate UI components."""
 
         self.facet = facet
 
         if facet is None:
             self.set_header_text("New Facet")
-            self.name_field.setText("")
+            self.name_field.setText("") # pylint: disable=duplicate-code
             self.description_field.setPlainText("")
             self.total_samples_field.setText("0")
             self.date_created_field.setText("Will be set on save")
@@ -148,35 +143,17 @@ class WidgetFacet(CrudFormWidget):
         self.validate_form()
 
     def validate_form(self) -> None:
-        """Validate form inputs and update UI accordingly."""
+        """
+        Validate form inputs and update UI accordingly.
+        """
 
+        current_id = self.facet.id if self.facet else None
         name = self.name_field.text()
         description = self.description_field.toPlainText()
 
-        current_id = self.facet.id if self.facet else None
         errors: list[str] = []
-        errors.extend(
-            validate_entity_name(
-                dataset=self.dataset,
-                name=name,
-                current_entity_id=current_id,
-                fetch_existing=Facet.get_by_name,
-                min_length=2,
-                max_length=100,
-                duplicate_message="A facet with this name already exists",
-            )
-        )
-        errors.extend(
-            validate_description(
-                description,
-                min_length=5,
-                max_length=1000,
-                empty_message="Description is required",
-                short_message="Description must be at least 5 characters",
-                long_message="Description must be less than 1000 characters",
-            )
-        )
-
+        errors.extend(self.validate_name_unique(name, current_id, self.dataset, Facet))
+        errors.extend(self.validate_description(description))
         self.set_validation_errors(errors)
 
     def handle_save(self) -> None:

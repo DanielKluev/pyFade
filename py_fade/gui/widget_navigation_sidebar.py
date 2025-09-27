@@ -60,7 +60,6 @@ class WidgetNavigationFilterPanel(QWidget):
                 "Facets",
                 "Tags",
                 "Prompts",
-                "Completions",
                 "Export Templates",
             ]
         )
@@ -165,9 +164,6 @@ class WidgetNavigationTree(QWidget):
         elif show == "Prompts":
             self.current_item_type = None  # Prompts created elsewhere
             self._populate_prompts(data_filter, dataset)
-        elif show == "Completions":
-            self.current_item_type = None  # Completions created elsewhere
-            self._populate_completions(data_filter, dataset)
         elif show == "Export Templates":
             self.current_item_type = "export_template"
             self._populate_export_templates(data_filter, dataset)
@@ -294,19 +290,6 @@ class WidgetNavigationTree(QWidget):
 
         root_used.setExpanded(False)
         root_orphaned.setExpanded(True)
-
-    def _populate_completions(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
-        """Populate tree with completions."""
-
-        completion_item = QTreeWidgetItem(self.tree, ["Completions"])
-        # Mock completion data
-        for i in range(4):
-            completion_name = f"Completion {i+1}"
-            item = QTreeWidgetItem(completion_item, [completion_name])
-            item.setData(0, Qt.ItemDataRole.UserRole, "completion")
-            item.setData(1, Qt.ItemDataRole.UserRole, f"completion_{i+1}")
-
-        completion_item.setExpanded(True)
 
     def _populate_export_templates(
         self, data_filter: DataFilter, dataset: "DatasetDatabase"

@@ -67,7 +67,7 @@ def test_widget_tag_crud_flow(
 
     assert widget.save_button.isEnabled()
 
-    widget.save_tag()
+    widget.handle_save()
     qt_app.processEvents()
 
     created_tag = Tag.get_by_name(temp_dataset, "Important")
@@ -81,7 +81,7 @@ def test_widget_tag_crud_flow(
     widget.scope_combo.setCurrentIndex(samples_index)
     widget.description_field.setPlainText("Updated description for the important tag")
     qt_app.processEvents()
-    widget.save_tag()
+    widget.handle_save()
     qt_app.processEvents()
 
     refreshed_tag = Tag.get_by_id(temp_dataset, created_tag.id)
@@ -89,7 +89,7 @@ def test_widget_tag_crud_flow(
     assert refreshed_tag.description == "Updated description for the important tag"
     assert refreshed_tag.scope == "samples"
 
-    widget.delete_tag()
+    widget.handle_delete()
     qt_app.processEvents()
 
     assert Tag.get_by_id(temp_dataset, created_tag.id) is None
@@ -129,7 +129,7 @@ def test_widget_tag_validation_prevents_duplicates(
 
     assert not widget.save_button.isEnabled()
     assert not widget.validation_label.isHidden()
-    assert "already exists" in widget.validation_label.text()
+    assert "Name must be unique" in widget.validation_label.text()
 
     widget.name_field.setText("Beta")
     qt_app.processEvents()

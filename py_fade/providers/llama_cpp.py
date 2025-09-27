@@ -1,4 +1,5 @@
 """llama.cpp provider implementation with AMD GPU support and prefill awareness."""
+# pylint: disable=wrong-import-position,invalid-name,duplicate-code
 
 import logging
 import os
@@ -7,6 +8,7 @@ from typing import Optional
 
 # Patch path for AMD if needed
 # For Windows, if HIP_PATH is set and value is not in PATH, add it
+# **IMPORTANT**: This must be done before importing llama_cpp. Do not move this block.
 if os.name == "nt":
     hip_path = os.environ.get("HIP_PATH", None)
     if hip_path and hip_path not in os.environ.get("PATH", ""):
@@ -24,7 +26,7 @@ try:
     from llama_cpp import Llama
 
     IS_LLAMA_CPP_AVAILABLE = True
-except Exception as e:
+except Exception as e:  # pylint: disable=broad-exception-caught
     print("Exception while importing llama_cpp:", e)
     print(
         "Warning: Failed to import llama_cpp. Ensure llama-cpp-python is installed "
@@ -119,7 +121,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             self.current_model_gguf_file = gguf_file
             self.current_model_logits_all = logits_all
             return model
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             self.log.error("Failed to load Llama model from %s: %s", gguf_file, e)
             return None
 

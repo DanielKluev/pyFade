@@ -1,4 +1,10 @@
-"""ORM model and helpers for dataset facets."""
+"""
+ORM model and helpers for dataset facets.
+
+Pylint: 
+ - Intentional duplication of ORM model attributes. Easier when each model class is fully visible.
+"""
+# pylint: disable=duplicate-code
 
 import datetime
 from typing import TYPE_CHECKING

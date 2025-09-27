@@ -13,8 +13,30 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.gui.components.widget_label_with_icon import QLabelWithIconAndText
+
+def build_crud_button_styles(*, save_color: str) -> CrudButtonStyles:
+    """Return the Material-inspired button style set for CRUD forms."""
+
+    base_style = (
+        "QPushButton { background-color: %s; color: white; padding: 8px 16px; }"
+    )
+    return CrudButtonStyles(
+        save=base_style % save_color,
+        cancel=base_style % "#757575",
+        delete=base_style % "#d32f2f",
+    )
+
+@dataclass(frozen=True, slots=True)
+class TextConstraints:
+    """Holds min/max length and validation messages for text fields."""
+    min_length: int
+    max_length: int
+    empty_message: str
+    short_message: str
+    long_message: str
 
 
 @dataclass(frozen=True)
@@ -28,6 +50,20 @@ class CrudButtonStyles:
 
 class CrudFormWidget(QWidget):
     """Shared helper that assembles a header, validation label, and CRUD buttons."""
+    description_constraints: TextConstraints = TextConstraints(
+        min_length=5,
+        max_length=2000,
+        empty_message="Description is required",
+        short_message="Description is too short",
+        long_message="Description is too long",
+    )
+    entity_name_constraints: TextConstraints = TextConstraints(
+        min_length=1,
+        max_length=100,
+        empty_message="Name is required",
+        short_message="Name is too short",
+        long_message="Name is too long",
+    )
 
     def __init__(
         self,
@@ -171,3 +207,46 @@ class CrudFormWidget(QWidget):
 
     def _on_cancel_clicked(self) -> None:
         self.handle_cancel()
+
+    # ----------------------------------------------------------------------
+    # Form validators
+    # ----------------------------------------------------------------------
+
+    def validate_name_unique(self, name: str, current_entity_id: int | None, dataset: DatasetDatabase, entity_class: type,
+                             constraints: TextConstraints | None = None) -> list[str]:
+        """
+        Validate name according to `constraints` and uniqueness within `dataset` for `entity_class`.
+        """
+        if not dataset.session:
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+
+        if constraints is None:
+            constraints = self.entity_name_constraints
+
+        errors = []
+        name = name.strip()
+        if not name:
+            errors.append(constraints.empty_message)
+        if len(name) < constraints.min_length:
+            errors.append(constraints.short_message)
+        if len(name) > constraints.max_length:
+            errors.append(constraints.long_message)
+
+        existing = dataset.session.query(entity_class).filter_by(name=name).first()
+        if existing and existing.id != current_entity_id:
+            return ["Name must be unique"]
+        return []
+
+    def validate_description(self, description: str, constraints: TextConstraints|None = None) -> list[str]:
+        """Validate a text description according to project length constraints."""
+        if constraints is None:
+            constraints = self.description_constraints
+
+        normalized = description.strip()
+        if not normalized:
+            return [constraints.empty_message]
+        if len(normalized) < constraints.min_length:
+            return [constraints.short_message]
+        if len(normalized) > constraints.max_length:
+            return [constraints.long_message]
+        return []

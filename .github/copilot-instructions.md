@@ -23,8 +23,10 @@ This file helps a code-writing agent onboard the pyFade repository quickly. It c
 
 ## 3) Code style
 - Follows PEP 8 style guidelines.
-- ALWAYS use 4 spaces for indentation (no tabs).
+- **ALWAYS** use 4 spaces for indentation. **NEVER** use tabs.
 - Type hints are used extensively.
+- Keep code documented with docstrings and comments. **NEVER** remove comments, instead update them if they are out of date.
+- Line length limit is 140 characters. Do not split function signatures or calls across multiple lines unless absolutely necessary.
 - All modules, classes, and functions should have docstrings. Docstrings should start on new line after triple double quotes. Docstrings for class should describe the purpose of the class and any important details. Docstrings for methods should describe the purpose of the method, its parameters, return values, and any important details. Test docstrings should describe what is being tested and the expected outcome.
 - Use `logging` module for logging, do not use print statements. Use appropriate log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL). Use per-class loggers via `self.log = logging.getLogger(CLASS_NAME)`. Use lazy evaluation of log messages via `%` of the logger methods, e.g. `logger.debug("Message: %s", variable)` whenever possible.
 - Do not use local imports unless absolutely necessary to avoid circular dependencies, prefer module-level imports.
@@ -33,6 +35,33 @@ This file helps a code-writing agent onboard the pyFade repository quickly. It c
 - UI set_XXX() methods should branch on single if statement to handle None/new object vs existing object, one branch for new object with empty/default values, another branch for existing object with real values.
 - SQLAlchemy ORM is used for database models and queries, orchestrated via DatasetDatabase class.
 - Following Google Material Design principles for UI layout and behavior, using qt_material for theming.
+
+Example of correct code style:
+```python
+"""
+`ModuleName` is providing implementation for XYZ.
+Key classes: `ClassName1`, `ClassName2`
+"""
+class ClassName1:
+    """
+    ClassName1 does XYZ.
+    """
+    attribute1: int
+    attribute2: str
+
+    def method_name(self, param1: int, param2: str) -> bool:
+        """
+        Do something important.
+
+        Uses `param1` to do X and `param2` to do Y.
+
+        Returns the return value.
+        """
+        # First, log the method call with parameters
+        self.log.debug("Executing method_name with param1=%d, param2=%s", param1, param2)
+        # Method implementation here
+        return True
+```
 
 ## 4) Testing, build, and run instructions
 - For testing, scripts in `tests/` can be created or modified to test various components, functionality, and performance. Use `pytest` framework for unit tests.

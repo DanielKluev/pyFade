@@ -1,4 +1,10 @@
-"""Dataset model helpers for tag entities."""
+"""
+Dataset model helpers for tag entities.
+
+Pylint: 
+ - Intentional duplication of ORM model attributes. Easier when each model class is fully visible.
+"""
+# pylint: disable=duplicate-code
 
 import datetime
 import logging

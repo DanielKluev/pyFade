@@ -1,7 +1,6 @@
 """Base provider classes and utilities for LLM inference providers."""
 
 import logging
-from typing import Iterable
 
 from tiktoken import get_encoding
 
@@ -75,7 +74,7 @@ class BasePrefillAwareProvider:
         """
         raise NotImplementedError("Subclasses must implement the evaluate_completion method.")
 
-    def count_tokens(self, text: str, model_id: str | None = None) -> int:
+    def count_tokens(self, text: str, model_id: str | None = None) -> int: # pylint: disable=unused-argument
         """
         Count the number of tokens in the given text using tiktoken.
         """

@@ -24,6 +24,7 @@ def hsv_to_rgb(h, s, v) -> tuple[float, float, float]:  # type: ignore
         return t, p, v
     if i == 5:
         return v, p, q
+    raise ValueError("h must be in [0, 1]")  # pragma: no cover - should not happen
 
 
 def logprob_to_qcolor(

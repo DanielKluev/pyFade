@@ -4,11 +4,7 @@ import logging
 import pathlib
 
 from py_fade.providers.base_provider import BasePrefillAwareProvider
-from py_fade.providers.llama_cpp import (
-    PrefillAwareLlamaCppInternal,
-    IS_LLAMA_CPP_AVAILABLE,
-    is_llama_cpp_available,
-)
+from py_fade.providers.llama_cpp import PrefillAwareLlamaCppInternal, IS_LLAMA_CPP_AVAILABLE
 from py_fade.providers.llm_response import LLMPTokenLogProbs, LLMResponse
 from py_fade.providers.llm_templates import get_template_function
 from py_fade.providers.mock_provider import MockLLMProvider
@@ -16,10 +12,9 @@ from py_fade.providers.ollama import OllamaRegistry, PrefillAwareOllama
 
 providers_map = {
     "mock": MockLLMProvider,
-    "llama_cpp_internal": PrefillAwareLlamaCppInternal if is_llama_cpp_available else None,
+    "llama_cpp_internal": PrefillAwareLlamaCppInternal if IS_LLAMA_CPP_AVAILABLE else None,
     "ollama": PrefillAwareOllama,
 }
-
 
 class MappedModel:
     """Represents a model mapped to a specific provider with associated parameters."""
@@ -93,6 +88,9 @@ class InferenceProvidersManager:
         self._default_provider = self.providers["mock"]
 
     def reload_models(self, models_configs: list[dict]):
+        """
+        Reload models mapped to providers from configuration.
+        """
         # Add mock provider and mock model.
         self.add_model("mock-echo-model", "mock")
 
@@ -116,39 +114,43 @@ class InferenceProvidersManager:
                 if gguf_path == "USE_OLLAMA_REGISTRY":
                     if not self.ollama_registry:
                         self.log.error(
-                            f"Model {model_id} requires Ollama registry, but no registry path provided."
+                            "Model %s requires Ollama registry, but no registry path provided.",
+                            model_id,
                         )
                         continue
                     if not ollama_id:
                         self.log.error(
-                            f"Model {model_id} requires Ollama registry, but no ollama_id provided."
+                            "Model %s requires Ollama registry, but no ollama_id provided.",
+                            model_id,
                         )
                         continue
                     model_metadata = self.ollama_registry.load_model_metadata(ollama_id)
                     gguf_path = model_metadata.get("weights_file")
                     if not gguf_path or not gguf_path.exists():
-                        self.log.error(f"Model {model_id} weights file does not exist: {gguf_path}")
+                        self.log.error("Model %s weights file does not exist: %s", model_id, gguf_path)
                         continue
                 # Add GGUF path for this model
                 # If llama_cpp is supported, add llama_cpp provider for this model
-                if is_llama_cpp_available:
-                    self.add_model(
-                        model_id,
-                        "llama_cpp_internal",
-                        {"gguf": str(gguf_path), "template_func": template_func},
-                    )
+                if IS_LLAMA_CPP_AVAILABLE:
+                    self.add_model(model_id, "llama_cpp_internal", {"gguf": str(gguf_path), "template_func": template_func})
                 else:
                     self.log.error(
-                        f"Model {model_id} requires llama_cpp provider, but llama-cpp-python is not installed."
+                        "Model %s requires llama_cpp provider, but llama-cpp-python is not installed.",
+                        model_id,
                     )
 
     def add_model(self, model_id: str, provider_key: str, provider_params: dict | None = None):
+        """
+        Add a model with specified provider and parameters.
+        Builds MappedModel and stores in models and model_provider_map.
+        """
         if provider_key not in providers_map:
-            self.log.error(f"Provider key {provider_key} not recognized for model {model_id}.")
+            self.log.error("Provider key %s not recognized for model %s.", provider_key, model_id)
             return
         if providers_map[provider_key] is None:
             self.log.error(
-                f"Provider {provider_key} is not supported. Install required dependencies or configure correctly."
+                "Provider %s is not supported. Install required dependencies or configure correctly.",
+                provider_key,
             )
             return
         if provider_key not in self.providers:
@@ -165,10 +167,15 @@ class InferenceProvidersManager:
         mapped_model = MappedModel(model_id, provider_instance, provider_params)
         self.models[model_id][provider_key] = mapped_model
         self.model_provider_map[mapped_model.path] = mapped_model
-        self.log.info(f"Added model {model_id} with provider {provider_key}.")
+        self.log.info("Added model %s with provider %s.", model_id, provider_key)
 
     def count_tokens(self, text: str, model_id: str | None = None) -> int:
+        """
+        Wrapper to call appropriate provider's count_tokens method.
+        Returns token count as integer.
+        """
         return self._default_provider.count_tokens(text, model_id)
 
     def get_mapped_model(self, model_path: str) -> MappedModel | None:
+        """Get MappedModel by its full path identifier."""
         return self.model_provider_map.get(model_path, None)
