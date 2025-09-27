@@ -39,6 +39,7 @@ is_llama_cpp_available = IS_LLAMA_CPP_AVAILABLE
 
 class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
     """Internal llama.cpp provider with prefill awareness and GPU support."""
+
     logprob_capability = LOGPROB_LEVEL_TOP_LOGPROBS  # Llama.cpp can provide top logprobs
     id: str = "llama_cpp_internal"
     is_local_vram: bool = True  # Llama.cpp runs locally and uses VRAM
@@ -101,7 +102,9 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
 
         self.log.info(
             "Loading Llama model from %s with n_gpu_layers=%d, n_ctx=%d",
-            gguf_file, n_gpu_layers, n_ctx
+            gguf_file,
+            n_gpu_layers,
+            n_ctx,
         )
         try:
             model = llama_cpp.Llama(
@@ -160,8 +163,13 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         self.log.info(
             "[ > ] Generating with model %s, temperature=%s, top_k=%s, context_length=%s, "
             "max_tokens=%s, top_logprobs=%s, prefill=%s",
-            model_id, temperature, top_k, context_length, max_tokens, top_logprobs,
-            '<yes>' if prefill else '<no>'
+            model_id,
+            temperature,
+            top_k,
+            context_length,
+            max_tokens,
+            top_logprobs,
+            "<yes>" if prefill else "<no>",
         )
         messages = [{"role": "user", "content": prompt}]
         history = messages.copy()
@@ -171,8 +179,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
 
         if template_func and callable(template_func):
             formatted_prompt: str = template_func(messages)  # type: ignore
-            self.log.info("Formatted prompt with template:\n%s\n%s", 
-                         formatted_prompt, "-" * 40)
+            self.log.info("Formatted prompt with template:\n%s\n%s", formatted_prompt, "-" * 40)
 
             # Simple completion has logprobs:int|None, chat completion has logprobs:bool, top_logprobs:int|None
             if top_logprobs > 0:
@@ -286,14 +293,18 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         self.log.info(
             "[ > ] Evaluating completion with model %s, temperature=%s, top_k=%s, "
             "context_length=%s, max_tokens=%s, top_logprobs=%s",
-            model_id, temperature, top_k, context_length, max_tokens, top_logprobs
+            model_id,
+            temperature,
+            top_k,
+            context_length,
+            max_tokens,
+            top_logprobs,
         )
 
         messages = [{"role": "user", "content": prompt}]
         messages.append({"role": "assistant", "content": completion})
         formatted_prompt: str = template_func(messages)  # type: ignore
-        self.log.info("Formatted prompt with template:\n%s\n%s", 
-                     formatted_prompt, "-" * 40)
+        self.log.info("Formatted prompt with template:\n%s\n%s", formatted_prompt, "-" * 40)
         response = model(
             formatted_prompt,
             max_tokens=max_tokens,

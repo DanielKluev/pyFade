@@ -23,10 +23,8 @@ from sqlalchemy.orm.session import Session
 
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
-from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.data_filter import DataFilter
 from py_fade.dataset.dataset_base import dataset_base
-from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.providers.llm_response import LLMResponse
@@ -197,9 +195,7 @@ class DatasetDatabase:
             try:
                 conn.execute(f"PRAGMA key = {self._quote_password(self.password)};")
                 attach_sql = (
-                    "ATTACH DATABASE "
-                    f"{self._quote_path(dest_path)} "
-                    "AS plaintext KEY '';"
+                    "ATTACH DATABASE " f"{self._quote_path(dest_path)} " "AS plaintext KEY '';"
                 )
                 conn.execute(attach_sql)
                 conn.execute("SELECT sqlcipher_export('plaintext');")

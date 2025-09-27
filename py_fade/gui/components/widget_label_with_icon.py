@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
 from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
 from py_fade.gui.auxillary.aux_logprobs_to_color import logprob_to_qcolor
 
+
 class QLabelWithIcon(QLabel):
     """
     A QLabel that displays a Google icon.
@@ -16,7 +17,16 @@ class QLabelWithIcon(QLabel):
     The icon is specified by its name in the Google icon font.
     """
 
-    def __init__(self, icon_name: str, size: int = 12, parent=None, color: str = "black", logprob: float | None = None, tooltip: str | None = None):
+    def __init__(
+        self,
+        icon_name: str,
+        *,
+        size: int = 12,
+        parent: QWidget | None = None,
+        color: str = "black",
+        logprob: float | None = None,
+        tooltip: str | None = None,
+    ):
         """
         Create a QLabelWithIcon instance.
 
@@ -45,7 +55,16 @@ class QLabelWithIconAndText(QWidget):
     Two QLabel widgets side by side: one for an icon and one for text.
     """
 
-    def __init__(self, icon_name: str, text: str, size: int = 12, parent=None, color: str = "black", tooltip: str | None = None):
+    def __init__(
+        self,
+        icon_name: str,
+        text: str,
+        *,
+        size: int = 12,
+        parent: QWidget | None = None,
+        color: str = "black",
+        tooltip: str | None = None,
+    ):
         """Create a QLabelWithIconAndText instance."""
         super().__init__(parent)
         self.icon_name = icon_name
@@ -57,7 +76,9 @@ class QLabelWithIconAndText(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.icon_label = QLabel(self)
-        self.icon_label.setPixmap(google_icon_font.pixmap(icon_name, size=self.icon_size, color=color))        
+        self.icon_label.setPixmap(
+            google_icon_font.pixmap(icon_name, size=self.icon_size, color=color)
+        )
         layout.addWidget(self.icon_label)
 
         self.text_label = QLabel(text, self)

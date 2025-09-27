@@ -5,6 +5,7 @@ import importlib.util
 import logging
 import sys
 
+
 class FeaturesChecker:
     """Probe the runtime to discover availability of optional dependencies."""
 

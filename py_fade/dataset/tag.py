@@ -174,9 +174,15 @@ class Tag(dataset_base):
         self.log.debug("Deleted tag %s", self)
 
     def __str__(self) -> str:
-        return f"Tag(id={self.id}, name='{self.name}', scope='{self.scope}', samples={self.total_samples})"
+        return (
+            f"Tag(id={self.id}, name='{self.name}', scope='{self.scope}', "
+            f"samples={self.total_samples})"
+        )
 
     def __repr__(self) -> str:
-        return (f"Tag(id={self.id}, name='{self.name}', description='{self.description[:50]}', "
-                f"scope='{self.scope}', total_samples={self.total_samples}, "
-                f"date_created={self.date_created})")
+        description_preview = self.description[:50]
+        return (
+            f"Tag(id={self.id}, name='{self.name}', description='{description_preview}', "
+            f"scope='{self.scope}', total_samples={self.total_samples}, "
+            f"date_created={self.date_created})"
+        )

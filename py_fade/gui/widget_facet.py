@@ -1,3 +1,5 @@
+"""Widget for creating and editing dataset facets within the GUI."""
+
 import datetime
 from typing import TYPE_CHECKING
 

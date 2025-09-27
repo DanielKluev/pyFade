@@ -118,7 +118,8 @@ class TextGenerationController:
         """
         self.log.info(
             "Loading cache for model %s and prompt revision %s",
-            self.mapped_model.path, self.prompt_revision.id
+            self.mapped_model.path,
+            self.prompt_revision.id,
         )
         if not self.dataset.session:
             raise RuntimeError(
@@ -136,7 +137,7 @@ class TextGenerationController:
             self.all_completions.append(completion)
         self.log.info(
             "Populated completions cache with %d existing completions from dataset.",
-            len(self.all_completions)
+            len(self.all_completions),
         )
 
     def beam_out_on_token_one_level(
@@ -149,20 +150,20 @@ class TextGenerationController:
         on_check_stop: Callable[[], bool] | None = None,
     ) -> list[LLMResponse]:
         """
-        Keep prefix fixed, expand on next token after prefix, with `width` beams, 
-        each beam up to `length` tokens long.
-        Automatically check if prefix logprobs are known, if not - compute them first.
-        Automatically check if next token logprobs are known up to `width`, 
-        if not - compute them first.
+        Keep prefix fixed and expand the next token after prefix with ``width`` beams.
+        Each beam spans up to ``length`` tokens.
 
-        Return list of completed beams (if any) and update internal state with new beams.
+        The method ensures prefix logprobs are known, evaluating them if required.
+        It also ensures the next token logprobs are available up to ``width`` entries.
+
+        Returns a list of completed beams (if any) and updates internal state.
         """
-        # 1. Check if prefix logprobs are known. We need only selected token logprobs 
-        # to calculate beam min_logprob score. If not, evaluate them using the provider.
+        # 1. Check if prefix logprobs are known. We only need selected token logprobs to
+        #    calculate beam min_logprob scores. If missing, evaluate them using the provider.
         beam_prefix = self._find_beam_prefix(prefix)
 
-        # 2. Check if we have logprobs for next token after prefix, up to `width` 
-        # top_k token variants. If not, generate them using the provider.
+        # 2. Check if we have logprobs for next token after prefix, up to ``width`` top_k
+        #    token variants. If not, generate them using the provider.
         if beam_tokens is None:
             beam_tokens = self.fetch_next_token_logprobs_for_prefix(beam_prefix, width)
         self.log.info("Next tokens: %s", beam_tokens)
@@ -173,7 +174,8 @@ class TextGenerationController:
             beam_token_prob = LLMPTokenLogProbs(
                 token=token, logprob=logprob, top_logprobs=beam_tokens
             )
-            # 4. For each new beam, continue generating up to `length` tokens or until stopping criteria.
+            # 4. For each new beam, continue generating up to ``length`` tokens or until
+            #    stopping criteria are met.
             beam = self._expand_beam(beam_prefix, beam_token_prob, length)
             if beam:
                 level_beams.append(beam)
@@ -187,7 +189,8 @@ class TextGenerationController:
 
     def _find_beam_prefix(self, prefix: str) -> CompletionPrefix:
         """
-        Find CompletionPrefix for given prefix string in existing beams, or generate it if not known.
+        Locate a cached :class:`CompletionPrefix` for *prefix* or generate a new one
+        when missing.
         """
         # Handle empty prefix case
         if not prefix:
@@ -223,24 +226,24 @@ class TextGenerationController:
         """
         if isinstance(beam_prefix, str):
             beam_prefix = self._find_beam_prefix(beam_prefix)
-            # XXX: handle case when prefix is "", i.e. we need very first token logprobs.
-            # Any cached prefix with top_logprobs will do.
-            # But should take care to not return first token of it.
+            # NOTE: Handle the case when prefix is empty by using any cached prefix with
+            #       top_logprobs, avoiding reuse of the first token of another prefix.
 
         # Check if we already have them
         if beam_prefix.next_token_logprobs and len(beam_prefix.next_token_logprobs) >= width:
             return beam_prefix.next_token_logprobs
 
         # Need to generate them
-        response = self.mapped_model.generate(
-            prompt=self.prompt_revision.prompt_text,
-            prefill=beam_prefix.prefix_text,
-            temperature=self.default_temperature,
-            top_k=max(self.default_top_k, width),  # Ensure we get enough top_k
-            context_length=self.default_context_length,
-            top_logprobs=width,
-            max_tokens=1,  # Only need one token to get next token logprobs
-        )
+        generation_kwargs = {
+            "prompt": self.prompt_revision.prompt_text,
+            "prefill": beam_prefix.prefix_text,
+            "temperature": self.default_temperature,
+            "top_k": max(self.default_top_k, width),
+            "context_length": self.default_context_length,
+            "top_logprobs": width,
+            "max_tokens": 1,
+        }
+        response = self.mapped_model.generate(**generation_kwargs)
         # Extract top_k logprobs from response
         if not response.logprobs or len(response.logprobs) == 0:
             raise ValueError("Provider did not return token logprobs as expected.")
@@ -258,16 +261,17 @@ class TextGenerationController:
         Returns a LLMResponse if completed, or None if not.
         """
         prefill_text = beam_prefix.prefix_text + beam_token_prob.token
-        response = self.mapped_model.generate(
-            prompt=self.prompt_revision.prompt_text,
-            prefill=prefill_text,
-            temperature=self.default_temperature,
-            top_k=self.default_top_k,
-            context_length=self.default_context_length,
-            max_tokens=length,
-            top_logprobs=1,  # We need logprobs to track beam quality
-            beam_token=beam_token_prob.token,  # Pass the beam token for tracking
-        )
+        generation_kwargs = {
+            "prompt": self.prompt_revision.prompt_text,
+            "prefill": prefill_text,
+            "temperature": self.default_temperature,
+            "top_k": self.default_top_k,
+            "context_length": self.default_context_length,
+            "max_tokens": length,
+            "top_logprobs": 1,
+            "beam_token": beam_token_prob.token,
+        }
+        response = self.mapped_model.generate(**generation_kwargs)
 
         # Insert the beam token prob at the start of response logprobs
         logprobs = (

@@ -7,7 +7,15 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon, QMouseEvent
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QMessageBox, QStyleOptionToolButton, QToolButton, QWidget, QPushButton
+from PyQt6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QMessageBox,
+    QStyleOptionToolButton,
+    QToolButton,
+    QWidget,
+    QPushButton,
+)
 
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
@@ -22,6 +30,7 @@ EMPTY_STAR_COLOR = "#B0BEC5"
 LOW_RATING_COLOR = "#d84315"
 MID_RATING_COLOR = "#f9a825"
 HIGH_RATING_COLOR = "#2e7d32"
+
 
 # QToolButton
 class _StarButton(QPushButton):
@@ -110,13 +119,13 @@ class CompletionRatingWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        #self.setFixedSize(QSize(self._star_icon_size * 10 + 8, self._star_icon_size * 3 + 4))
+        # self.setFixedSize(QSize(self._star_icon_size * 10 + 8, self._star_icon_size * 3 + 4))
         button_size = int(self._star_icon_size * 1.5)
         self.star_buttons: list[_StarButton] = []
         for index in range(1, 6):
             button = _StarButton(index, self)
             button.setIconSize(QSize(self._star_icon_size, self._star_icon_size))
-            #button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            # button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
             button.setFixedSize(QSize(button_size, button_size))
             button.setEnabled(False)
             layout.addWidget(button)
@@ -267,11 +276,11 @@ class CompletionRatingWidget(QWidget):
                 icon = google_icon_font.pixmap(
                     "star_rate", size=self._star_icon_size, color=EMPTY_STAR_COLOR, fill=0.0
                 )
-            #self.log.info("Set icon to %s, size %d, dpr %d", icon, self._star_icon_size, icon.devicePixelRatio())
+            # self.log.info("Set icon to %s, size %d, dpr %d", icon, self._star_icon_size, icon.devicePixelRatio())
             button.setIcon(QIcon(icon))
-            #opt = QStyleOptionToolButton()
-            #button.initStyleOption(opt)
-            #print("opt.iconSize:", opt.iconSize, "iconSize():", button.iconSize(), "rect:", opt.rect)
+            # opt = QStyleOptionToolButton()
+            # button.initStyleOption(opt)
+            # print("opt.iconSize:", opt.iconSize, "iconSize():", button.iconSize(), "rect:", opt.rect)
 
 
 __all__ = ["CompletionRatingWidget"]

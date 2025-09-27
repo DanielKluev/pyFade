@@ -13,7 +13,7 @@ from py_fade.providers.llm_response import LLMPTokenLogProbs, LLMResponse
 class OllamaRegistry:
     """
     Ollama local models registry parser.
-    Ollama keeps all model files (GGUF, template, params and so on) as `blobs`, 
+    Ollama keeps all model files (GGUF, template, params and so on) as `blobs`,
     with file names in form of `sha256-<hash>`
     Manifests in `manifests` directory let us map model names to their blobs.
     """
@@ -102,6 +102,7 @@ class OllamaRegistry:
 
 class PrefillAwareOllama(BasePrefillAwareProvider):
     """Ollama provider implementation with prefill awareness support."""
+
     logprob_capability = LOGPROB_LEVEL_NONE  # Ollama does not provide logprobs
     id: str = "ollama"
     is_local_vram: bool = True  # Ollama runs locally and uses VRAM
@@ -140,12 +141,13 @@ class PrefillAwareOllama(BasePrefillAwareProvider):
         if prefill:
             messages.append({"role": "assistant", "content": prefill})
 
-        prompt_preview = prompt[:50] + ('...' if len(prompt) > 50 else '')
-        prefill_preview = (prefill[:50] + ('...' if len(prefill) > 50 else '') 
-                          if prefill else 'None')
+        prompt_preview = prompt[:50] + ("..." if len(prompt) > 50 else "")
+        prefill_preview = prefill[:50] + ("..." if len(prefill) > 50 else "") if prefill else "None"
         self.log.info(
             "Sending request to Ollama model '%s' with prompt: '%s' and prefill: '%s'",
-            model_id, prompt_preview, prefill_preview
+            model_id,
+            prompt_preview,
+            prefill_preview,
         )
 
         response = chat(
@@ -182,7 +184,9 @@ class PrefillAwareOllama(BasePrefillAwareProvider):
             max_tokens=max_tokens,
         )
 
-    def evaluate_completion(self, model_id: str, prompt: str, completion: str, **kwargs) -> list[LLMPTokenLogProbs]:
+    def evaluate_completion(
+        self, model_id: str, prompt: str, completion: str, **kwargs
+    ) -> list[LLMPTokenLogProbs]:
         """
         Ollama does not provide token-level log probabilities, so we raise an exception.
         """

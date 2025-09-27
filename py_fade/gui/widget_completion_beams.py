@@ -344,9 +344,7 @@ class WidgetCompletionBeams(QWidget):
         layout.addWidget(token_picker)
 
         # Connect token selection signal
-        token_picker.tokens_selected.connect(
-            partial(self._on_tokens_selected, dialog=dialog)
-        )
+        token_picker.tokens_selected.connect(partial(self._on_tokens_selected, dialog=dialog))
 
         # Store reference and show dialog
         self.token_picker_window = dialog
@@ -450,7 +448,7 @@ class WidgetCompletionBeams(QWidget):
             dataset=self.app.current_dataset,
             completion=beam,
             parent=self.beams_container,
-            display_mode="beam"
+            display_mode="beam",
         )
         frame.setFixedWidth(400)
         frame.setFixedHeight(300)

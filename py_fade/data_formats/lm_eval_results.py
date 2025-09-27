@@ -6,6 +6,7 @@ data shipped alongside the unit tests demonstrates the expected behaviour when
 diffing two evaluation runs: one tuned model introduces a new regression while
 keeping one shared success and one shared failure compared to the base model.
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -50,14 +51,11 @@ class LMEvalSample:
         """Return ``True`` for a correct sample, ``False`` for incorrect, ``None`` if unknown."""
 
         numeric_metrics: List[float] = [
-            score
-            for score in self.metrics.values()
-            if isinstance(score, (int, float))
+            score for score in self.metrics.values() if isinstance(score, (int, float))
         ]
         if numeric_metrics:
             return all(
-                math.isclose(score, 1.0, rel_tol=1e-9, abs_tol=1e-9)
-                for score in numeric_metrics
+                math.isclose(score, 1.0, rel_tol=1e-9, abs_tol=1e-9) for score in numeric_metrics
             )
 
         # Fallback to optional boolean flags produced by some harness versions.
@@ -175,9 +173,7 @@ class LMEvalResult:
 
         prompt_hash = sample_record.get("prompt_hash")
         if not prompt_hash:
-            raise ValueError(
-                f"Sample record missing 'prompt_hash': {sample_record}"
-            )
+            raise ValueError(f"Sample record missing 'prompt_hash': {sample_record}")
 
         prompt_text = self._extract_prompt_text(sample_record)
         target_text = sample_record.get("target", "")

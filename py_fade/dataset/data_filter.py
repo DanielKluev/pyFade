@@ -18,3 +18,8 @@ class DataFilter:
         Apply the filters to the given SQLAlchemy query object.
         """
         return query
+
+    def is_empty(self) -> bool:
+        """Return ``True`` when no filter definitions are configured."""
+
+        return not self.filters

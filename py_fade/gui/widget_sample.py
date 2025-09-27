@@ -195,9 +195,7 @@ class WidgetSample(QWidget):
         self.completion_controls_layout = QHBoxLayout()
         self.completion_controls_layout.setContentsMargins(0, 0, 0, 0)
         self.completion_controls_layout.setSpacing(6)
-        self.show_archived_checkbox = QCheckBox(
-            "Show archived completions", self.output_container
-        )
+        self.show_archived_checkbox = QCheckBox("Show archived completions", self.output_container)
         self.show_archived_checkbox.setChecked(False)
         self.completion_controls_layout.addWidget(self.show_archived_checkbox)
         self.completion_controls_layout.addStretch()
@@ -260,9 +258,7 @@ class WidgetSample(QWidget):
                 "background-color: #ffe6e6;"
             )
         else:
-            self.token_usage_label.setStyleSheet(
-                "color: #666; font-size: 11px; padding: 4px;"
-            )
+            self.token_usage_label.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
 
     def set_sample(self, sample: Sample | None):
         """Set the sample and populate UI with sample data."""
@@ -389,11 +385,7 @@ class WidgetSample(QWidget):
 
         # Open the editor window in blocking mode
         editor = ThreeWayCompletionEditorWindow(
-            self.app,
-            self.dataset,
-            completion,
-            facet=self.active_facet,
-            parent=self
+            self.app, self.dataset, completion, facet=self.active_facet, parent=self
         )
 
         # Show as modal dialog

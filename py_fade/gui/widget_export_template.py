@@ -35,6 +35,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.export_template import ExportTemplate
 from py_fade.dataset.facet import Facet
@@ -339,7 +341,8 @@ class WidgetExportTemplate(QWidget):
             self.populate_output_formats(template.training_type)
             self.set_output_format(template.output_format)
             models = template.model_family.split(",") if template.model_family else []
-            self._set_model_selection(models or list(ExportTemplate.SUPPORTED_MODEL_FAMILIES[:1]))
+            default_models = list(ExportTemplate.SUPPORTED_MODEL_FAMILIES[:1])
+            self._set_model_selection(models or default_models)
             self.filename_input.setText(template.filename_template)
             self.normalize_checkbox.setChecked(template.normalize_style)
             self.encrypt_checkbox.setChecked(template.encrypt)
@@ -374,15 +377,22 @@ class WidgetExportTemplate(QWidget):
         current_selection = self.output_combo.currentData()
         self.output_combo.blockSignals(True)
         self.output_combo.clear()
-        for option in ExportTemplate.OUTPUT_FORMATS.get(training_type, ()):  # type: ignore[arg-type]
+        format_options = ExportTemplate.OUTPUT_FORMATS.get(
+            training_type, ()  # type: ignore[arg-type]
+        )
+        for option in format_options:
             self.output_combo.addItem(option, option)
         self.output_combo.blockSignals(False)
         if current_selection:
             self.set_output_format(current_selection)
-        if self.output_combo.count() > 0 and self.output_combo.currentIndex() < 0:
+        has_items = self.output_combo.count() > 0
+        no_selection = self.output_combo.currentIndex() < 0
+        if has_items and no_selection:
             self.output_combo.setCurrentIndex(0)
 
     def set_output_format(self, value: str | None) -> None:
+        """Apply *value* to the output format combo box if present."""
+
         if value is None:
             return
         index = self.output_combo.findData(value)
@@ -392,6 +402,8 @@ class WidgetExportTemplate(QWidget):
             self.output_combo.setCurrentIndex(index)
 
     def toggle_encryption_controls(self, enabled: bool) -> None:
+        """Enable or clear the password fields based on *enabled* value."""
+
         self.password_input.setEnabled(enabled)
         if not enabled:
             self.password_input.setText("")
@@ -578,7 +590,7 @@ class WidgetExportTemplate(QWidget):
         else:
             try:
                 existing = ExportTemplate.get_by_name(self.dataset, name)
-            except Exception as exc:  # noqa: BLE001
+            except (RuntimeError, SQLAlchemyError) as exc:
                 errors.append(str(exc))
             else:
                 if existing and (
@@ -614,6 +626,8 @@ class WidgetExportTemplate(QWidget):
             self.save_button.setEnabled(True)
 
     def _collect_selected_models(self) -> list[str]:
+        """Return the list of model families currently checked in the UI."""
+
         models: list[str] = []
         for index in range(self.model_list.count()):
             item = self.model_list.item(index)
@@ -622,6 +636,8 @@ class WidgetExportTemplate(QWidget):
         return models
 
     def _collect_facets_from_table(self) -> list[FacetRow]:
+        """Convert the facets table rows into a serialisable list of dictionaries."""
+
         facets: list[FacetRow] = []
         for row in range(self.facets_table.rowCount()):
             item = self.facets_table.item(row, 0)
@@ -642,7 +658,7 @@ class WidgetExportTemplate(QWidget):
 
             limit_type = limit_combo.currentData()
             limit_value = limit_spin.value()
-            if limit_type == "percentage" and not (0 < limit_value <= 100):
+            if limit_type == "percentage" and (limit_value <= 0 or limit_value > 100):
                 raise ValueError("Facet percentage limit must be between 0 and 100.")
             if limit_type == "count" and limit_value < 1:
                 raise ValueError("Facet max samples must be at least 1.")
@@ -682,6 +698,8 @@ class WidgetExportTemplate(QWidget):
         }
 
     def _set_model_selection(self, models: list[str]) -> None:
+        """Update the model list checkboxes to reflect ``models`` selection."""
+
         normalized_models = {model.strip().lower() for model in models if model}
         for index in range(self.model_list.count()):
             item = self.model_list.item(index)
@@ -727,7 +745,7 @@ class WidgetExportTemplate(QWidget):
             session.commit()
             if self.template is not None:
                 session.refresh(self.template)
-        except Exception as exc:  # noqa: BLE001
+        except (ValueError, RuntimeError, SQLAlchemyError) as exc:
             self.log.exception("Failed to save export template", exc_info=exc)
             session.rollback()
             QMessageBox.critical(self, "Error", f"Failed to save export template: {exc}")
@@ -765,7 +783,7 @@ class WidgetExportTemplate(QWidget):
             template = self.template
             template.delete(self.dataset)
             session.commit()
-        except Exception as exc:  # noqa: BLE001
+        except (RuntimeError, SQLAlchemyError) as exc:
             self.log.exception("Failed to delete export template", exc_info=exc)
             session.rollback()
             QMessageBox.critical(self, "Error", f"Failed to delete export template: {exc}")
@@ -792,7 +810,7 @@ class WidgetExportTemplate(QWidget):
             session.flush()
             session.commit()
             session.refresh(new_template)
-        except Exception as exc:  # noqa: BLE001
+        except (ValueError, RuntimeError, SQLAlchemyError) as exc:
             self.log.exception("Failed to duplicate export template", exc_info=exc)
             session.rollback()
             QMessageBox.critical(self, "Error", f"Failed to duplicate export template: {exc}")
@@ -801,7 +819,10 @@ class WidgetExportTemplate(QWidget):
         QMessageBox.information(
             self,
             "Duplicated",
-            f"A copy '{new_template.name}' has been created. It is now available in the navigation sidebar.",
+            (
+                f"A copy '{new_template.name}' has been created. "
+                "It is now available in the navigation sidebar."
+            ),
         )
         self.template_copied.emit(new_template)
 
@@ -809,6 +830,8 @@ class WidgetExportTemplate(QWidget):
     # Signal handlers
     # ------------------------------------------------------------------
     def on_encryption_toggled(self, state: int) -> None:
+        """React to the encryption checkbox being toggled by the user."""
+
         enabled = state == Qt.CheckState.Checked
         self.toggle_encryption_controls(enabled)
         self.validate_form()

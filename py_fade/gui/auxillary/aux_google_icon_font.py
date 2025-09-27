@@ -59,9 +59,7 @@ class GoogleIconFontWrapper:
         self.font_family: str | None = None
         self.icon_font: QFont | None = None
         if not self.font_path.exists():
-            self.log.error(
-                "Google Material Symbols font file does not exist: %s", self.font_path
-            )
+            self.log.error("Google Material Symbols font file does not exist: %s", self.font_path)
             raise FileNotFoundError(
                 f"Google Material Symbols font file does not exist: {self.font_path}"
             )
@@ -71,9 +69,7 @@ class GoogleIconFontWrapper:
 
         font_id = QFontDatabase.addApplicationFont(str(self.font_path))
         if font_id == -1:
-            self.log.error(
-                "Failed to load Google Material Symbols font from: %s", self.font_path
-            )
+            self.log.error("Failed to load Google Material Symbols font from: %s", self.font_path)
             raise RuntimeError(
                 f"Failed to load Google Material Symbols font from: {self.font_path}"
             )
@@ -143,8 +139,7 @@ class GoogleIconFontWrapper:
         label = QLabel(char)
         label.setFont(font)
         label.setStyleSheet(
-            f"color: {color}; font-family: 'Material Symbols Outlined'; "
-            f"font-size: {size}px;"
+            f"color: {color}; font-family: 'Material Symbols Outlined'; " f"font-size: {size}px;"
         )  ## **KEEP AS IS**
         label.setFixedSize(size, size)
 

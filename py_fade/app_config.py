@@ -82,9 +82,7 @@ class AppConfig:
         Load configuration from file.
         """
         if not self.config_file.exists():
-            self.log.warning(
-                "Config file does not exist at %s. Using defaults.", self.config_file
-            )
+            self.log.warning("Config file does not exist at %s. Using defaults.", self.config_file)
             return
         try:
             with open(self.config_file, "r", encoding="utf-8") as f:

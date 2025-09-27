@@ -7,10 +7,10 @@ from .widget_token_picker import WidgetTokenPicker
 from .widget_completion import CompletionFrame
 
 __all__ = [
-	"CompletionRatingWidget",
-	"QPushButtonWithIcon",
-	"QLabelWithIcon",
-	"QLabelWithIconAndText",
-	"WidgetTokenPicker",
-	"CompletionFrame",
+    "CompletionRatingWidget",
+    "QPushButtonWithIcon",
+    "QLabelWithIcon",
+    "QLabelWithIconAndText",
+    "WidgetTokenPicker",
+    "CompletionFrame",
 ]

@@ -1,7 +1,7 @@
 """ORM models for storing token log probability traces alongside completions."""
 
 import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Float, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -31,8 +31,8 @@ class PromptCompletionLogprobs(dataset_base):
     )
     logprobs_model_id: Mapped[str] = mapped_column(
         nullable=False
-    )  # Completion and logprobs can be from different models when we evaluate 
-       # completion across models
+    )  # Completion and logprobs can be from different models when we evaluate
+    # completion across models
     logprobs: Mapped[list] = mapped_column(
         JSON, nullable=False
     )  # Store logprobs as JSON, list of dicts for each position
@@ -45,6 +45,18 @@ class PromptCompletionLogprobs(dataset_base):
     avg_logprob: Mapped[float] = mapped_column(
         Float, nullable=False
     )  # Average logprob of sampled tokens
+
+    def to_metadata_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable representation of the logprob metadata."""
+
+        return {
+            "id": self.id,
+            "prompt_completion_id": self.prompt_completion_id,
+            "logprobs_model_id": self.logprobs_model_id,
+            "min_logprob": self.min_logprob,
+            "avg_logprob": self.avg_logprob,
+            "date_created": self.date_created.isoformat(),
+        }
 
     @classmethod
     def get_or_create_from_llm_response(

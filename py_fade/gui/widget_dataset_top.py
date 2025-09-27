@@ -4,6 +4,7 @@ Dataset workspace window with native menu-driven encryption controls.
 This module provides ``WidgetDatasetTop``, the main dataset workspace window for
 pyFADE.
 """
+
 # pylint: disable=too-many-lines
 
 import logging
@@ -294,9 +295,7 @@ class WidgetDatasetTop(QMainWindow):
             return
 
         suggested_name = f"{self.dataset.db_path.stem}-encrypted.db"
-        destination = self._prompt_for_dataset_destination(
-            "Encrypt and Save As…", suggested_name
-        )
+        destination = self._prompt_for_dataset_destination("Encrypt and Save As…", suggested_name)
         if destination is None:
             return
 
@@ -381,9 +380,7 @@ class WidgetDatasetTop(QMainWindow):
         try:
             self.dataset.save_unencrypted_copy(destination)
         except (RuntimeError, ValueError, OSError) as exc:
-            self.log.exception(
-                "Failed to create unencrypted dataset copy at %s", destination
-            )
+            self.log.exception("Failed to create unencrypted dataset copy at %s", destination)
             QMessageBox.critical(
                 self,
                 "Save unencrypted copy",
@@ -559,9 +556,7 @@ class WidgetDatasetTop(QMainWindow):
         if self.action_change_password is not None:
             self.action_change_password.triggered.connect(self._handle_change_password)
         if self.action_save_unencrypted_copy is not None:
-            self.action_save_unencrypted_copy.triggered.connect(
-                self._handle_save_unencrypted_copy
-            )
+            self.action_save_unencrypted_copy.triggered.connect(self._handle_save_unencrypted_copy)
         if self.action_close_dataset is not None:
             self.action_close_dataset.triggered.connect(self._handle_close_dataset)
         if self.action_exit_application is not None:
@@ -571,13 +566,9 @@ class WidgetDatasetTop(QMainWindow):
                 self._handle_manage_export_templates
             )
         if self.action_export_current_facet is not None:
-            self.action_export_current_facet.triggered.connect(
-                self._handle_export_current_facet
-            )
+            self.action_export_current_facet.triggered.connect(self._handle_export_current_facet)
         if self.action_open_encryption_docs is not None:
-            self.action_open_encryption_docs.triggered.connect(
-                self._handle_open_encryption_docs
-            )
+            self.action_open_encryption_docs.triggered.connect(self._handle_open_encryption_docs)
         if self.action_about is not None:
             self.action_about.triggered.connect(self._handle_about_dialog)
 
@@ -603,9 +594,7 @@ class WidgetDatasetTop(QMainWindow):
         self.facet_combo.blockSignals(True)
         self.facet_combo.clear()
         if not self.current_facet_id:
-            dataset_prefs = self.app.config.dataset_preferences.get(
-                self._dataset_pref_key(), {}
-            )
+            dataset_prefs = self.app.config.dataset_preferences.get(self._dataset_pref_key(), {})
             if isinstance(dataset_prefs, dict):
                 facet_pref = dataset_prefs.get("facet_id")
                 if isinstance(facet_pref, int):
@@ -643,9 +632,7 @@ class WidgetDatasetTop(QMainWindow):
         self.model_combo.blockSignals(True)
         self.model_combo.clear()
         if not self.current_model_name:
-            dataset_prefs = self.app.config.dataset_preferences.get(
-                self._dataset_pref_key(), {}
-            )
+            dataset_prefs = self.app.config.dataset_preferences.get(self._dataset_pref_key(), {})
             if isinstance(dataset_prefs, dict):
                 name = dataset_prefs.get("model_name")
                 if isinstance(name, str):

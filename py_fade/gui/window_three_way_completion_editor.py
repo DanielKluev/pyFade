@@ -213,9 +213,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
 
         self.original_completion = completion
         prompt_text = (
-            completion.prompt_revision.prompt_text
-            if completion.prompt_revision is not None
-            else ""
+            completion.prompt_revision.prompt_text if completion.prompt_revision is not None else ""
         )
         self._original_completion_text = completion.completion_text
 
@@ -360,7 +358,9 @@ class ThreeWayCompletionEditorWindow(QDialog):
                 context_length=self.original_completion.context_length,
                 max_tokens=self.original_completion.max_tokens,
             )
-        except Exception as exc:  # pragma: no cover - defensive logging  # pylint: disable=broad-exception-caught
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - defensive logging  # pylint: disable=broad-exception-caught
             self.log.error("Continuation generation failed: %s", exc)
             self._set_status(f"Generation failed: {exc}", error=True)
             return

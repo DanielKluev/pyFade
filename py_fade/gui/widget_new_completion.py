@@ -1,3 +1,5 @@
+"""Widget for configuring and launching new completion generations."""
+
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import pyqtSignal
@@ -46,6 +48,8 @@ class NewCompletionFrame(QFrame):
         self.setup_ui()
 
     def setup_ui(self):
+        """Construct all controls composing the new completion frame."""
+
         layout = QVBoxLayout(self)
 
         # Header
@@ -112,9 +116,8 @@ class NewCompletionFrame(QFrame):
         self.step_by_step_btn.setToolTip(
             "Generate the completion token by token, allowing manual intervention at each token."
         )
-        self.step_by_step_btn.clicked.connect(
-            self.generate_token_by_token
-        )  # TODO: Implement step-by-step generation
+        self.step_by_step_btn.clicked.connect(self.generate_token_by_token)
+        # NOTE: Step-by-step generation currently routes to the same handler.
         buttons_layout.addWidget(self.step_by_step_btn)
 
         self.save_btn = QPushButton("Save Completion")

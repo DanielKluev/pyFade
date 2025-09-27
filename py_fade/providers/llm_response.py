@@ -62,13 +62,13 @@ class LLMResponse:
     context_length: int
     max_tokens: int
     min_logprob: float | None = None  # min(logprobs), minimal logprob of any token in response
-    prefill: str | None = None  # part of completion that wasn't generated, but artificially 
-                                 # inserted manually or during beam expansion
+    prefill: str | None = None  # part of completion that wasn't generated, but artificially
+    # inserted manually or during beam expansion
     beam_token: str | None = None  # token at which beam tree was forked, if any
     logprobs: list[LLMPTokenLogProbs] | None = None  # per-token logprobs if available
     is_truncated: bool | None = None  # whether generation stopped due to max_tokens limit
-    is_full_response_logprobs: bool | None = None  # whether logprobs cover full_response_text 
-                                                   # (True) or just part (False). If not computed, None.
+    is_full_response_logprobs: bool | None = None  # whether logprobs cover full_response_text
+    # (True) or just part (False). If not computed, None.
 
     def __post_init__(self):
         # print(f"LLMResponse created with logprobs {len(self.logprobs) if self.logprobs else 0}")
@@ -99,10 +99,12 @@ class LLMResponse:
                 break
             # Check if token matches the response text at current position
             if self.full_response_text[resp_pos : resp_pos + len(lp.token)] != lp.token:
-                expected_text = self.full_response_text[resp_pos:resp_pos+len(lp.token)]
+                expected_text = self.full_response_text[resp_pos : resp_pos + len(lp.token)]
                 logging.getLogger("LLMResponse").warning(
                     "Logprob token '%s' does not match response text at position %d, '%s'.",
-                    lp.token, resp_pos, expected_text
+                    lp.token,
+                    resp_pos,
+                    expected_text,
                 )
                 print(
                     f"Logprob token '{lp.token}' does not match response text at position "

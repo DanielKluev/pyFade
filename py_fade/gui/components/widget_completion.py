@@ -97,8 +97,10 @@ if TYPE_CHECKING:
 
 PREFILL_COLOR = QColor("#FFF9C4")
 BEAM_TOKEN_COLOR = QColor("#C5E1A5")
+
+
 class CompletionFrame(QFrame):
-    """Card-style shell that wraps completion metadata, rating control, 
+    """Card-style shell that wraps completion metadata, rating control,
     and inline actions."""
 
     # Existing signals
@@ -185,7 +187,9 @@ class CompletionFrame(QFrame):
 
         # Rating widget - hidden in beam mode
         if self.display_mode == "sample":
-            self.rating_widget = CompletionRatingWidget(self.dataset, self, icon_size=self.actions_icon_size)
+            self.rating_widget = CompletionRatingWidget(
+                self.dataset, self, icon_size=self.actions_icon_size
+            )
             self.actions_layout.addWidget(self.rating_widget)
             self.actions_layout.addStretch()
 
@@ -199,7 +203,8 @@ class CompletionFrame(QFrame):
 
         # Common buttons
         self.discard_button = QPushButtonWithIcon(
-            "delete", parent=self, icon_size=self.actions_icon_size, button_size=40)
+            "delete", parent=self, icon_size=self.actions_icon_size, button_size=40
+        )
         self.discard_button.setFlat(True)
         self.discard_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.discard_button.setToolTip("Discard this completion")
@@ -208,28 +213,32 @@ class CompletionFrame(QFrame):
         if self.display_mode == "sample":
             # Sample mode buttons
             self.edit_button = QPushButtonWithIcon(
-                "edit", parent=self, icon_size=self.actions_icon_size, button_size=40)
+                "edit", parent=self, icon_size=self.actions_icon_size, button_size=40
+            )
             self.edit_button.setFlat(True)
             self.edit_button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.edit_button.setToolTip("Edit this completion")
             self.actions_layout.addWidget(self.edit_button)
 
             self.resume_button = QPushButtonWithIcon(
-                "resume", parent=self, icon_size=self.actions_icon_size, button_size=40)
+                "resume", parent=self, icon_size=self.actions_icon_size, button_size=40
+            )
             self.resume_button.setFlat(True)
             self.resume_button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.resume_button.hide()
             self.actions_layout.addWidget(self.resume_button)
 
             self.evaluate_button = QPushButtonWithIcon(
-                "search_insights", parent=self, icon_size=self.actions_icon_size, button_size=40)
+                "search_insights", parent=self, icon_size=self.actions_icon_size, button_size=40
+            )
             self.evaluate_button.setFlat(True)
             self.evaluate_button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.evaluate_button.hide()
             self.actions_layout.addWidget(self.evaluate_button)
 
             self.archive_button = QPushButtonWithIcon(
-                "archive", parent=self, icon_size=self.actions_icon_size, button_size=40)
+                "archive", parent=self, icon_size=self.actions_icon_size, button_size=40
+            )
             self.archive_button.setFlat(True)
             self.archive_button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.actions_layout.addWidget(self.archive_button)
@@ -237,14 +246,16 @@ class CompletionFrame(QFrame):
         elif self.display_mode == "beam":
             # Beam mode buttons
             self.save_button = QPushButtonWithIcon(
-                "save", parent=self, icon_size=self.actions_icon_size, button_size=40)
+                "save", parent=self, icon_size=self.actions_icon_size, button_size=40
+            )
             self.save_button.setFlat(True)
             self.save_button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.save_button.setToolTip("Save this beam as completion")
             self.actions_layout.addWidget(self.save_button)
 
             self.pin_button = QPushButtonWithIcon(
-                "keep", parent=self, icon_size=self.actions_icon_size, button_size=40)
+                "keep", parent=self, icon_size=self.actions_icon_size, button_size=40
+            )
             self.pin_button.setFlat(True)
             self.pin_button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.pin_button.setToolTip("Pin/unpin this beam")
@@ -252,7 +263,8 @@ class CompletionFrame(QFrame):
 
             # Archive button for saved beam completions
             self.archive_button = QPushButtonWithIcon(
-                "archive", parent=self, icon_size=self.actions_icon_size, button_size=40)
+                "archive", parent=self, icon_size=self.actions_icon_size, button_size=40
+            )
             self.archive_button.setFlat(True)
             self.archive_button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.archive_button.hide()  # Only shown after beam is saved
@@ -261,7 +273,7 @@ class CompletionFrame(QFrame):
     def connect_signals(self) -> None:
         """Wire internal signals for logging purposes."""
         # Connect rating widget for sample mode
-        if self.display_mode == "sample" and hasattr(self, 'rating_widget'):
+        if self.display_mode == "sample" and hasattr(self, "rating_widget"):
             self.rating_widget.rating_saved.connect(self._log_rating_saved)
 
         # Connect common buttons
@@ -304,8 +316,9 @@ class CompletionFrame(QFrame):
         self._update_temperature_label(completion)
 
         # Hide header widgets in beam mode unless it's a saved completion
-        is_saved_beam = (self.display_mode == "beam" and
-                        hasattr(completion, 'id') and completion.id is not None)
+        is_saved_beam = (
+            self.display_mode == "beam" and hasattr(completion, "id") and completion.id is not None
+        )
         header_visible = self.display_mode == "sample" or is_saved_beam
 
         self.model_label.setVisible(header_visible)
@@ -316,7 +329,7 @@ class CompletionFrame(QFrame):
         self._update_text_display(completion)
 
         # Update rating widget for sample mode
-        if self.display_mode == "sample" and hasattr(self, 'rating_widget'):
+        if self.display_mode == "sample" and hasattr(self, "rating_widget"):
             self.rating_widget.set_context(self.completion, self.current_facet)
 
         self._update_action_buttons()
@@ -325,7 +338,7 @@ class CompletionFrame(QFrame):
         """Update the currently active facet and refresh rating display."""
 
         self.current_facet = facet
-        if self.display_mode == "sample" and hasattr(self, 'rating_widget'):
+        if self.display_mode == "sample" and hasattr(self, "rating_widget"):
             self.rating_widget.set_context(self.completion, facet)
         self._update_action_buttons()
 
@@ -345,7 +358,7 @@ class CompletionFrame(QFrame):
 
     def _update_sample_mode_buttons(self) -> None:
         """Update buttons for sample mode."""
-        if not hasattr(self.completion, 'id'):
+        if not hasattr(self.completion, "id"):
             return
 
         completion = self.completion  # It's a PromptCompletion in sample mode
@@ -366,9 +379,7 @@ class CompletionFrame(QFrame):
             needs_evaluate = self._needs_evaluate_button()
             self.evaluate_button.setVisible(needs_evaluate)
             if needs_evaluate and self.target_model:
-                self.evaluate_button.setToolTip(
-                    f"Evaluate logprobs for '{self.target_model}'."
-                )
+                self.evaluate_button.setToolTip(f"Evaluate logprobs for '{self.target_model}'.")
             elif needs_evaluate:
                 self.evaluate_button.setToolTip("Evaluate logprobs for the active model.")
             else:
@@ -388,7 +399,9 @@ class CompletionFrame(QFrame):
                 self.setStyleSheet("")
 
         # Show/hide buttons based on whether this beam has been saved
-        is_saved = hasattr(self.completion, 'id') and getattr(self.completion, 'id', None) is not None
+        is_saved = (
+            hasattr(self.completion, "id") and getattr(self.completion, "id", None) is not None
+        )
 
         if self.save_button:
             self.save_button.setVisible(not is_saved)
@@ -401,7 +414,7 @@ class CompletionFrame(QFrame):
 
     def _update_archive_button(self) -> None:
         """Update archive button icon and tooltip based on completion state."""
-        if not self.archive_button or not hasattr(self.completion, 'is_archived'):
+        if not self.archive_button or not hasattr(self.completion, "is_archived"):
             return
 
         completion = self.completion
@@ -418,7 +431,7 @@ class CompletionFrame(QFrame):
             return False
 
         # Only applies to PromptCompletion objects in sample mode
-        if not hasattr(self.completion, 'logprobs'):
+        if not hasattr(self.completion, "logprobs"):
             return False
 
         if not self.completion.logprobs:
@@ -430,8 +443,10 @@ class CompletionFrame(QFrame):
 
     def _on_archive_clicked(self) -> None:
         """Handle archive button click."""
-        if not self.dataset.session or not hasattr(self.completion, 'is_archived'):
-            self.log.error("Cannot toggle archive state without an active dataset session or proper completion.")
+        if not self.dataset.session or not hasattr(self.completion, "is_archived"):
+            self.log.error(
+                "Cannot toggle archive state without an active dataset session or proper completion."
+            )
             return
 
         completion = self.completion
@@ -463,7 +478,7 @@ class CompletionFrame(QFrame):
     def _on_discard_clicked(self) -> None:
         """Handle discard button click."""
         # Check if completion is persisted (has an ID)
-        has_id = hasattr(self.completion, 'id') and getattr(self.completion, 'id', None) is not None
+        has_id = hasattr(self.completion, "id") and getattr(self.completion, "id", None) is not None
 
         if has_id:
             # Show confirmation dialog for persisted completions
@@ -473,7 +488,7 @@ class CompletionFrame(QFrame):
                 "This completion is saved in the database. "
                 "Discarding will permanently delete it. Are you sure?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No
+                QMessageBox.StandardButton.No,
             )
 
             if reply != QMessageBox.StandardButton.Yes:
@@ -535,7 +550,7 @@ class CompletionFrame(QFrame):
         self._clear_layout(self.status_layout)
 
         # Check for is_truncated
-        is_truncated = getattr(completion, 'is_truncated', None)
+        is_truncated = getattr(completion, "is_truncated", None)
         if is_truncated:
             self.status_layout.addWidget(
                 QLabelWithIcon(
@@ -547,7 +562,7 @@ class CompletionFrame(QFrame):
             )
 
         # Check for prefill
-        prefill = getattr(completion, 'prefill', None)
+        prefill = getattr(completion, "prefill", None)
         if prefill:
             self.status_layout.addWidget(
                 QLabelWithIcon(
@@ -558,7 +573,7 @@ class CompletionFrame(QFrame):
             )
 
         # Check for beam_token
-        beam_token = getattr(completion, 'beam_token', None)
+        beam_token = getattr(completion, "beam_token", None)
         if beam_token:
             self.status_layout.addWidget(
                 QLabelWithIcon(
@@ -572,8 +587,8 @@ class CompletionFrame(QFrame):
         tooltip = "No logprobs available."
         color = "gray"
 
-        if hasattr(completion, 'logprobs') and completion.logprobs:
-            if hasattr(completion, 'id'):  # PromptCompletion
+        if hasattr(completion, "logprobs") and completion.logprobs:
+            if hasattr(completion, "id"):  # PromptCompletion
                 if completion.logprobs and completion.logprobs[0].min_logprob is not None:
                     logprob = completion.logprobs[0].min_logprob
                     tooltip = (
@@ -582,8 +597,7 @@ class CompletionFrame(QFrame):
                     )
                     color = logprob_to_qcolor(logprob).name()
             else:  # LLMResponse
-                if (hasattr(completion, 'min_logprob') and
-                    completion.min_logprob is not None):
+                if hasattr(completion, "min_logprob") and completion.min_logprob is not None:
                     logprob = completion.min_logprob
                     tooltip = f"Logprobs min: {logprob:.3f}"
                     color = logprob_to_qcolor(logprob).name()
@@ -603,9 +617,9 @@ class CompletionFrame(QFrame):
     def _update_text_display(self, completion: "PromptCompletion | LLMResponse") -> None:
         """Update text display based on completion content."""
         # Get text content - different attribute names for different types
-        if hasattr(completion, 'completion_text'):  # PromptCompletion
+        if hasattr(completion, "completion_text"):  # PromptCompletion
             text = completion.completion_text or ""
-        elif hasattr(completion, 'full_response_text'):  # LLMResponse
+        elif hasattr(completion, "full_response_text"):  # LLMResponse
             text = completion.full_response_text or ""
         else:
             text = ""
@@ -638,8 +652,8 @@ class CompletionFrame(QFrame):
             cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
             cursor.mergeCharFormat(highlight_format)
 
-        prefill = getattr(completion, 'prefill', None)
-        beam_token = getattr(completion, 'beam_token', None)
+        prefill = getattr(completion, "prefill", None)
+        beam_token = getattr(completion, "beam_token", None)
 
         if prefill:
             start = text.find(prefill)

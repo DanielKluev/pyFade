@@ -83,7 +83,7 @@ class Sample(dataset_base):
 
     def new_copy(self) -> "Sample":
         """
-        Create a new unsaved copy of this sample with the same prompt revision 
+        Create a new unsaved copy of this sample with the same prompt revision
         and title appended with ' (Copy)'.
         """
         return self.__class__(

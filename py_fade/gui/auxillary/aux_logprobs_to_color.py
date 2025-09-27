@@ -1,3 +1,5 @@
+"""Utilities for mapping token logprob values to color codes."""
+
 import numpy as np
 from PyQt6.QtGui import QColor
 

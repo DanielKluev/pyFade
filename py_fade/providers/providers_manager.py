@@ -23,6 +23,7 @@ providers_map = {
 
 class MappedModel:
     """Represents a model mapped to a specific provider with associated parameters."""
+
     model_id: str
     provider: BasePrefillAwareProvider
     provider_params: dict
