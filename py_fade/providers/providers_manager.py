@@ -7,6 +7,7 @@ from py_fade.providers.base_provider import BasePrefillAwareProvider
 from py_fade.providers.llama_cpp import (
     PrefillAwareLlamaCppInternal,
     IS_LLAMA_CPP_AVAILABLE,
+    is_llama_cpp_available,
 )
 from py_fade.providers.llm_response import LLMPTokenLogProbs, LLMResponse
 from py_fade.providers.llm_templates import get_template_function
