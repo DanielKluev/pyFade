@@ -52,7 +52,7 @@ class WidgetTokenPicker(QWidget):
                 "tokens must be a list of LLMPTokenLogProbs or list of (str, float) tuples"
             )
         self.tokens.sort(key=lambda x: x[1], reverse=True)  # sort by logprob descending
-        self.log.info(f"[ > ] Token picker with tokens:\n\t{self.tokens}")
+        self.log.info("[ > ] Token picker with tokens:\n\t%s", self.tokens)
         self.tokens_map = {t[0]: t for t in self.tokens}
 
         self.token_widgets: list[QWidget] = []  # Keep references to token widgets

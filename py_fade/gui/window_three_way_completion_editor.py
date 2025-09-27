@@ -358,9 +358,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
                 context_length=self.original_completion.context_length,
                 max_tokens=self.original_completion.max_tokens,
             )
-        except (
-            Exception
-        ) as exc:  # pragma: no cover - defensive logging  # pylint: disable=broad-exception-caught
+        except (RuntimeError, ValueError, ImportError) as exc:  # pragma: no cover - defensive logging
             self.log.error("Continuation generation failed: %s", exc)
             self._set_status(f"Generation failed: {exc}", error=True)
             return

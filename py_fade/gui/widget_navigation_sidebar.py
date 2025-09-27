@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QFrame,
+    QLineEdit,
     QLabel,
     QSizePolicy,
     QTreeWidget,
@@ -67,7 +68,6 @@ class WidgetNavigationFilterPanel(QWidget):
 
         # Text search
         search_label = QLabel("Search:")
-        from PyQt6.QtWidgets import QLineEdit
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search text...")
@@ -136,7 +136,7 @@ class WidgetNavigationTree(QWidget):
         layout.addWidget(self.new_element_button)
         layout.addWidget(self.tree)
 
-    def _on_item_clicked(self, item, column):
+    def _on_item_clicked(self, item, _column):
         """Handle tree item click."""
         item_type = item.data(0, Qt.ItemDataRole.UserRole)
         item_id = item.data(1, Qt.ItemDataRole.UserRole)
@@ -213,8 +213,26 @@ class WidgetNavigationTree(QWidget):
             )
         facets = dataset.session.query(Facet).all()
 
+        search_value: str | None = None
+        for criteria in getattr(data_filter, "filters", []):
+            if criteria.get("type") == "text_search":
+                probe = str(criteria.get("value", "")).strip().lower()
+                if probe:
+                    search_value = probe
+                    break
+
+        if search_value:
+            facets = [
+                facet
+                for facet in facets
+                if search_value in facet.name.lower()
+                or search_value in facet.description.lower()
+            ]
+
         if not facets:
-            self.tree
+            placeholder = QTreeWidgetItem(self.tree, ["No facets available"])
+            placeholder.setFlags(placeholder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            return
 
         for facet in facets:
             item = QTreeWidgetItem(self.tree, [facet.name])

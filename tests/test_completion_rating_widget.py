@@ -333,6 +333,7 @@ def test_archive_button_hides_completion_until_toggle_enabled(
     qt_app.processEvents()
 
     archived_frame = _first_completion_frame(widget)
+    assert isinstance(archived_frame.completion, PromptCompletion)
     assert archived_frame.completion.is_archived is True
     assert archived_frame.archive_button is not None
 
@@ -345,6 +346,7 @@ def test_archive_button_hides_completion_until_toggle_enabled(
     widget.show_archived_checkbox.setChecked(False)
     qt_app.processEvents()
     unarchived_frame = _first_completion_frame(widget)
+    assert isinstance(unarchived_frame.completion, PromptCompletion)
     assert unarchived_frame.completion.is_archived is False
 
     widget.deleteLater()

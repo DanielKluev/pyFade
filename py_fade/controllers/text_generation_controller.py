@@ -145,6 +145,7 @@ class TextGenerationController:
         prefix: str,
         width: int,
         length: int,
+        *,
         beam_tokens: list[tuple[str, float]] | None = None,
         on_beam_completed: Callable[[LLMResponse], None] | None = None,
         on_check_stop: Callable[[], bool] | None = None,

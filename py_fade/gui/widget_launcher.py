@@ -33,6 +33,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.features_checker import SUPPORTED_FEATURES
 from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
@@ -342,7 +344,7 @@ class LauncherWidget(QWidget):
         dataset_path = pathlib.Path(file_path)
         try:
             created_path = self.app.create_new_dataset(dataset_path)
-        except Exception as exc:  # pragma: no cover - defensive guard
+        except (OSError, SQLAlchemyError, RuntimeError, ValueError) as exc:
             self.log.exception("Failed to create dataset at %s", dataset_path)
             QMessageBox.critical(self, "Create dataset", f"Failed to create dataset:\n{exc}")
             return
@@ -397,7 +399,7 @@ class LauncherWidget(QWidget):
         self.open_dataset_requested.emit(str(path), password)
         try:
             self.app.open_dataset(path, password)
-        except Exception as exc:  # pragma: no cover - defensive guard
+        except (OSError, SQLAlchemyError, RuntimeError, ValueError) as exc:
             self.log.exception("Failed to open dataset at %s", path)
             QMessageBox.critical(self, "Open dataset", f"Failed to open dataset:\n{exc}")
             return

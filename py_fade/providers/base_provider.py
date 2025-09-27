@@ -1,18 +1,24 @@
 """Base provider classes and utilities for LLM inference providers."""
 
+import logging
+from typing import Iterable
+
 from tiktoken import get_encoding
 
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 from py_fade.providers.llm_response import LLMPTokenLogProbs, LLMResponse
 
+LOGGER = logging.getLogger("BasePrefillAwareProvider")
+
 CL100K_BASE_ENCODING = None
 try:
-    print("Loading tokenizer: cl100k_base...")
+    LOGGER.debug("Loading tokenizer: cl100k_base...")
     CL100K_BASE_ENCODING = get_encoding("cl100k_base")
-    print("Tokenizer loaded successfully.")
-except Exception as e:
-    print(
-        f"Warning: Failed to load cl100k_base encoding: {e}. Token counting will use a heuristic."
+    LOGGER.debug("Tokenizer loaded successfully.")
+except (ImportError, ValueError, RuntimeError) as exc:
+    LOGGER.warning(
+        "Failed to load cl100k_base encoding: %s. Token counting will use a heuristic.",
+        exc,
     )
 
 LOGPROB_LEVEL_NONE = 0  # No logprobs

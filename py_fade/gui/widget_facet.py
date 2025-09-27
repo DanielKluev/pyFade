@@ -15,9 +15,16 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.facet import Facet
-from py_fade.gui.components.widget_crud_form_base import CrudButtonStyles, CrudFormWidget
+from py_fade.gui.components.widget_crud_form_base import CrudFormWidget
+from py_fade.gui.gui_helpers import (
+    build_crud_button_styles,
+    validate_description,
+    validate_entity_name,
+)
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -49,11 +56,7 @@ class WidgetFacet(CrudFormWidget):
         self.dataset = dataset
         self.facet = facet
 
-        button_styles = CrudButtonStyles(
-            save="QPushButton { background-color: #1976D2; color: white; padding: 8px 16px; }",
-            cancel="QPushButton { background-color: #757575; color: white; padding: 8px 16px; }",
-            delete="QPushButton { background-color: #d32f2f; color: white; padding: 8px 16px; }",
-        )
+        button_styles = build_crud_button_styles(save_color="#1976D2")
 
         super().__init__(
             parent,
@@ -147,28 +150,32 @@ class WidgetFacet(CrudFormWidget):
     def validate_form(self) -> None:
         """Validate form inputs and update UI accordingly."""
 
-        name = self.name_field.text().strip()
-        description = self.description_field.toPlainText().strip()
+        name = self.name_field.text()
+        description = self.description_field.toPlainText()
 
+        current_id = self.facet.id if self.facet else None
         errors: list[str] = []
-
-        if not name:
-            errors.append("Name is required")
-        elif len(name) < 2:
-            errors.append("Name must be at least 2 characters")
-        elif len(name) > 100:
-            errors.append("Name must be less than 100 characters")
-        else:
-            existing_facet = Facet.get_by_name(self.dataset, name)
-            if existing_facet and (not self.facet or existing_facet.id != self.facet.id):
-                errors.append("A facet with this name already exists")
-
-        if not description:
-            errors.append("Description is required")
-        elif len(description) < 5:
-            errors.append("Description must be at least 5 characters")
-        elif len(description) > 1000:
-            errors.append("Description must be less than 1000 characters")
+        errors.extend(
+            validate_entity_name(
+                dataset=self.dataset,
+                name=name,
+                current_entity_id=current_id,
+                fetch_existing=Facet.get_by_name,
+                min_length=2,
+                max_length=100,
+                duplicate_message="A facet with this name already exists",
+            )
+        )
+        errors.extend(
+            validate_description(
+                description,
+                min_length=5,
+                max_length=1000,
+                empty_message="Description is required",
+                short_message="Description must be at least 5 characters",
+                long_message="Description must be less than 1000 characters",
+            )
+        )
 
         self.set_validation_errors(errors)
 
@@ -197,7 +204,7 @@ class WidgetFacet(CrudFormWidget):
                 self.facet.description = description
 
             self.dataset.session.commit()
-        except Exception as exc:  # noqa: BLE001 - surface to UI
+        except SQLAlchemyError as exc:
             self.dataset.session.rollback()
             QMessageBox.critical(self, "Error", f"Failed to save facet: {exc}")
             return
@@ -232,7 +239,7 @@ class WidgetFacet(CrudFormWidget):
             facet_name = self.facet.name
             self.dataset.session.delete(self.facet)
             self.dataset.session.commit()
-        except Exception as exc:  # noqa: BLE001 - propagate feedback to user
+        except SQLAlchemyError as exc:
             self.dataset.session.rollback()
             QMessageBox.critical(self, "Error", f"Failed to delete facet: {exc}")
             return

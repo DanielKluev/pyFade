@@ -1,8 +1,6 @@
 """Convenience button widget that renders icons via the Google icon font."""
 
-from PyQt6.QtWidgets import (
-    QPushButton,
-)
+from PyQt6.QtWidgets import QPushButton, QWidget
 from PyQt6.QtCore import QSize
 
 from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
@@ -17,7 +15,8 @@ class QPushButtonWithIcon(QPushButton):
         self,
         icon_name: str,
         text: str = "",
-        parent=None,
+        *,
+        parent: QWidget | None = None,
         icon_size: int = 16,
         button_size: int | None = None,
     ):

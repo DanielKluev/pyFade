@@ -25,9 +25,16 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.tag import Tag
-from py_fade.gui.components.widget_crud_form_base import CrudButtonStyles, CrudFormWidget
+from py_fade.gui.components.widget_crud_form_base import CrudFormWidget
+from py_fade.gui.gui_helpers import (
+    build_crud_button_styles,
+    validate_description,
+    validate_entity_name,
+)
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -62,11 +69,7 @@ class WidgetTag(CrudFormWidget):
         self.dataset = dataset
         self.tag = tag
 
-        button_styles = CrudButtonStyles(
-            save="QPushButton { background-color: #00796B; color: white; padding: 8px 16px; }",
-            cancel="QPushButton { background-color: #757575; color: white; padding: 8px 16px; }",
-            delete="QPushButton { background-color: #d32f2f; color: white; padding: 8px 16px; }",
-        )
+        button_styles = build_crud_button_styles(save_color="#00796B")
 
         super().__init__(
             parent,
@@ -180,32 +183,33 @@ class WidgetTag(CrudFormWidget):
     def validate_form(self) -> None:
         """Validate user input and toggle the save button/validation message."""
 
-        name = self.name_field.text().strip()
-        description = self.description_field.toPlainText().strip()
+        name = self.name_field.text()
+        description = self.description_field.toPlainText()
 
         errors: list[str] = []
 
-        if not name:
-            errors.append("Name is required")
-        elif len(name) < 2:
-            errors.append("Name must be at least 2 characters")
-        elif len(name) > 100:
-            errors.append("Name must be less than 100 characters")
-        else:
-            try:
-                existing = Tag.get_by_name(self.dataset, name)
-            except RuntimeError as exc:
-                errors.append(str(exc))
-            else:
-                if existing and (self.tag is None or existing.id != self.tag.id):
-                    errors.append("A tag with this name already exists")
-
-        if not description:
-            errors.append("Description is required")
-        elif len(description) < 5:
-            errors.append("Description must be at least 5 characters")
-        elif len(description) > 2000:
-            errors.append("Description must be less than 2000 characters")
+        current_id = self.tag.id if self.tag else None
+        errors.extend(
+            validate_entity_name(
+                dataset=self.dataset,
+                name=name,
+                current_entity_id=current_id,
+                fetch_existing=Tag.get_by_name,
+                min_length=2,
+                max_length=100,
+                duplicate_message="A tag with this name already exists",
+            )
+        )
+        errors.extend(
+            validate_description(
+                description,
+                min_length=5,
+                max_length=2000,
+                empty_message="Description is required",
+                short_message="Description must be at least 5 characters",
+                long_message="Description must be less than 2000 characters",
+            )
+        )
 
         scope_value = self.scope_combo.currentData()
         try:
@@ -243,7 +247,7 @@ class WidgetTag(CrudFormWidget):
             if self.tag is not None:
                 self.dataset.session.refresh(self.tag)
 
-        except Exception as exc:  # noqa: BLE001 - surface message to user
+        except SQLAlchemyError as exc:
             self.log.exception("Failed to save tag", exc_info=exc)
             if self.dataset.session:
                 self.dataset.session.rollback()
@@ -283,7 +287,7 @@ class WidgetTag(CrudFormWidget):
             if deleted_tag is not None:
                 deleted_tag.delete(self.dataset)
             self.dataset.session.commit()
-        except Exception as exc:  # noqa: BLE001 - communicate the failure
+        except SQLAlchemyError as exc:
             self.log.exception("Failed to delete tag", exc_info=exc)
             if self.dataset.session:
                 self.dataset.session.rollback()

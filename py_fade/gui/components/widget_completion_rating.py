@@ -7,15 +7,7 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon, QMouseEvent
-from PyQt6.QtWidgets import (
-    QFrame,
-    QHBoxLayout,
-    QMessageBox,
-    QStyleOptionToolButton,
-    QToolButton,
-    QWidget,
-    QPushButton,
-)
+from PyQt6.QtWidgets import QHBoxLayout, QMessageBox, QPushButton, QWidget
 
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
