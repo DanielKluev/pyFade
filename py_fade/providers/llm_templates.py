@@ -1,3 +1,6 @@
+"""LLM chat template formatting functions for various model families."""
+
+
 def apply_template_gemma3(messages: list[dict]) -> str:
     """
     Apply the Gemma3 chat template to the given messages.

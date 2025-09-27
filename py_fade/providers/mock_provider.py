@@ -191,10 +191,12 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
 
     @property
     def streaming_token_texts(self) -> list[str]:
+        """Get list of streaming token texts."""
         return [spec.text for spec in self._streaming_specs]
 
     @property
     def true_token_texts(self) -> list[str]:
+        """Get list of true token texts."""
         tokens = []
         for token in self._true_tokens:
             generated_text = token.text[token.generated_prefix :]
@@ -204,9 +206,11 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
 
     @property
     def has_more_tokens(self) -> bool:
+        """Check if there are more tokens available."""
         return self._position < len(self._streaming_specs)
 
     def full_generated_text(self, produced_only: bool = False) -> str:
+        """Get the full generated text from tokens."""
         if produced_only:
             return "".join(self.streaming_token_texts[: self._position])
         return "".join(self.streaming_token_texts)

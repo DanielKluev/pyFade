@@ -274,7 +274,8 @@ class ExportTemplate(dataset_base):
         if not choices:
             raise ValueError(f"No output formats available for training type '{training_type}'.")
         raise ValueError(
-            f"Unsupported output format '{value}' for training type '{training_type}'. Valid options: {choices}."
+            f"Unsupported output format '{value}' for training type '{training_type}'. "
+            f"Valid options: {choices}."
         )
 
     @classmethod
@@ -290,7 +291,8 @@ class ExportTemplate(dataset_base):
                     break
             else:
                 raise ValueError(
-                    f"Model family '{model}' is not supported. Supported families: {cls.SUPPORTED_MODEL_FAMILIES}."
+                    f"Model family '{model}' is not supported. "
+                    f"Supported families: {cls.SUPPORTED_MODEL_FAMILIES}."
                 )
         if not normalized:
             raise ValueError("At least one model family must be selected.")

@@ -215,3 +215,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Pylint output files
+pylint_output.txt
+pylint_final_output.txt
+*pylint*.txt

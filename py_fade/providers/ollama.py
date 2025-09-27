@@ -1,3 +1,5 @@
+"""Ollama LLM provider implementation with local model registry support."""
+
 import json
 import logging
 import pathlib
@@ -11,7 +13,8 @@ from py_fade.providers.llm_response import LLMPTokenLogProbs, LLMResponse
 class OllamaRegistry:
     """
     Ollama local models registry parser.
-    Ollama keeps all model files (GGUF, template, params and so on) as `blobs`, with file names in form of `sha256-<hash>`
+    Ollama keeps all model files (GGUF, template, params and so on) as `blobs`, 
+    with file names in form of `sha256-<hash>`
     Manifests in `manifests` directory let us map model names to their blobs.
     """
 
@@ -21,7 +24,7 @@ class OllamaRegistry:
         self.log = logging.getLogger("OllamaRegistry")
         self.ollama_models_dir = pathlib.Path(ollama_models_dir)
         if not self.ollama_models_dir.exists():
-            self.log.error(f"Ollama models directory does not exist: {self.ollama_models_dir}")
+            self.log.error("Ollama models directory does not exist: %s", self.ollama_models_dir)
             raise FileNotFoundError(
                 f"Ollama models directory does not exist: {self.ollama_models_dir}"
             )
@@ -31,7 +34,7 @@ class OllamaRegistry:
         self.manifests_dir = self.ollama_models_dir / "manifests"
         if not self.blobs_dir.exists() or not self.manifests_dir.exists():
             self.log.error(
-                f"Ollama models directory structure is invalid: {self.ollama_models_dir}"
+                "Ollama models directory structure is invalid: %s", self.ollama_models_dir
             )
             raise FileNotFoundError(
                 f"Ollama models directory structure is invalid: {self.ollama_models_dir}"
@@ -70,14 +73,14 @@ class OllamaRegistry:
             / f"{subtype or 'latest'}"
         )
         if not manifest_file.exists():
-            self.log.error(f"Model manifest file does not exist: {manifest_file}")
+            self.log.error("Model manifest file does not exist: %s", manifest_file)
             raise FileNotFoundError(f"Model manifest file does not exist: {manifest_file}")
 
-        with open(manifest_file, "r") as f:
+        with open(manifest_file, "r", encoding="utf-8") as f:
             manifest = json.load(f)
         weights_dict = self._find_layer(manifest, "application/vnd.ollama.image.model")
         if not weights_dict:
-            self.log.error(f"Model manifest does not contain weights information: {manifest_file}")
+            self.log.error("Model manifest does not contain weights information: %s", manifest_file)
             raise ValueError(
                 f"Model manifest does not contain weights information: {manifest_file}"
             )
@@ -98,6 +101,7 @@ class OllamaRegistry:
 
 
 class PrefillAwareOllama(BasePrefillAwareProvider):
+    """Ollama provider implementation with prefill awareness support."""
     logprob_capability = LOGPROB_LEVEL_NONE  # Ollama does not provide logprobs
     id: str = "ollama"
     is_local_vram: bool = True  # Ollama runs locally and uses VRAM
@@ -136,8 +140,12 @@ class PrefillAwareOllama(BasePrefillAwareProvider):
         if prefill:
             messages.append({"role": "assistant", "content": prefill})
 
+        prompt_preview = prompt[:50] + ('...' if len(prompt) > 50 else '')
+        prefill_preview = (prefill[:50] + ('...' if len(prefill) > 50 else '') 
+                          if prefill else 'None')
         self.log.info(
-            f"Sending request to Ollama model '{model_id}' with prompt: '{prompt[:50]}{'...' if len(prompt) > 50 else ''}' and prefill: '{prefill[:50] if prefill else 'None'}{'...' if prefill and len(prefill) > 50 else ''}'"
+            "Sending request to Ollama model '%s' with prompt: '%s' and prefill: '%s'",
+            model_id, prompt_preview, prefill_preview
         )
 
         response = chat(
@@ -151,13 +159,13 @@ class PrefillAwareOllama(BasePrefillAwareProvider):
             },
         )
         if not isinstance(response, ChatResponse):
-            self.log.error(f"Unexpected response type: {type(response)}. Expected ChatResponse.")
+            self.log.error("Unexpected response type: %s. Expected ChatResponse.", type(response))
             raise TypeError(f"Expected ChatResponse, got {type(response)}")
 
         response_content = response.message.content
         if not isinstance(response_content, str):
             self.log.error(
-                f"Unexpected response content type: {type(response_content)}. Expected str."
+                "Unexpected response content type: %s. Expected str.", type(response_content)
             )
             raise TypeError(f"Expected response content to be str, got {type(response_content)}")
 

@@ -1,5 +1,6 @@
 """
-Implementation of Zephyr-like flat prefix template for prompt construction, mainly for internal use and UI.
+Implementation of Zephyr-like flat prefix template for prompt construction, 
+mainly for internal use and UI.
 
 Uses special tokens to denote system, user, and assistant messages, but no end of turn tokens.
 """
@@ -26,8 +27,10 @@ def parse_flat_prefix_string(flat_prefix_string: str | None) -> list[dict]:
     Parse a flat prefix string into Messages API format dict.
 
     Args:
-        flat_prefix_string (str): The flat prefix string to parse. Role tokens may be on separate lines or inline. Whitespace before and after content part is trimmed.
-        if `flat_prefix_string` doesn't contain any role tokens, the entire string is treated as a single user message.
+        flat_prefix_string (str): The flat prefix string to parse. Role tokens may be 
+            on separate lines or inline. Whitespace before and after content part is trimmed.
+        if `flat_prefix_string` doesn't contain any role tokens, the entire string 
+            is treated as a single user message.
         if `flat_prefix_string` is empty or None, returns an empty list.
 
     Returns:

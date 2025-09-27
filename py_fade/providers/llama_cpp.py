@@ -1,16 +1,17 @@
+"""llama.cpp provider implementation with AMD GPU support and prefill awareness."""
+
 import logging
 import os
 import time
+from typing import Optional
 
 # Patch path for AMD if needed
 # For Windows, if HIP_PATH is set and value is not in PATH, add it
 if os.name == "nt":
     hip_path = os.environ.get("HIP_PATH", None)
     if hip_path and hip_path not in os.environ.get("PATH", ""):
-        hip_paths = f"{hip_path}\\bin;{hip_path}\\lib"
-        os.environ["PATH"] = hip_paths + ";" + os.environ.get("PATH", "")
-
-from typing import Optional
+        HIP_PATHS = f"{hip_path}\\bin;{hip_path}\\lib"
+        os.environ["PATH"] = HIP_PATHS + ";" + os.environ.get("PATH", "")
 
 from py_fade.providers.base_provider import (
     LOGPROB_LEVEL_TOP_LOGPROBS,
@@ -22,17 +23,22 @@ try:
     import llama_cpp
     from llama_cpp import Llama
 
-    is_llama_cpp_available = True
+    IS_LLAMA_CPP_AVAILABLE = True
 except Exception as e:
     print("Exception while importing llama_cpp:", e)
     print(
-        "Warning: Failed to import llama_cpp. Ensure llama-cpp-python is installed if you plan to use Llama.cpp models."
+        "Warning: Failed to import llama_cpp. Ensure llama-cpp-python is installed "
+        "if you plan to use Llama.cpp models."
     )
     llama_cpp = None
-    is_llama_cpp_available = False
+    IS_LLAMA_CPP_AVAILABLE = False
+
+# Backward compatibility alias for tests
+is_llama_cpp_available = IS_LLAMA_CPP_AVAILABLE
 
 
 class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
+    """Internal llama.cpp provider with prefill awareness and GPU support."""
     logprob_capability = LOGPROB_LEVEL_TOP_LOGPROBS  # Llama.cpp can provide top logprobs
     id: str = "llama_cpp_internal"
     is_local_vram: bool = True  # Llama.cpp runs locally and uses VRAM
@@ -48,7 +54,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         default_context_length: int = 1024,
         default_max_tokens: int = 128,
     ):
-        if not is_llama_cpp_available:
+        if not IS_LLAMA_CPP_AVAILABLE:
             raise ImportError("llama_cpp is not available. Ensure llama-cpp-python is installed.")
         self.log = logging.getLogger("PrefillAwareLlamaCppInternal")
         super().__init__(
@@ -80,12 +86,12 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         ):
             return self.current_model  # Model already loaded
 
-        if not is_llama_cpp_available or not llama_cpp:
+        if not IS_LLAMA_CPP_AVAILABLE or not llama_cpp:
             raise ImportError("llama_cpp is not available. Ensure llama-cpp-python is installed.")
 
         # Unload current model if any
         if self.current_model:
-            self.log.info(f"Unloading current model: {self.current_model_id}")
+            self.log.info("Unloading current model: %s", self.current_model_id)
             del self.current_model
             self.current_model = None
             self.current_model_id = None
@@ -94,7 +100,8 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             time.sleep(1)  # Give some time for memory to be freed
 
         self.log.info(
-            f"Loading Llama model from {gguf_file} with n_gpu_layers={n_gpu_layers}, n_ctx={n_ctx}"
+            "Loading Llama model from %s with n_gpu_layers=%d, n_ctx=%d",
+            gguf_file, n_gpu_layers, n_ctx
         )
         try:
             model = llama_cpp.Llama(
@@ -110,7 +117,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             self.current_model_logits_all = logits_all
             return model
         except Exception as e:
-            self.log.error(f"Failed to load Llama model from {gguf_file}: {e}")
+            self.log.error("Failed to load Llama model from %s: %s", gguf_file, e)
             return None
 
     def generate(
@@ -120,7 +127,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         Generate a completion using the Llama.cpp backend, optionally with a prefill.
         If prefill is provided, we insert it as a start of assistant response.
         """
-        if not is_llama_cpp_available or not llama_cpp:
+        if not IS_LLAMA_CPP_AVAILABLE or not llama_cpp:
             raise ImportError("llama_cpp is not available. Ensure llama-cpp-python is installed.")
         if not model_id:
             raise ValueError("model_id must be provided for Llama.cpp provider.")
@@ -151,7 +158,10 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
 
         self.log.info("-" * 40)
         self.log.info(
-            f"[ > ] Generating with model {model_id}, temperature={temperature}, top_k={top_k}, context_length={context_length}, max_tokens={max_tokens}, top_logprobs={top_logprobs}, prefill={'<yes>' if prefill else '<no>'}"
+            "[ > ] Generating with model %s, temperature=%s, top_k=%s, context_length=%s, "
+            "max_tokens=%s, top_logprobs=%s, prefill=%s",
+            model_id, temperature, top_k, context_length, max_tokens, top_logprobs,
+            '<yes>' if prefill else '<no>'
         )
         messages = [{"role": "user", "content": prompt}]
         history = messages.copy()
@@ -161,7 +171,8 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
 
         if template_func and callable(template_func):
             formatted_prompt: str = template_func(messages)  # type: ignore
-            self.log.info(f"Formatted prompt with template:\n{formatted_prompt}\n" + "-" * 40)
+            self.log.info("Formatted prompt with template:\n%s\n%s", 
+                         formatted_prompt, "-" * 40)
 
             # Simple completion has logprobs:int|None, chat completion has logprobs:bool, top_logprobs:int|None
             if top_logprobs > 0:
@@ -239,7 +250,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         Evaluate a given completion for given prompt by bound model.
         Returns list of LLMPTokenLogProbs for each token in completion.
         """
-        if not is_llama_cpp_available or not llama_cpp:
+        if not IS_LLAMA_CPP_AVAILABLE or not llama_cpp:
             raise ImportError("llama_cpp is not available. Ensure llama-cpp-python is installed.")
         if not model_id:
             raise ValueError("model_id must be provided for Llama.cpp provider.")
@@ -273,13 +284,16 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
 
         self.log.info("-" * 40)
         self.log.info(
-            f"[ > ] Evaluating completion with model {model_id}, temperature={temperature}, top_k={top_k}, context_length={context_length}, max_tokens={max_tokens}, top_logprobs={top_logprobs}"
+            "[ > ] Evaluating completion with model %s, temperature=%s, top_k=%s, "
+            "context_length=%s, max_tokens=%s, top_logprobs=%s",
+            model_id, temperature, top_k, context_length, max_tokens, top_logprobs
         )
 
         messages = [{"role": "user", "content": prompt}]
         messages.append({"role": "assistant", "content": completion})
         formatted_prompt: str = template_func(messages)  # type: ignore
-        self.log.info(f"Formatted prompt with template:\n{formatted_prompt}\n" + "-" * 40)
+        self.log.info("Formatted prompt with template:\n%s\n%s", 
+                     formatted_prompt, "-" * 40)
         response = model(
             formatted_prompt,
             max_tokens=max_tokens,
@@ -301,7 +315,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             )
         )
 
-        for token, logprob, toplog in logprobs_zipped:
+        for token, logprob, _ in logprobs_zipped:
             if logprob is None:
                 logprob = -100.0
             all_logprobs.append(LLMPTokenLogProbs(token=token, logprob=float(logprob)))
@@ -349,8 +363,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         tokens = logprobs_dict.get("tokens", [])
         token_logprobs = logprobs_dict.get("token_logprobs", [])
         top_logprobs = logprobs_dict.get("top_logprobs", [])
-        for i in range(len(tokens)):
-            token = tokens[i] if i < len(tokens) else ""
+        for i, token in enumerate(tokens):
             logprob = float(token_logprobs[i]) if i < len(token_logprobs) else 0.0
             top_logprobs_list = []
             if i < len(top_logprobs):

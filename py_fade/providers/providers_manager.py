@@ -1,9 +1,12 @@
+"""LLM inference providers management and model mapping utilities."""
+
 import logging
 import pathlib
 
 from py_fade.providers.base_provider import BasePrefillAwareProvider
 from py_fade.providers.llama_cpp import (
     PrefillAwareLlamaCppInternal,
+    IS_LLAMA_CPP_AVAILABLE,
     is_llama_cpp_available,
 )
 from py_fade.providers.llm_response import LLMPTokenLogProbs, LLMResponse
@@ -19,6 +22,7 @@ providers_map = {
 
 
 class MappedModel:
+    """Represents a model mapped to a specific provider with associated parameters."""
     model_id: str
     provider: BasePrefillAwareProvider
     provider_params: dict
@@ -32,9 +36,11 @@ class MappedModel:
 
     @property
     def path(self) -> str:
+        """Get the full path identifier for this mapped model."""
         return f"{self.model_id} ({self.provider.id})"
 
     def generate(self, prompt: str, prefill: str | None = None, **kwargs) -> LLMResponse:
+        """Generate text using the mapped model and provider."""
         # Merge provider_params into kwargs, with kwargs taking precedence
         merged_kwargs = {**self.provider_params, **kwargs}
         return self.provider.generate(self.model_id, prompt, prefill, **merged_kwargs)

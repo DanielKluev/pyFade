@@ -7,7 +7,6 @@ from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import DateTime
 
-from py_fade.dataset.data_filter import DataFilter
 from py_fade.dataset.dataset_base import dataset_base
 from py_fade.dataset.prompt import PromptRevision
 
@@ -84,7 +83,8 @@ class Sample(dataset_base):
 
     def new_copy(self) -> "Sample":
         """
-        Create a new unsaved copy of this sample with the same prompt revision and title appended with ' (Copy)'.
+        Create a new unsaved copy of this sample with the same prompt revision 
+        and title appended with ' (Copy)'.
         """
         return self.__class__(
             title=f"{self.title} (Copy)",

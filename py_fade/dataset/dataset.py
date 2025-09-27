@@ -8,7 +8,8 @@ import logging
 import math
 import pathlib
 
-## MUST keep it on top of imports, as they may rely on path changes. **NEVER** move this. Disable pylint warning as it's intentional.
+## MUST keep it on top of imports, as they may rely on path changes.
+## **NEVER** move this. Disable pylint warning as it's intentional.
 from py_fade.features_checker import SUPPORTED_FEATURES # pylint: disable=unused-import,wrong-import-order
 
 import sqlite3

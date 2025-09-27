@@ -40,7 +40,7 @@ class CompletionPrefix:
 
         prefix_tokens_count = 0
         current_pos = 0
-        for i, lp in enumerate(response.logprobs):
+        for lp in response.logprobs:
             if lp.token != prefix_text[current_pos : current_pos + len(lp.token)]:
                 return None  # Token does not match prefix at this position
             current_pos += len(lp.token)
@@ -117,7 +117,8 @@ class TextGenerationController:
         Load completion cache to speed up generation from dataset.
         """
         self.log.info(
-            f"Loading cache for model {self.mapped_model.path} and prompt revision {self.prompt_revision.id}"
+            "Loading cache for model %s and prompt revision %s",
+            self.mapped_model.path, self.prompt_revision.id
         )
         if not self.dataset.session:
             raise RuntimeError(
@@ -134,7 +135,8 @@ class TextGenerationController:
                 continue
             self.all_completions.append(completion)
         self.log.info(
-            f"Populated completions cache with {len(self.all_completions)} existing completions from dataset."
+            "Populated completions cache with %d existing completions from dataset.",
+            len(self.all_completions)
         )
 
     def beam_out_on_token_one_level(
@@ -147,21 +149,23 @@ class TextGenerationController:
         on_check_stop: Callable[[], bool] | None = None,
     ) -> list[LLMResponse]:
         """
-        Keep prefix fixed, expand on next token after prefix, with `width` beams, each beam up to `length` tokens long.
+        Keep prefix fixed, expand on next token after prefix, with `width` beams, 
+        each beam up to `length` tokens long.
         Automatically check if prefix logprobs are known, if not - compute them first.
-        Automatically check if next token logprobs are known up to `width`, if not - compute them first.
+        Automatically check if next token logprobs are known up to `width`, 
+        if not - compute them first.
 
         Return list of completed beams (if any) and update internal state with new beams.
         """
-        # 1. Check if prefix logprobs are known. We need only selected token logprobs to calculate beam min_logprob score.
-        # If not, evaluate them using the provider.
+        # 1. Check if prefix logprobs are known. We need only selected token logprobs 
+        # to calculate beam min_logprob score. If not, evaluate them using the provider.
         beam_prefix = self._find_beam_prefix(prefix)
 
-        # 2. Check if we have logprobs for next token after prefix, up to `width` top_k token variants.
-        # If not, generate them using the provider.
+        # 2. Check if we have logprobs for next token after prefix, up to `width` 
+        # top_k token variants. If not, generate them using the provider.
         if beam_tokens is None:
             beam_tokens = self.fetch_next_token_logprobs_for_prefix(beam_prefix, width)
-        self.log.info(f"Next tokens: {beam_tokens}")
+        self.log.info("Next tokens: %s", beam_tokens)
 
         # 3. Go through each possible token for next position, create new beam for each.
         level_beams: list[LLMResponse] = []

@@ -1,12 +1,14 @@
+"""Base provider classes and utilities for LLM inference providers."""
+
 from tiktoken import get_encoding
 
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 from py_fade.providers.llm_response import LLMPTokenLogProbs, LLMResponse
 
-cl100k_base_encoding = None
+CL100K_BASE_ENCODING = None
 try:
     print("Loading tokenizer: cl100k_base...")
-    cl100k_base_encoding = get_encoding("cl100k_base")
+    CL100K_BASE_ENCODING = get_encoding("cl100k_base")
     print("Tokenizer loaded successfully.")
 except Exception as e:
     print(
@@ -55,6 +57,7 @@ class BasePrefillAwareProvider:
     def generate(
         self, model_id: str, prompt: str, prefill: str | None = None, **kwargs
     ) -> LLMResponse:
+        """Generate completion for the given prompt using the specified model."""
         raise NotImplementedError("Subclasses must implement the generate method.")
 
     def evaluate_completion(
@@ -73,8 +76,7 @@ class BasePrefillAwareProvider:
         avg_chars_per_token = 4  # Rough average for English text
         encoding_name = "cl100k_base"  # Default to cl100k_base for now
         # Default to cl100k_base encoding
-        if encoding_name == "cl100k_base" and cl100k_base_encoding:
-            tokens = cl100k_base_encoding.encode(text)
+        if encoding_name == "cl100k_base" and CL100K_BASE_ENCODING:
+            tokens = CL100K_BASE_ENCODING.encode(text)
             return len(tokens)
-        else:
-            return len(text) // avg_chars_per_token
+        return len(text) // avg_chars_per_token
