@@ -30,8 +30,11 @@ except Exception as e:
         "Warning: Failed to import llama_cpp. Ensure llama-cpp-python is installed "
         "if you plan to use Llama.cpp models."
     )
-    LLAMA_CPP = None
+    llama_cpp = None
     IS_LLAMA_CPP_AVAILABLE = False
+
+# Backward compatibility alias for tests
+is_llama_cpp_available = IS_LLAMA_CPP_AVAILABLE
 
 
 class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
