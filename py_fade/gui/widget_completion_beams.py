@@ -25,7 +25,6 @@ from PyQt6.QtWidgets import (
 )
 
 from py_fade.controllers.text_generation_controller import TextGenerationController
-from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
 from py_fade.gui.components.widget_token_picker import WidgetTokenPicker
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.providers.llm_response import LLMResponse
@@ -458,7 +457,7 @@ class WidgetCompletionBeams(QWidget):
 
         # Connect beam frame signals
         frame.discard_requested.connect(self.on_beam_discarded)
-        frame.save_requested.connect(self.on_beam_accepted) 
+        frame.save_requested.connect(self.on_beam_accepted)
         frame.pin_toggled.connect(self.on_beam_pinned)
 
         self.beam_frames.append((beam, frame))
@@ -490,14 +489,17 @@ class WidgetCompletionBeams(QWidget):
     def on_beam_discarded(self, completion):
         """Handle beam discard - remove from display and list."""
         # Find and remove the beam frame
+        frame_to_remove = None
         for index, (_beam, beam_frame) in enumerate(self.beam_frames):
             if beam_frame.completion is completion:
+                frame_to_remove = beam_frame
                 self.beam_frames.pop(index)
                 break
 
         # Remove from layout and delete the frame
-        beam_frame.setParent(None)
-        beam_frame.deleteLater()
+        if frame_to_remove:
+            frame_to_remove.setParent(None)
+            frame_to_remove.deleteLater()
 
         # Re-arrange remaining frames in grid
         self.rearrange_beam_grid()

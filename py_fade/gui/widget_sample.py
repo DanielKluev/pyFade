@@ -31,6 +31,7 @@ from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from py_fade.gui.widget_new_completion import NewCompletionFrame
+from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -323,16 +324,16 @@ class WidgetSample(QWidget):
         frame.setFixedWidth(360)
         frame.set_facet(self.active_facet)
         frame.set_target_model(self.active_model_name)
-        
+
         # Connect existing signals
         frame.archive_toggled.connect(self._on_completion_archive_toggled)
         frame.resume_requested.connect(self._on_completion_resume_requested)
         frame.evaluate_requested.connect(self._on_completion_evaluate_requested)
-        
+
         # Connect new signals
         frame.edit_requested.connect(self._on_completion_edit_requested)
         frame.discard_requested.connect(self._on_completion_discard_requested)
-        
+
         return frame
 
     def populate_outputs(self):
@@ -380,44 +381,42 @@ class WidgetSample(QWidget):
         """Emit an evaluate request for logprob generation."""
 
         self.completion_evaluate_requested.emit(completion, model_name)
-        
+
     def _on_completion_edit_requested(self, completion: "PromptCompletion") -> None:
         """Handle edit request for a completion - open ThreeWayCompletionEditorWindow."""
-        from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow
-        
         if not self.app:
             return
-            
+
         # Open the editor window in blocking mode
         editor = ThreeWayCompletionEditorWindow(
             self.app,
-            self.dataset, 
+            self.dataset,
             completion,
             facet=self.active_facet,
             parent=self
         )
-        
+
         # Show as modal dialog
         result = editor.exec()
         if result:
             # Refresh the outputs to reflect any changes made in the editor
             self.populate_outputs()
-            
+
     def _on_completion_discard_requested(self, completion: "PromptCompletion") -> None:
         """Handle discard request for a completion - remove from database and UI."""
         if not self.dataset.session:
             return
-            
+
         try:
             # Remove from database
             self.dataset.session.delete(completion)
             self.dataset.session.commit()
-            
+
             # Refresh the UI to remove the completion frame
             self.populate_outputs()
-            
-        except Exception as e:
-            self.log.error(f"Failed to discard completion: {e}")
+
+        except RuntimeError as e:
+            self.log.error("Failed to discard completion: %s", e)
             # Rollback the transaction
             if self.dataset.session:
                 self.dataset.session.rollback()

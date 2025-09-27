@@ -2,40 +2,64 @@
 Material-themed widget for viewing a single completion with inline actions.
 
 TODO:
- - Move this module to components/
- - `__init__` should take `display_mode:str` parameter that can be "sample" or "beam", supporting future modes as needed.
- - Make `widget_completion_beams.py` use this CompletionFrame, but expand it to properly support interactive beaming nuances:
-    - Remove `BeamCompletionFrame` entirely, `CompletionFrame` should be universal completion display.
+ - Move this module to components/ ✓ DONE
+ - `__init__` should take `display_mode:str` parameter that can be "sample" or
+   "beam", supporting future modes as needed. ✓ DONE
+ - Make `widget_completion_beams.py` use this CompletionFrame, but expand it to
+   properly support interactive beaming nuances:
+    - Remove `BeamCompletionFrame` entirely, `CompletionFrame` should be
+      universal completion display. ✓ DONE
  - For `beam` mode:
-    - Hide rating control
-    - Hide model and temperature row, as beaming is always deterministic over single model. We will display this info on saved completions back in original Sample widget after done with beaming.
-    - Add save and pin/unpin buttons similar how they are currently implemented in the `BeamCompletionFrame`, but adapted to `CompletionFrame` style.
+    - Hide rating control ✓ DONE
+    - Hide model and temperature row, as beaming is always deterministic over
+      single model. We will display this info on saved completions back in
+      original Sample widget after done with beaming. ✓ DONE
+    - Add save and pin/unpin buttons similar how they are currently implemented
+      in the `BeamCompletionFrame`, but adapted to `CompletionFrame` style.
         - These buttons emit signals that the parent widget should handle.
-        - Pin state is currently transient, not persisted in db. Active only during single interactive beaming session.
-    - Save button should follow existing logic in `BeamCompletionFrame`, creating a new `PromptCompletion` in db with same parameters as the beam, but with `beam_token` set to the currently selected beam token.
-    - After saving, parent widget should replace this `CompletionFrame` with a new one for the saved completion, but still `beam` mode (so no rating, no model/temp, but with archive button).
-    
+          ✓ DONE
+        - Pin state is currently transient, not persisted in db. Active only
+          during single interactive beaming session. ✓ DONE
+    - Save button should follow existing logic in `BeamCompletionFrame`,
+      creating a new `PromptCompletion` in db with same parameters as the beam,
+      but with `beam_token` set to the currently selected beam token. ✓ DONE
+    - After saving, parent widget should replace this `CompletionFrame` with a
+      new one for the saved completion, but still `beam` mode (so no rating,
+      no model/temp, but with archive button). ✓ DONE
+
  - Add discard button for both `beam` and `sample` modes:
-    - If completion is transient (not saved in db), simply discard it.
-    - If completion is persisted in db (having an id), ask user to confirm discard, as this will permanently delete the completion from db.
-    - Use standard Qt dialog for confirmation.
-    - Parent widget should handle removing appropriate `CompletionFrame` from display.
+    - If completion is transient (not saved in db), simply discard it. ✓ DONE
+    - If completion is persisted in db (having an id), ask user to confirm
+      discard, as this will permanently delete the completion from db. ✓ DONE
+    - Use standard Qt dialog for confirmation. ✓ DONE
+    - Parent widget should handle removing appropriate `CompletionFrame` from
+      display. ✓ DONE
  - For `sample` mode, add "Edit" button:
-    - Open `ThreeWayCompletionEditorWindow` from `py_fade/gui/window_three_way_completion_editor.py` in blocking mode, for manual edit of the completion text.
-    - Editor will handle saving new completion and archiving the old one, this widget just emits signal.
-    - When editing is done, parent widget should handle changes regarding `CompletionFrame` display. Depending on user action in editor, this might involve:
-        - Removing this `CompletionFrame` if user archived the original completion and created a new one
-        - Keeping both this `CompletionFrame` and a new one if user didn't archive original and created a new one
+    - Open `ThreeWayCompletionEditorWindow` from
+      `py_fade/gui/window_three_way_completion_editor.py` in blocking mode, for
+      manual edit of the completion text. ✓ DONE
+    - Editor will handle saving new completion and archiving the old one, this
+      widget just emits signal. ✓ DONE
+    - When editing is done, parent widget should handle changes regarding
+      `CompletionFrame` display. Depending on user action in editor, this
+      might involve:
+        - Removing this `CompletionFrame` if user archived the original
+          completion and created a new one ✓ DONE
+        - Keeping both this `CompletionFrame` and a new one if user didn't
+          archive original and created a new one ✓ DONE
         - Keeping this `CompletionFrame` if user didn't create a new completion
-        - Old completions **NEVER** get modified, only archived if user chooses to do so.
- - "Resume" button should only be visible if `is_truncated` is True and completion is not archived. On Resume:
-    - Open `ThreeWayCompletionEditorWindow` from `py_fade/gui/window_three_way_completion_editor.py` in blocking mode, for continuation generation of the completion text.
-    - Editor will handle saving new completion and archiving the old one, this widget just emits signal.
-    - When editing is done, parent widget should handle changes regarding `CompletionFrame` display. Depending on user action in editor, this might involve:
-        - Removing this `CompletionFrame` if user archived the original completion and created a new one
-        - Keeping both this `CompletionFrame` and a new one if user didn't archive original and created a new one
-        - Keeping this `CompletionFrame` if user didn't create a new completion
-        - Old completions **NEVER** get modified, only archived if user chooses to do so.
+          ✓ DONE
+        - Old completions **NEVER** get modified, only archived if user chooses
+          to do so. ✓ DONE
+ - "Resume" button should only be visible if `is_truncated` is True and
+   completion is not archived. On Resume:
+    - Open `ThreeWayCompletionEditorWindow` from
+      `py_fade/gui/window_three_way_completion_editor.py` in blocking mode, for
+      continuation generation of the completion text. ✓ DONE
+    - Editor will handle saving new completion and archiving the old one, this
+      widget just emits signal. ✓ DONE
+    - When editing is done, parent widget should handle changes regarding
+      `CompletionFrame` display. ✓ DONE
 """
 
 from __future__ import annotations
@@ -43,7 +67,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QSize, Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor
 from PyQt6.QtWidgets import (
     QFrame,
@@ -74,13 +98,14 @@ if TYPE_CHECKING:
 PREFILL_COLOR = QColor("#FFF9C4")
 BEAM_TOKEN_COLOR = QColor("#C5E1A5")
 class CompletionFrame(QFrame):
-    """Card-style shell that wraps completion metadata, rating control, and inline actions."""
+    """Card-style shell that wraps completion metadata, rating control, 
+    and inline actions."""
 
     # Existing signals
     archive_toggled = pyqtSignal(object, bool)
     resume_requested = pyqtSignal(object)
     evaluate_requested = pyqtSignal(object, str)
-    
+
     # New signals for multi-mode support
     edit_requested = pyqtSignal(object)  # PromptCompletion
     discard_requested = pyqtSignal(object)  # PromptCompletion or LLMResponse
@@ -89,7 +114,7 @@ class CompletionFrame(QFrame):
 
     icons_size = 24
     actions_icon_size = 22
-    
+
     def __init__(
         self,
         dataset: "DatasetDatabase",
@@ -106,7 +131,7 @@ class CompletionFrame(QFrame):
         self.current_facet: "Facet | None" = None
         self.temperature_label: QWidget | None = None
         self.target_model: str | None = None
-        
+
         # Track pin state for beam mode (transient, not persisted)
         self.is_pinned = False
 
@@ -166,60 +191,68 @@ class CompletionFrame(QFrame):
 
         # Action buttons - mode-specific
         self._setup_action_buttons()
-        
+
         self.main_layout.addLayout(self.actions_layout)
 
     def _setup_action_buttons(self) -> None:
         """Setup action buttons based on display mode."""
-        
+
         # Common buttons
-        self.discard_button = QPushButtonWithIcon("delete", parent=self, icon_size=self.actions_icon_size, button_size=40)
+        self.discard_button = QPushButtonWithIcon(
+            "delete", parent=self, icon_size=self.actions_icon_size, button_size=40)
         self.discard_button.setFlat(True)
         self.discard_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.discard_button.setToolTip("Discard this completion")
         self.actions_layout.addWidget(self.discard_button)
-        
+
         if self.display_mode == "sample":
             # Sample mode buttons
-            self.edit_button = QPushButtonWithIcon("edit", parent=self, icon_size=self.actions_icon_size, button_size=40)
+            self.edit_button = QPushButtonWithIcon(
+                "edit", parent=self, icon_size=self.actions_icon_size, button_size=40)
             self.edit_button.setFlat(True)
             self.edit_button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.edit_button.setToolTip("Edit this completion")
             self.actions_layout.addWidget(self.edit_button)
 
-            self.resume_button = QPushButtonWithIcon("resume", parent=self, icon_size=self.actions_icon_size, button_size=40)
+            self.resume_button = QPushButtonWithIcon(
+                "resume", parent=self, icon_size=self.actions_icon_size, button_size=40)
             self.resume_button.setFlat(True)
             self.resume_button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.resume_button.hide()
             self.actions_layout.addWidget(self.resume_button)
 
-            self.evaluate_button = QPushButtonWithIcon("search_insights", parent=self, icon_size=self.actions_icon_size, button_size=40)
+            self.evaluate_button = QPushButtonWithIcon(
+                "search_insights", parent=self, icon_size=self.actions_icon_size, button_size=40)
             self.evaluate_button.setFlat(True)
             self.evaluate_button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.evaluate_button.hide()
             self.actions_layout.addWidget(self.evaluate_button)
 
-            self.archive_button = QPushButtonWithIcon("archive", parent=self, icon_size=self.actions_icon_size, button_size=40)
+            self.archive_button = QPushButtonWithIcon(
+                "archive", parent=self, icon_size=self.actions_icon_size, button_size=40)
             self.archive_button.setFlat(True)
             self.archive_button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.actions_layout.addWidget(self.archive_button)
-            
+
         elif self.display_mode == "beam":
             # Beam mode buttons
-            self.save_button = QPushButtonWithIcon("save", parent=self, icon_size=self.actions_icon_size, button_size=40)
+            self.save_button = QPushButtonWithIcon(
+                "save", parent=self, icon_size=self.actions_icon_size, button_size=40)
             self.save_button.setFlat(True)
             self.save_button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.save_button.setToolTip("Save this beam as completion")
             self.actions_layout.addWidget(self.save_button)
 
-            self.pin_button = QPushButtonWithIcon("keep", parent=self, icon_size=self.actions_icon_size, button_size=40)
+            self.pin_button = QPushButtonWithIcon(
+                "keep", parent=self, icon_size=self.actions_icon_size, button_size=40)
             self.pin_button.setFlat(True)
             self.pin_button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.pin_button.setToolTip("Pin/unpin this beam")
             self.actions_layout.addWidget(self.pin_button)
-            
+
             # Archive button for saved beam completions
-            self.archive_button = QPushButtonWithIcon("archive", parent=self, icon_size=self.actions_icon_size, button_size=40)
+            self.archive_button = QPushButtonWithIcon(
+                "archive", parent=self, icon_size=self.actions_icon_size, button_size=40)
             self.archive_button.setFlat(True)
             self.archive_button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.archive_button.hide()  # Only shown after beam is saved
@@ -230,13 +263,13 @@ class CompletionFrame(QFrame):
         # Connect rating widget for sample mode
         if self.display_mode == "sample" and hasattr(self, 'rating_widget'):
             self.rating_widget.rating_saved.connect(self._log_rating_saved)
-        
+
         # Connect common buttons
         if self.discard_button:
             self.discard_button.clicked.connect(self._on_discard_clicked)
         if self.archive_button:
             self.archive_button.clicked.connect(self._on_archive_clicked)
-        
+
         # Connect sample mode buttons
         if self.display_mode == "sample":
             if self.edit_button:
@@ -245,7 +278,7 @@ class CompletionFrame(QFrame):
                 self.resume_button.clicked.connect(self._on_resume_clicked)
             if self.evaluate_button:
                 self.evaluate_button.clicked.connect(self._on_evaluate_clicked)
-        
+
         # Connect beam mode buttons
         elif self.display_mode == "beam":
             if self.save_button:
@@ -262,30 +295,30 @@ class CompletionFrame(QFrame):
         """Populate the frame with *completion* details."""
 
         self.completion = completion
-        
+
         # Set model info
         model_id = completion.model_id
         self.model_label.setText(model_id)
-        
+
         # Update temperature label and visibility based on mode and completion type
         self._update_temperature_label(completion)
-        
+
         # Hide header widgets in beam mode unless it's a saved completion
-        is_saved_beam = (self.display_mode == "beam" and 
+        is_saved_beam = (self.display_mode == "beam" and
                         hasattr(completion, 'id') and completion.id is not None)
         header_visible = self.display_mode == "sample" or is_saved_beam
-        
+
         self.model_label.setVisible(header_visible)
         if self.temperature_label:
             self.temperature_label.setVisible(header_visible)
-        
+
         self._populate_status_icons(completion)
         self._update_text_display(completion)
-        
+
         # Update rating widget for sample mode
         if self.display_mode == "sample" and hasattr(self, 'rating_widget'):
             self.rating_widget.set_context(self.completion, self.current_facet)
-        
+
         self._update_action_buttons()
 
     def set_facet(self, facet: "Facet | None") -> None:
@@ -304,19 +337,19 @@ class CompletionFrame(QFrame):
 
     def _update_action_buttons(self) -> None:
         """Update button visibility and states based on completion and mode."""
-        
+
         if self.display_mode == "sample":
             self._update_sample_mode_buttons()
         elif self.display_mode == "beam":
             self._update_beam_mode_buttons()
-            
+
     def _update_sample_mode_buttons(self) -> None:
         """Update buttons for sample mode."""
         if not hasattr(self.completion, 'id'):
             return
-            
+
         completion = self.completion  # It's a PromptCompletion in sample mode
-        
+
         # Archive button
         self._update_archive_button()
 
@@ -340,7 +373,7 @@ class CompletionFrame(QFrame):
                 self.evaluate_button.setToolTip("Evaluate logprobs for the active model.")
             else:
                 self.evaluate_button.setToolTip("Logprobs already available for the active model.")
-                
+
     def _update_beam_mode_buttons(self) -> None:
         """Update buttons for beam mode."""
         # Pin button visual state
@@ -353,10 +386,10 @@ class CompletionFrame(QFrame):
                 self.pin_button.setIcon(google_icon_font.as_icon("keep"))
                 self.pin_button.setToolTip("Pin this beam")
                 self.setStyleSheet("")
-        
+
         # Show/hide buttons based on whether this beam has been saved
         is_saved = hasattr(self.completion, 'id') and getattr(self.completion, 'id', None) is not None
-        
+
         if self.save_button:
             self.save_button.setVisible(not is_saved)
         if self.pin_button:
@@ -422,16 +455,16 @@ class CompletionFrame(QFrame):
         """Handle evaluate button click."""
         target = self.target_model or self.completion.model_id
         self.evaluate_requested.emit(self.completion, target)
-        
+
     def _on_edit_clicked(self) -> None:
         """Handle edit button click."""
         self.edit_requested.emit(self.completion)
-        
+
     def _on_discard_clicked(self) -> None:
         """Handle discard button click."""
         # Check if completion is persisted (has an ID)
         has_id = hasattr(self.completion, 'id') and getattr(self.completion, 'id', None) is not None
-        
+
         if has_id:
             # Show confirmation dialog for persisted completions
             reply = QMessageBox.question(
@@ -442,18 +475,18 @@ class CompletionFrame(QFrame):
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No
             )
-            
+
             if reply != QMessageBox.StandardButton.Yes:
                 return
-                
+
         self.discard_requested.emit(self.completion)
-        
+
     def _on_save_clicked(self) -> None:
         """Handle save button click for beam mode."""
         if self.display_mode != "beam":
             return
         self.save_requested.emit(self.completion)
-        
+
     def _on_pin_clicked(self) -> None:
         """Handle pin button click for beam mode."""
         if self.display_mode != "beam":
@@ -468,10 +501,10 @@ class CompletionFrame(QFrame):
             self.header_layout.removeWidget(self.temperature_label)
             self.temperature_label.deleteLater()
             self.temperature_label = None
-            
+
         temperature = completion.temperature
         top_k = completion.top_k
-        
+
         if temperature is not None and top_k == 1:
             new_label: QWidget = QLabelWithIcon(
                 "mode_cool",
@@ -536,41 +569,34 @@ class CompletionFrame(QFrame):
             )
 
         # Check for logprobs - handle both PromptCompletion and LLMResponse
-        logprobs = None
+        tooltip = "No logprobs available."
+        color = "gray"
+
         if hasattr(completion, 'logprobs') and completion.logprobs:
             if hasattr(completion, 'id'):  # PromptCompletion
                 if completion.logprobs and completion.logprobs[0].min_logprob is not None:
                     logprob = completion.logprobs[0].min_logprob
                     tooltip = (
-                        f"Logprobs min: {logprob:.3f}, avg: {completion.logprobs[0].avg_logprob:.3f}"
+                        f"Logprobs min: {logprob:.3f}, "
+                        f"avg: {completion.logprobs[0].avg_logprob:.3f}"
                     )
                     color = logprob_to_qcolor(logprob).name()
-                    logprobs = True
             else:  # LLMResponse
-                if hasattr(completion, 'min_logprob') and completion.min_logprob is not None:
+                if (hasattr(completion, 'min_logprob') and
+                    completion.min_logprob is not None):
                     logprob = completion.min_logprob
                     tooltip = f"Logprobs min: {logprob:.3f}"
                     color = logprob_to_qcolor(logprob).name()
-                    logprobs = True
-                    
-        if logprobs:
-            self.status_layout.addWidget(
-                QLabelWithIcon(
-                    "metrics",
-                    size=self.icons_size,
-                    color=color,
-                    tooltip=tooltip,
-                )
+
+        # Always add metrics icon with appropriate color/tooltip
+        self.status_layout.addWidget(
+            QLabelWithIcon(
+                "metrics",
+                size=self.icons_size,
+                color=color,
+                tooltip=tooltip,
             )
-        else:
-            self.status_layout.addWidget(
-                QLabelWithIcon(
-                    "metrics",
-                    size=self.icons_size,
-                    color="gray",
-                    tooltip="No logprobs available.",
-                )
-            )
+        )
 
         self.status_layout.addStretch()
 
@@ -583,7 +609,7 @@ class CompletionFrame(QFrame):
             text = completion.full_response_text or ""
         else:
             text = ""
-            
+
         self.text_edit.blockSignals(True)
         self.text_edit.setPlainText(text)
         self._clear_highlights()
