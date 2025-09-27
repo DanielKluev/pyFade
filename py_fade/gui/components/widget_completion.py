@@ -264,8 +264,8 @@ class CompletionFrame(QFrame):
             raise ValueError("set_beam can only be called in beam mode")
 
         self.beam = beam
-        # In beam mode, initially hide model/temperature info
-        self.header_layout.setVisible(False)
+        # In beam mode, initially hide model/temperature info by hiding the label
+        self.model_label.setVisible(False)
         # Update text display with beam response
         self._update_text_display_from_beam(beam)
         self._populate_beam_status_icons(beam)
