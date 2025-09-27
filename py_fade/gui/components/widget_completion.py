@@ -19,12 +19,9 @@ from PyQt6.QtWidgets import (
 
 from py_fade.gui.auxillary import logprob_to_qcolor
 from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
-from py_fade.gui.components import (
-    CompletionRatingWidget,
-    QLabelWithIcon,
-    QLabelWithIconAndText,
-    QPushButtonWithIcon,
-)
+from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
+from py_fade.gui.components.widget_completion_rating import CompletionRatingWidget
+from py_fade.gui.components.widget_label_with_icon import QLabelWithIcon, QLabelWithIconAndText
 
 if TYPE_CHECKING:
     from py_fade.dataset.completion import PromptCompletion

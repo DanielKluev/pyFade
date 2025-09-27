@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import Mock, MagicMock, patch
 from PyQt6.QtWidgets import QApplication, QWidget
 
-from py_fade.gui.widget_completion import CompletionFrame
+from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.providers.llm_response import LLMResponse
 
 

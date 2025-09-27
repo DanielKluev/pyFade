@@ -32,7 +32,7 @@ from py_fade.providers.llm_response import LLMResponse
 if TYPE_CHECKING:
     from py_fade.app import PyFadeApp
     from py_fade.gui.widget_sample import WidgetSample
-    from py_fade.gui.widget_completion import CompletionFrame
+    from py_fade.gui.components.widget_completion import CompletionFrame
 
 
 class BeamGenerationWorker(QThread):
@@ -447,12 +447,15 @@ class WidgetCompletionBeams(QWidget):
     def add_beam_frame(self, beam: LLMResponse):
         """Add a beam result to the display grid."""
         # Import here to avoid circular imports
-        from py_fade.gui.widget_completion import CompletionFrame
-        from py_fade.dataset.dataset import DatasetDatabase
+        from py_fade.gui.components.widget_completion import CompletionFrame
+        
+        # Ensure we have a dataset to work with
+        if not self.app.current_dataset:
+            raise RuntimeError("No dataset available for beam frame creation")
         
         # Create CompletionFrame in beam mode
         frame = CompletionFrame(
-            dataset=self.app.current_dataset or DatasetDatabase(),
+            dataset=self.app.current_dataset,
             beam=beam,
             display_mode="beam",
             parent=self.beams_container
