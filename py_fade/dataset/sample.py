@@ -114,3 +114,12 @@ class Sample(dataset_base):
             date_created=datetime.datetime.now(),
             prompt_revision=prompt_revision,
         )
+
+    @property
+    def completions(self):
+        """
+        Access completions through the associated prompt revision.
+        """
+        if self.prompt_revision:
+            return self.prompt_revision.completions
+        return []

@@ -268,6 +268,11 @@ class ExportTemplate(dataset_base):
     def _normalize_output_format(cls, training_type: str, value: str) -> str:
         choices = cls.OUTPUT_FORMATS.get(training_type, ())
         normalized_value = value.strip()
+        
+        # Handle "JSONL-ShareGPT" alias for "JSONL (ShareGPT)"
+        if normalized_value.lower() in ["jsonl-sharegpt", "jsonl sharegpt"]:
+            normalized_value = "JSONL (ShareGPT)"
+            
         for option in choices:
             if normalized_value.lower() == option.lower():
                 return option

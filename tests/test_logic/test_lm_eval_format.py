@@ -51,3 +51,14 @@ def test_lm_eval_compare() -> None:
     # Expected that failed sample is the one with "Claire makes a 3 egg omelet every morning" in prompt_text.
     failed_sample = comparison["new_failure"][0]
     assert "Claire makes a 3 egg omelet every morning" in failed_sample.prompt_text
+
+
+def test_lm_eval_save_raises_not_implemented():
+    """Test that save() method raises NotImplementedError as expected."""
+    eval_result = LMEvalResult(LM_EVAL_TEST_RESULT_1)
+    
+    with pytest.raises(NotImplementedError, match="read-only and does not support saving"):
+        eval_result.save()
+
+    with pytest.raises(NotImplementedError, match="read-only and does not support saving"):
+        eval_result.save("/some/path")

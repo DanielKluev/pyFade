@@ -122,6 +122,19 @@ class LMEvalResult(BaseDataFormat):
         )
         return len(self.samples)
 
+    def save(self, file_path: str|pathlib.Path|None = None) -> int:
+        """
+        Save data to the destination.
+        
+        LMEvalResult format is primarily for loading and comparing evaluation results,
+        not for exporting. This method is implemented for ABC compliance but raises
+        NotImplementedError to indicate the format doesn't support saving.
+        """
+        raise NotImplementedError(
+            "LMEvalResult format is read-only and does not support saving. "
+            "Use this format for loading and comparing lm-evaluation-harness results."
+        )
+
     def compare(self, other: "LMEvalResult") -> Dict[str, List[LMEvalSample]]:
         """Compare two loaded results and return grouped differences.
 
