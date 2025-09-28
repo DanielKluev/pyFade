@@ -17,6 +17,7 @@ from py_fade.app import pyFadeApp
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.features_checker import SUPPORTED_FEATURES
 from py_fade.gui.widget_launcher import LauncherWidget, RecentDatasetInfo
+from tests.helpers.ui_helpers import setup_test_app_with_fake_home
 
 if TYPE_CHECKING:
     pass
@@ -25,19 +26,20 @@ if TYPE_CHECKING:
 @pytest.fixture
 def app_for_launcher_tests(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, qt_app) -> Generator[pyFadeApp, None, None]:
     """Create a pyFadeApp instance for launcher testing."""
-    fake_home = tmp_path / "home"
-    fake_home.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(pathlib.Path, "home", lambda: fake_home)
+    # Create a temporary dataset for the launcher tests
+    db_path = tmp_path / "test_dataset.db"
+    temp_dataset = DatasetDatabase(db_path)
+    temp_dataset.initialize()
 
-    config_path = fake_home / "config.yaml"
-    app = pyFadeApp(config_path=config_path)
     try:
+        app = setup_test_app_with_fake_home(temp_dataset, tmp_path, monkeypatch)
         yield app
     finally:
         if hasattr(app, "launcher") and app.launcher:
             app.launcher.deleteLater()
         if hasattr(app, "dataset_widget") and app.dataset_widget:
             app.dataset_widget.deleteLater()
+        temp_dataset.dispose()
 
 
 def test_launcher_lists_sqlite_datasets_without_password(

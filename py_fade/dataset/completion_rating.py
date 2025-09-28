@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from py_fade.dataset.dataset_base import dataset_base
+from py_fade.dataset.dataset_base import dataset_base, get_session_with_assertion
 
 if TYPE_CHECKING:
     from py_fade.dataset.completion import PromptCompletion
@@ -38,13 +38,6 @@ class PromptCompletionRating(dataset_base):
     facet: Mapped["Facet"] = relationship("Facet", back_populates="completion_ratings")
     rating: Mapped[int] = mapped_column(nullable=False)
 
-    @staticmethod
-    def _ensure_session(dataset: "DatasetDatabase") -> None:
-        if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
-
     @classmethod
     def get(
         cls,
@@ -54,9 +47,7 @@ class PromptCompletionRating(dataset_base):
     ) -> "PromptCompletionRating | None":
         """Return the existing rating for *completion* and *facet*, if any."""
 
-        cls._ensure_session(dataset)
-        session = dataset.session
-        assert session is not None  # Narrow type for static analysis tools
+        session = get_session_with_assertion(dataset)
         return (
             session.query(cls)
             .filter_by(prompt_completion_id=completion.id, facet_id=facet.id)
@@ -73,12 +64,9 @@ class PromptCompletionRating(dataset_base):
     ) -> "PromptCompletionRating":
         """Create or update the rating for *completion*/*facet* to ``rating`` (0-10)."""
 
-        cls._ensure_session(dataset)
+        session = get_session_with_assertion(dataset)
         if rating < 0 or rating > 10:
             raise ValueError("Rating must be between 0 and 10, inclusive.")
-
-        session = dataset.session
-        assert session is not None
 
         instance = cls.get(dataset, completion, facet)
         if instance:

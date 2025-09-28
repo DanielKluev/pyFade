@@ -14,11 +14,11 @@ class BaseDataFormat(ABC):
     @abstractmethod
     def load(self, file_path: str|pathlib.Path|None = None) -> int:
         """
-        Load data from the source. 
+        Load data from the source.
         If file_path is None, use the default path set during initialization.
         Returns the number of records loaded.
         """
-        pass
+        pass  # pylint: disable=unnecessary-pass
 
     @abstractmethod
     def save(self, file_path: str|pathlib.Path|None = None) -> int:
@@ -27,4 +27,4 @@ class BaseDataFormat(ABC):
         If file_path is None, use the default path set during initialization.
         Returns the number of records saved.
         """
-        pass
+        pass  # pylint: disable=unnecessary-pass

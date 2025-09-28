@@ -60,15 +60,9 @@ def app_with_dataset(
     qt_app: QApplication,
 ) -> Generator["pyFadeApp", None, None]:
     """Instantiate a ``pyFadeApp`` that points at the temporary dataset."""
-    from py_fade.app import pyFadeApp
+    from tests.helpers.ui_helpers import setup_test_app_with_fake_home
 
-    fake_home = tmp_path / "home"
-    fake_home.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(pathlib.Path, "home", lambda: fake_home)
-
-    config_path = fake_home / "config.yaml"
-    app = pyFadeApp(config_path=config_path)
-    app.current_dataset = temp_dataset
+    app = setup_test_app_with_fake_home(temp_dataset, tmp_path, monkeypatch)
     try:
         yield app
     finally:

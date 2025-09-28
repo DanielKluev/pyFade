@@ -86,6 +86,10 @@ class ShareGPTFormat(BaseDataFormat):
         """Return the loaded ShareGPT samples."""
         return self._samples
 
+    def set_samples(self, value: list[CommonConversation]) -> None:
+        """Set the ShareGPT samples."""
+        self._samples = value
+
     def save(self, file_path: str | pathlib.Path | None = None) -> int:
         """Persist the currently loaded ShareGPT samples to ``file_path``.
 

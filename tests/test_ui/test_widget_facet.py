@@ -14,7 +14,7 @@ import pytest
 from py_fade.dataset.facet import Facet
 from py_fade.gui.widget_facet import WidgetFacet
 from py_fade.gui.widget_dataset_top import WidgetDatasetTop
-from tests.helpers.ui_helpers import patch_message_boxes
+from tests.helpers.ui_helpers import patch_message_boxes, setup_dataset_session
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -156,10 +156,7 @@ def test_navigation_opens_facet_tab(
     facet = Facet.create(temp_dataset, "Accuracy", "Factual accuracy and correctness")
 
     # Set up widget test environment
-    session = temp_dataset.session
-    assert session is not None
-    session.flush()
-    session.commit()
+    setup_dataset_session(temp_dataset)
 
     widget = WidgetDatasetTop(None, app_with_dataset, temp_dataset)
     qt_app.processEvents()
