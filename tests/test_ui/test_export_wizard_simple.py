@@ -23,7 +23,7 @@ def test_export_wizard_can_be_instantiated_with_mock_data(app_with_dataset, temp
     facet = Facet.create(temp_dataset, "Test Facet", "Test facet description")
     temp_dataset.commit()
 
-    template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
+    _template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
                                      model_families=["Gemma3"], training_type="SFT", output_format="JSONL (ShareGPT)", facets=[{
                                          "facet_id": facet.id,
                                          "limit_type": "count",

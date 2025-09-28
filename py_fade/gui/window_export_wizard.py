@@ -18,7 +18,6 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QLineEdit,
     QFileDialog,
     QListWidget,
     QListWidgetItem,

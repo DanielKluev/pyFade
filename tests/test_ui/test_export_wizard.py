@@ -46,7 +46,7 @@ def test_export_wizard_template_selection_no_templates(app_with_dataset, temp_da
     assert wizard.template_list.count() == 1
     item = wizard.template_list.item(0)
     assert item.text() == "No export templates available"
-    assert not (item.flags() & item.flags().ItemIsEnabled)
+    assert not item.flags() & item.flags().ItemIsEnabled
 
     # Next button should be disabled
     assert not wizard.next_button.isEnabled()
@@ -103,7 +103,7 @@ def test_export_wizard_navigation_forward(app_with_dataset, temp_dataset, qtbot)
     facet = Facet.create(temp_dataset, "Test Facet", "Test facet description")
     temp_dataset.commit()
 
-    template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
+    _template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
                                      model_families=["Gemma3"], training_type="SFT", output_format="JSONL (ShareGPT)", facets=[{
                                          "facet_id": facet.id,
                                          "limit_type": "count",
@@ -138,7 +138,7 @@ def test_export_wizard_navigation_backward(app_with_dataset, temp_dataset, qtbot
     facet = Facet.create(temp_dataset, "Test Facet", "Test facet description")
     temp_dataset.commit()
 
-    template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
+    _template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
                                      model_families=["Gemma3"], training_type="SFT", output_format="JSONL (ShareGPT)", facets=[{
                                          "facet_id": facet.id,
                                          "limit_type": "count",
@@ -170,7 +170,7 @@ def test_export_wizard_output_path_selection(app_with_dataset, temp_dataset, qtb
     facet = Facet.create(temp_dataset, "Test Facet", "Test facet description")
     temp_dataset.commit()
 
-    template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
+    _template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
                                      model_families=["Gemma3"], training_type="SFT", output_format="JSONL (ShareGPT)", facets=[{
                                          "facet_id": facet.id,
                                          "limit_type": "count",
@@ -285,7 +285,7 @@ def test_export_wizard_full_flow_success(app_with_dataset, temp_dataset, qtbot, 
     facet = Facet.create(temp_dataset, "Test Facet", "Test facet description")
     temp_dataset.commit()
 
-    template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
+    _template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
                                      model_families=["Gemma3"], training_type="SFT", output_format="JSONL (ShareGPT)", facets=[{
                                          "facet_id": facet.id,
                                          "limit_type": "count",
