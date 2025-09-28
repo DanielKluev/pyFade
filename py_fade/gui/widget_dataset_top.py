@@ -398,7 +398,7 @@ class WidgetDatasetTop(QMainWindow):
         """Open the Import Data Wizard."""
 
         # Import here to avoid circular dependency
-        from py_fade.gui.window_import_wizard import ImportWizard
+        from py_fade.gui.window_import_wizard import ImportWizard  # pylint: disable=import-outside-toplevel
 
         self.log.info("Opening Import Data Wizard")
         wizard = ImportWizard(self, self.app, self.dataset)

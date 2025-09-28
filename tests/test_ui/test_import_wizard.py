@@ -5,8 +5,6 @@ Test Import Wizard UI functionality with pytest-qt.
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pytest
-
 from py_fade.dataset.facet import Facet
 from py_fade.gui.window_import_wizard import ImportWizard, ImportWorkerThread
 from py_fade.controllers.import_controller import ImportController
@@ -110,7 +108,7 @@ def test_import_wizard_configuration_step(app_with_dataset, temp_dataset, qtbot)
     Test configuration step UI components and interactions.
     """
     # Create a test facet
-    facet = Facet.create(temp_dataset, "Test Facet", "Test description")
+    Facet.create(temp_dataset, "Test Facet", "Test description")
     temp_dataset.commit()
 
     wizard = ImportWizard(None, app_with_dataset, temp_dataset)
@@ -274,9 +272,18 @@ def test_import_worker_thread_functionality(app_with_dataset, temp_dataset, qtbo
     completion_signals = []
     failure_signals = []
 
-    worker.progress_updated.connect(lambda p, s: progress_signals.append((p, s)))
-    worker.import_completed.connect(lambda c: completion_signals.append(c))
-    worker.import_failed.connect(lambda e: failure_signals.append(e))
+    def append_progress(progress, status):
+        progress_signals.append((progress, status))
+
+    def append_completion(count):
+        completion_signals.append(count)
+
+    def append_failure(error):
+        failure_signals.append(error)
+
+    worker.progress_updated.connect(append_progress)
+    worker.import_completed.connect(append_completion)
+    worker.import_failed.connect(append_failure)
 
     # Use qtbot to wait for signals
     with qtbot.waitSignal(worker.import_completed, timeout=3000):

@@ -62,8 +62,6 @@ from PyQt6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
-    QFrame,
-    QScrollArea,
     QWidget,
 )
 
@@ -110,12 +108,12 @@ class ImportWorkerThread(QThread):
             self.progress_updated.emit(100, "Import completed successfully!")
             self.import_completed.emit(imported_count)
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             self.log.error("Import failed: %s", e)
             self.import_failed.emit(str(e))
 
 
-class ImportWizard(QDialog):
+class ImportWizard(QDialog):  # pylint: disable=too-many-public-methods
     """
     Step-by-step wizard for importing data into the dataset.
     """
@@ -140,6 +138,35 @@ class ImportWizard(QDialog):
         self.selected_files: list[pathlib.Path] = []
         self.detected_formats: list[str] = []
         self.available_facets: list[Facet] = []
+
+        # Initialize UI widget attributes to avoid pylint warnings
+        self.file_selection_widget = None
+        self.format_detection_widget = None
+        self.preview_filter_widget = None
+        self.configuration_widget = None
+        self.confirmation_widget = None
+        self.progress_widget = None
+        self.results_widget = None
+        self.file_list = None
+        self.add_file_button = None
+        self.remove_file_button = None
+        self.format_table = None
+        self.paired_filter_checkbox = None
+        self.filter_type_combo = None
+        self.preview_table = None
+        self.record_count_label = None
+        self.facet_combo = None
+        self.correct_rating_spin = None
+        self.incorrect_rating_spin = None
+        self.chosen_rating_spin = None
+        self.rejected_rating_spin = None
+        self.group_path_edit = None
+        self.summary_text = None
+        self.progress_bar = None
+        self.progress_status_label = None
+        self.progress_details = None
+        self.results_label = None
+        self.results_text = None
 
         self.setWindowTitle("Import Data Wizard")
         self.setModal(True)
@@ -600,7 +627,7 @@ class ImportWizard(QDialog):
                 detected_format = self.import_controller.detect_format(file_path)
                 if not detected_format:
                     detected_format = "unknown"
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 self.log.warning("Format detection failed for %s: %s", file_path, e)
                 detected_format = "error"
 
@@ -631,7 +658,7 @@ class ImportWizard(QDialog):
                     self.import_controller.add_source(file_path, format_override)
 
             return True
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             QMessageBox.critical(self, "Format Error", f"Failed to process file formats:\n{str(e)}")
             return False
 
@@ -676,7 +703,7 @@ class ImportWizard(QDialog):
             else:
                 self.preview_table.setRowCount(0)
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             QMessageBox.critical(self, "Preview Error", f"Failed to load preview data:\n{str(e)}")
 
     def validate_preview_filter(self) -> bool:
@@ -699,7 +726,7 @@ class ImportWizard(QDialog):
                 self.record_count_label.setText(f"Total records: {filtered_count} (after filtering)")
 
             return True
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             QMessageBox.critical(self, "Filter Error", f"Failed to apply filters:\n{str(e)}")
             return False
 
@@ -723,7 +750,7 @@ class ImportWizard(QDialog):
                 self.import_controller.set_group_path(group_path)
 
             return True
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             QMessageBox.critical(self, "Configuration Error", f"Failed to apply configuration:\n{str(e)}")
             return False
 
