@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from py_fade.dataset.dataset_base import dataset_base
+from py_fade.dataset.dataset_base import dataset_base, get_session_with_assertion
 
 if TYPE_CHECKING:
     from py_fade.dataset.completion import PromptCompletion
@@ -47,13 +47,6 @@ class PromptCompletionPairwiseRanking(dataset_base):
     facet_id: Mapped[int] = mapped_column(ForeignKey("facets.id"), nullable=False)
     facet: Mapped["Facet"] = relationship("Facet", back_populates="completion_pairwise_rankings")
 
-    @staticmethod
-    def _ensure_session(dataset: "DatasetDatabase") -> None:
-        if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
-
     @classmethod
     def get(
         cls,
@@ -64,9 +57,7 @@ class PromptCompletionPairwiseRanking(dataset_base):
     ) -> "PromptCompletionPairwiseRanking | None":
         """Return the existing pairwise ranking for *better_completion*, *worse_completion* and *facet*, if any."""
 
-        cls._ensure_session(dataset)
-        session = dataset.session
-        assert session is not None  # Narrow type for static analysis tools
+        session = get_session_with_assertion(dataset)
         return (
             session.query(cls)
             .filter_by(

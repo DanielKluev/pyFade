@@ -24,6 +24,7 @@ from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_dataset_top import WidgetDatasetTop
 from py_fade.gui.widget_sample import WidgetSample
 from tests.helpers.data_helpers import create_test_completion
+from tests.helpers.ui_helpers import setup_test_app_with_fake_home
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -224,13 +225,7 @@ def test_default_facet_restored_on_dataset_reload(
     PromptCompletionRating.set_rating(dataset, completion, facet, 6)
 
     # Create test app with temporary home directory
-    fake_home = tmp_path / "home"
-    fake_home.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(pathlib.Path, "home", lambda: fake_home)
-
-    config_path = fake_home / "config.yaml"
-    app = pyFadeApp(config_path=config_path)
-    app.current_dataset = dataset
+    app = setup_test_app_with_fake_home(dataset, tmp_path, monkeypatch)
     widget = WidgetDatasetTop(None, app, dataset)
     qt_app.processEvents()
 
@@ -251,7 +246,9 @@ def test_default_facet_restored_on_dataset_reload(
     reopened_dataset = DatasetDatabase(db_path)
     reopened_dataset.initialize()
 
-    app_reopened = pyFadeApp(config_path=config_path)
+    # Create another config path for the reopened app
+    config_path_reopened = tmp_path / "home" / "config_reopened.yaml"
+    app_reopened = pyFadeApp(config_path=config_path_reopened)
     app_reopened.current_dataset = reopened_dataset
     widget_reopened = WidgetDatasetTop(None, app_reopened, reopened_dataset)
     qt_app.processEvents()

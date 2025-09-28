@@ -13,7 +13,7 @@ Important aspects:
 
 Flow:
  1. Select file(s) to import from.
- 2. Try to guess file format, if known format (e.g. JSONL with specific fields), parse it. 
+ 2. Try to guess file format, if known format (e.g. JSONL with specific fields), parse it.
     If not, ask user to define format by mapping fields to known concepts (prompt, completion, model_id, evaluation result, etc).
  3. Preview samples/completions found in the file, with ability to filter out unwanted ones.
  4. Select source type (human/model/benchmark), model_id if applicable, and target facet if applicable.

@@ -1,7 +1,7 @@
 """
 Dataset model helpers for tag entities.
 
-Pylint: 
+Pylint:
  - Intentional duplication of ORM model attributes. Easier when each model class is fully visible.
 """
 # pylint: disable=duplicate-code

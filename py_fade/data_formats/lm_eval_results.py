@@ -73,6 +73,13 @@ class LMEvalResult(BaseDataFormat):
     def __init__(self, result_json_path: pathlib.Path | str) -> None:
         self.log = logging.getLogger(self.__class__.__name__)
         self._loaded = False
+
+        # Initialize attributes that will be set in set_path
+        self.model_id: Optional[str] = None
+        self.origin_name: Optional[str] = None
+        self.samples: List[LMEvalSample] = []
+        self._samples_by_hash: Dict[str, LMEvalSample] = {}
+
         self.set_path(result_json_path)
 
     def set_path(self, path: pathlib.Path | str) -> None:
@@ -93,10 +100,11 @@ class LMEvalResult(BaseDataFormat):
             )
         self.samples_jsonl_path = candidates[0]
 
-        self.model_id: Optional[str] = None
-        self.origin_name: Optional[str] = None
-        self.samples: List[LMEvalSample] = []
-        self._samples_by_hash: Dict[str, LMEvalSample] = {}
+        # Reset attributes for new path
+        self.model_id = None
+        self.origin_name = None
+        self.samples = []
+        self._samples_by_hash = {}
         self._loaded = False
 
     def load(self, file_path: str|pathlib.Path|None = None) -> int:
@@ -125,7 +133,7 @@ class LMEvalResult(BaseDataFormat):
     def save(self, file_path: str|pathlib.Path|None = None) -> int:
         """
         Save data to the destination.
-        
+
         LMEvalResult format is primarily for loading and comparing evaluation results,
         not for exporting. This method is implemented for ABC compliance but raises
         NotImplementedError to indicate the format doesn't support saving.

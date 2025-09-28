@@ -7,11 +7,12 @@ import logging
 import pathlib
 from typing import TYPE_CHECKING
 
+from sqlalchemy import exists
+
 from py_fade.app import PyFadeApp
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.export_template import ExportTemplate
 from py_fade.dataset.sample import Sample
-from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.data_formats.base_data_classes import CommonMessage, CommonConversation
@@ -58,7 +59,7 @@ class ExportController:
 
         # Get eligible samples based on facet configuration
         eligible_samples = self._get_eligible_samples()
-        
+
         if not eligible_samples:
             raise ValueError("No eligible samples found for export")
 
@@ -71,7 +72,7 @@ class ExportController:
 
         # Write using ShareGPTFormat
         sharegpt_format = ShareGPTFormat(self.output_path)
-        sharegpt_format._samples = conversations
+        sharegpt_format.set_samples(conversations)
         sharegpt_format.save()
 
         self.log.info("Export completed: %d samples written to %s", len(conversations), self.output_path)
@@ -83,13 +84,12 @@ class ExportController:
         """
         # Get facet IDs from template configuration
         facet_ids = [facet["facet_id"] for facet in self.export_template.facets_json]
-        
+
         if not facet_ids:
             # If no facets specified, return all samples
             return self.dataset.session.query(Sample).all()
 
         # Query samples that have completions with ratings for specified facets
-        from sqlalchemy import exists
         samples_with_ratings = (
             self.dataset.session.query(Sample)
             .filter(
@@ -118,11 +118,11 @@ class ExportController:
 
         # Get facet IDs from template
         facet_ids = [facet["facet_id"] for facet in self.export_template.facets_json]
-        
+
         # Find the best completion
         best_completion = None
         best_rating = -1
-        
+
         for completion in sample.prompt_revision.completions:
             for rating in completion.ratings:
                 if rating.facet_id in facet_ids and rating.rating > best_rating:
