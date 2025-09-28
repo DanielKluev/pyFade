@@ -37,23 +37,6 @@ def ensure_test_facets(dataset: "DatasetDatabase") -> List[Facet]:
     return facets
 
 
-def create_test_app(tmp_path, monkeypatch, qt_app):
-    """
-    Create a test app instance with temporary home directory.
-    
-    This is a common pattern used across multiple test files.
-    """
-    import pathlib
-    from py_fade.app import pyFadeApp
-    
-    fake_home = tmp_path / "home"
-    fake_home.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(pathlib.Path, "home", lambda: fake_home)
-
-    config_path = fake_home / "config.yaml"
-    return pyFadeApp(config_path=config_path)
-
-
 def create_test_completion(session, prompt_revision, completion_overrides=None):
     """
     Create a test PromptCompletion with common defaults.
@@ -83,22 +66,3 @@ def create_test_completion(session, prompt_revision, completion_overrides=None):
     session.commit()
     
     return completion
-
-
-def setup_widget_test_environment(temp_dataset, app_with_dataset, qt_app):
-    """
-    Set up common test environment for widget tests.
-    
-    This helper eliminates duplicate setup code across widget test files.
-    """
-    from py_fade.gui.widget_dataset_top import WidgetDatasetTop
-    
-    session = temp_dataset.session
-    assert session is not None
-    session.flush()
-    session.commit()
-
-    widget = WidgetDatasetTop(None, app_with_dataset, temp_dataset)
-    qt_app.processEvents()
-    
-    return widget
