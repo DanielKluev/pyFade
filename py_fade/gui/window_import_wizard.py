@@ -65,6 +65,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from py_fade.gui.components.wizard_base import BaseWizard
 from py_fade.controllers.import_controller import ImportController
 from py_fade.dataset.facet import Facet
 

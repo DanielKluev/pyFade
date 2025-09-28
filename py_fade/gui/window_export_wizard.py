@@ -14,12 +14,9 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtWidgets import (
-    QDialog,
     QVBoxLayout,
     QHBoxLayout,
     QLabel,
-    QPushButton,
-    QStackedWidget,
     QFileDialog,
     QListWidget,
     QListWidgetItem,
@@ -30,12 +27,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from py_fade.controllers.export_controller import ExportController
+from py_fade.gui.components.wizard_base import BaseWizard
 from py_fade.dataset.export_template import ExportTemplate
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
     from py_fade.dataset.dataset import DatasetDatabase
+    from py_fade.controllers.export_controller import ExportController
 
 
 class ExportWorkerThread(QThread):
@@ -46,7 +44,7 @@ class ExportWorkerThread(QThread):
     export_completed = pyqtSignal(int)  # number of exported records
     export_failed = pyqtSignal(str)  # error message
 
-    def __init__(self, export_controller: ExportController):
+    def __init__(self, export_controller: "ExportController"):
         super().__init__()
         self.export_controller = export_controller
         self.log = logging.getLogger("ExportWorkerThread")
@@ -70,7 +68,7 @@ class ExportWorkerThread(QThread):
             self.export_failed.emit(str(e))
 
 
-class ExportWizard(QDialog):
+class ExportWizard(BaseWizard):
     """
     Step-by-step wizard for exporting data from the dataset.
     """
@@ -81,12 +79,8 @@ class ExportWizard(QDialog):
     STEP_RESULTS = 3
 
     def __init__(self, parent: QWidget | None, app: "pyFadeApp", dataset: "DatasetDatabase"):
-        super().__init__(parent)
-
-        self.log = logging.getLogger("ExportWizard")
-        self.app = app
-        self.dataset = dataset
-        self.export_controller: ExportController | None = None
+        # Initialize export-specific attributes
+        self.export_controller: "ExportController | None" = None
         self.export_worker: ExportWorkerThread | None = None
 
         self.selected_template: ExportTemplate | None = None
@@ -94,10 +88,6 @@ class ExportWizard(QDialog):
         self.export_results: dict = {}
 
         # Initialize UI widget attributes to avoid pylint warnings
-        self.template_selection_widget = None
-        self.output_selection_widget = None
-        self.progress_widget = None
-        self.results_widget = None
         self.template_list = None
         self.template_details = None
         self.output_path_input = None
@@ -105,75 +95,40 @@ class ExportWizard(QDialog):
         self.progress_bar = None
         self.progress_label = None
         self.results_text = None
-        self.content_stack = None
-        self.back_button = None
-        self.next_button = None
-        self.cancel_button = None
 
-        self.setWindowTitle("Export Data Wizard")
-        self.setModal(True)
-        self.resize(800, 600)
+        # Call parent constructor (this will call setup_step_widgets)
+        super().__init__(parent, app, dataset, "Export Data Wizard")
 
-        self.setup_ui()
+        # Load templates after UI is set up
         self.load_templates()
-        self.show_step(self.STEP_TEMPLATE_SELECTION)
-
-    def setup_ui(self):
-        """
-        Create and arrange the wizard UI components.
-        """
-        main_layout = QVBoxLayout(self)
-
-        # Header
-        header_label = QLabel("Export Data Wizard", self)
-        header_label.setStyleSheet("font-size: 18px; font-weight: bold; margin-bottom: 10px;")
-        main_layout.addWidget(header_label)
-
-        # Step content area
-        self.content_stack = QStackedWidget(self)
-        main_layout.addWidget(self.content_stack)
-
-        # Navigation buttons
-        button_layout = QHBoxLayout()
-        self.back_button = QPushButton("← Back", self)
-        self.back_button.clicked.connect(self.go_back)
-        self.back_button.setEnabled(False)
-
-        self.next_button = QPushButton("Next →", self)
-        self.next_button.clicked.connect(self.go_next)
-
-        self.cancel_button = QPushButton("Cancel", self)
-        self.cancel_button.clicked.connect(self.reject)
-
-        button_layout.addWidget(self.back_button)
-        button_layout.addStretch()
-        button_layout.addWidget(self.cancel_button)
-        button_layout.addWidget(self.next_button)
-
-        main_layout.addLayout(button_layout)
-
-        # Create all step widgets
-        self.setup_step_widgets()
 
     def setup_step_widgets(self):
         """
         Create widgets for each step of the wizard.
         """
         # Step 0: Template selection
-        self.template_selection_widget = self.create_template_selection_widget()
-        self.content_stack.addWidget(self.template_selection_widget)
+        template_selection_widget = self.create_template_selection_widget()
+        self.content_stack.addWidget(template_selection_widget)
 
         # Step 1: Output selection
-        self.output_selection_widget = self.create_output_selection_widget()
-        self.content_stack.addWidget(self.output_selection_widget)
+        output_selection_widget = self.create_output_selection_widget()
+        self.content_stack.addWidget(output_selection_widget)
 
         # Step 2: Export progress
-        self.progress_widget = self.create_progress_widget()
-        self.content_stack.addWidget(self.progress_widget)
+        progress_widget = self.create_progress_widget("Exporting data using the selected template. Please wait...",
+                                                      "Ready to start export...")
+        self.content_stack.addWidget(progress_widget)
+
+        # Get references to progress components
+        self.progress_bar = progress_widget.findChild(QProgressBar, "progress_bar")
+        self.progress_label = progress_widget.findChild(QLabel, "progress_label")
 
         # Step 3: Results
-        self.results_widget = self.create_results_widget()
-        self.content_stack.addWidget(self.results_widget)
+        results_widget = self.create_results_widget("Export completed!")
+        self.content_stack.addWidget(results_widget)
+
+        # Get reference to results text area
+        self.results_text = results_widget.findChild(QTextEdit, "results_text")
 
     def create_template_selection_widget(self) -> QWidget:
         """
@@ -241,50 +196,6 @@ class ExportWizard(QDialog):
         layout.addWidget(path_group)
 
         layout.addStretch()
-        return widget
-
-    def create_progress_widget(self) -> QWidget:
-        """
-        Create the export progress step widget.
-        """
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        # Progress information
-        info_label = QLabel("Exporting data using the selected template. Please wait...", widget)
-        info_label.setStyleSheet("font-size: 14px; margin-bottom: 20px;")
-        layout.addWidget(info_label)
-
-        # Progress bar
-        self.progress_bar = QProgressBar(widget)
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(0)
-        layout.addWidget(self.progress_bar)
-
-        # Status label
-        self.progress_label = QLabel("Ready to start export...", widget)
-        layout.addWidget(self.progress_label)
-
-        layout.addStretch()
-        return widget
-
-    def create_results_widget(self) -> QWidget:
-        """
-        Create the results step widget.
-        """
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        # Results summary
-        results_label = QLabel("Export completed!", widget)
-        results_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
-        layout.addWidget(results_label)
-
-        # Results details
-        self.results_text = QTextEdit(widget)
-        self.results_text.setReadOnly(True)
-        layout.addWidget(self.results_text)
-
         return widget
 
     def load_templates(self):
@@ -441,14 +352,6 @@ class ExportWizard(QDialog):
         if current_step < self.STEP_RESULTS:
             self.show_step(current_step + 1)
 
-    def go_back(self):
-        """
-        Go back to the previous step.
-        """
-        current_step = self.content_stack.currentIndex()
-        if current_step > 0:
-            self.show_step(current_step - 1)
-
     def start_export(self):
         """
         Start the export process in a background thread.
@@ -459,6 +362,9 @@ class ExportWizard(QDialog):
             return
 
         try:
+            # Import here to avoid circular dependency
+            from py_fade.controllers.export_controller import ExportController  # pylint: disable=import-outside-toplevel
+
             # Create export controller
             self.export_controller = ExportController(self.app, self.dataset, self.selected_template)
             self.export_controller.set_output_path(self.output_path)
