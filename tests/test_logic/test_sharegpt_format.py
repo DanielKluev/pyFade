@@ -20,6 +20,7 @@ TEST_DATA_DIR = pathlib.Path(__file__).parent.parent / "data"
 SHAREGPT_TEST_JSON = TEST_DATA_DIR / "sharegpt-structured-output-json_10.json"
 SHAREGPT_TEST_JSONL = TEST_DATA_DIR / "sharegpt-structured-output-json_10.jsonl"
 SHAREGPT_TEST_PARQUET = TEST_DATA_DIR / "sharegpt-structured-output-json_10.parquet"
+WRONG_FILE = TEST_DATA_DIR / "results_2025-09-09T13-31-53.431753.json" # lm_eval format, not ShareGPT
 
 def run_shared_tests_for_load(data_format: ShareGPTFormat) -> None:
     """Run shared tests on loaded ShareGPT data format instance."""
@@ -50,3 +51,51 @@ def test_sharegpt_load_parquet() -> None:
     data_format = ShareGPTFormat(SHAREGPT_TEST_PARQUET)
     assert data_format.format == "parquet"
     run_shared_tests_for_load(data_format)
+
+def test_sharegpt_invalid_file() -> None:
+    """Test handling of invalid file path."""
+    invalid_path = TEST_DATA_DIR / "non_existent_file.json"
+    data_format = ShareGPTFormat(invalid_path)
+    with pytest.raises(FileNotFoundError):
+        data_format.load()
+
+def test_sharegpt_unsupported_format() -> None:
+    """Test handling of unsupported file format."""
+    data_format = ShareGPTFormat(WRONG_FILE)
+    with pytest.raises(ValueError):
+        data_format.load()
+
+def test_sharegpt_save(tmp_path: pathlib.Path) -> None:
+    """Test saving loaded ShareGPT data to a new file."""
+    original_data = ShareGPTFormat(SHAREGPT_TEST_JSON)
+    original_data.load()
+
+    ## Test saving to JSONL
+    jsonl_save_path = tmp_path / "saved_sharegpt.jsonl"
+    original_data.save(jsonl_save_path)
+    assert jsonl_save_path.exists()
+    # Load saved file and verify contents
+    saved_jsonl_data = ShareGPTFormat(jsonl_save_path)
+    saved_jsonl_data.load()
+    assert len(saved_jsonl_data.samples) == 10
+    assert saved_jsonl_data.samples[0].messages[0].content == original_data.samples[0].messages[0].content
+
+    ## Test saving to JSON
+    json_save_path = tmp_path / "saved_sharegpt.json"
+    original_data.save(json_save_path)
+    assert json_save_path.exists()
+    # Load saved file and verify contents
+    saved_json_data = ShareGPTFormat(json_save_path)
+    saved_json_data.load()
+    assert len(saved_json_data.samples) == 10
+    assert saved_json_data.samples[0].messages[0].content == original_data.samples[0].messages[0].content
+
+    ## Test saving to Parquet
+    parquet_save_path = tmp_path / "saved_sharegpt.parquet"
+    original_data.save(parquet_save_path)
+    assert parquet_save_path.exists()
+    # Load saved file and verify contents
+    saved_parquet_data = ShareGPTFormat(parquet_save_path)
+    saved_parquet_data.load()
+    assert len(saved_parquet_data.samples) == 10
+    assert saved_parquet_data.samples[0].messages[0].content == original_data.samples[0].messages[0].content
