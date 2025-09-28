@@ -39,16 +39,17 @@ class ShareGPTFormat(BaseDataFormat):
     def set_path(self, path: pathlib.Path | str) -> None:
         """Set the base path for this data format instance."""
         self.serialized_file_path = pathlib.Path(path)
-        if self.serialized_file_path.suffix == ".jsonl":
+        suffix = self.serialized_file_path.suffix.lower()
+        if suffix == ".jsonl":
             self.format = "jsonl"
-        elif self.serialized_file_path.suffix == ".json":
+        elif suffix == ".json":
             self.format = "json"
-        elif self.serialized_file_path.suffix == ".parquet":
+        elif suffix == ".parquet":
             self.format = "parquet"
         else:
             raise ValueError(
                 f"Unsupported file extension '{self.serialized_file_path.suffix}'. "
-                "Use .json or .jsonl for ShareGPT format."
+                "Use .json, .jsonl, or .parquet for ShareGPT format."
             )
 
     def load(self, file_path: str|pathlib.Path|None = None) -> int:
@@ -72,6 +73,11 @@ class ShareGPTFormat(BaseDataFormat):
         else:
             raise ValueError(f"Unsupported format '{self.format}'")
 
+        if not self._samples:
+            raise ValueError(
+                f"No valid ShareGPT conversations found in {self.serialized_file_path}."
+            )
+
         self._loaded = True
         return len(self._samples)
 
@@ -81,14 +87,43 @@ class ShareGPTFormat(BaseDataFormat):
         return self._samples
 
     def save(self, file_path: str | pathlib.Path | None = None) -> int:
-        """Save the ShareGPT samples to disk.
+        """Persist the currently loaded ShareGPT samples to ``file_path``.
+
+        Parameters
+        ----------
+        file_path:
+            Destination path. When ``None`` the instance's configured path is used.
+
+        Returns
+        -------
+        int
+            Number of samples written to disk.
 
         Raises
         ------
-        NotImplementedError
-            Saving ShareGPT datasets is not implemented yet.
+        ValueError
+            If no samples are loaded or the destination format is unsupported.
         """
-        raise NotImplementedError("Saving ShareGPT datasets is not implemented.")
+
+        if file_path is not None:
+            self.set_path(file_path)
+
+        if not self._samples:
+            raise ValueError("No ShareGPT samples available to save. Call load() first.")
+
+        destination = self.serialized_file_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+
+        if self.format == "jsonl":
+            self._save_jsonl(destination)
+        elif self.format == "json":
+            self._save_json(destination)
+        elif self.format == "parquet":
+            self._save_parquet(destination)
+        else:
+            raise ValueError(f"Unsupported format '{self.format}' for saving.")
+
+        return len(self._samples)
 
     def _load_json(self) -> None:
         """Load ShareGPT samples from a JSON document."""
@@ -226,6 +261,65 @@ class ShareGPTFormat(BaseDataFormat):
         if normalized not in role_map:
             self.log.debug("Encountered unknown ShareGPT role '%s'; defaulting to 'assistant'", sharegpt_role)
         return role_map.get(normalized, "assistant")
+
+    def _serialize_samples(self) -> list[dict[str, Any]]:
+        """Convert loaded samples back to ShareGPT-compatible dictionaries."""
+
+        serialized: list[dict[str, Any]] = []
+        for index, conversation in enumerate(self._samples):
+            messages: list[dict[str, Any]] = []
+            for message in conversation.messages:
+                payload = {
+                    "from": self._denormalize_role(message.role),
+                    "value": message.content,
+                    "content": message.content,
+                }
+                messages.append(payload)
+
+            serialized.append({"id": index, "conversations": messages})
+        return serialized
+
+    def _save_json(self, path: pathlib.Path) -> None:
+        """Write samples to a JSON file."""
+
+        records = self._serialize_samples()
+        payload = json.dumps(records, ensure_ascii=False, indent=2)
+        path.write_text(payload + "\n", encoding="utf-8")
+
+    def _save_jsonl(self, path: pathlib.Path) -> None:
+        """Write samples to a JSON Lines file."""
+
+        records = self._serialize_samples()
+        with path.open("w", encoding="utf-8", newline="\n") as handle:
+            for record in records:
+                handle.write(json.dumps(record, ensure_ascii=False))
+                handle.write("\n")
+
+    def _save_parquet(self, path: pathlib.Path) -> None:
+        """Write samples to a Parquet file."""
+
+        records = self._serialize_samples()
+        parquet_ready = []
+        for record in records:
+            parquet_ready.append(
+                {
+                    "id": record.get("id"),
+                    "conversations": json.dumps(record.get("conversations"), ensure_ascii=False),
+                }
+            )
+        dataframe = pd.DataFrame(parquet_ready)
+        dataframe.to_parquet(path, index=False)
+
+    def _denormalize_role(self, normalized_role: str) -> str:
+        """Convert the internal role notation back to ShareGPT identifiers."""
+
+        role_map = {
+            "system": "system",
+            "user": "human",
+            "assistant": "gpt",
+        }
+        key = normalized_role.lower().strip()
+        return role_map.get(key, normalized_role)
 
     @staticmethod
     def _skip_whitespace(payload: str, index: int) -> int:

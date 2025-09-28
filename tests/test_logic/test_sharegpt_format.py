@@ -67,35 +67,35 @@ def test_sharegpt_unsupported_format() -> None:
 
 def test_sharegpt_save(tmp_path: pathlib.Path) -> None:
     """Test saving loaded ShareGPT data to a new file."""
+    def check_saved_file(original_data: ShareGPTFormat, saved_file_path: pathlib.Path) -> None:
+        assert saved_file_path.exists()
+        # Load saved file and verify contents
+        saved_data = ShareGPTFormat(saved_file_path)
+        saved_data.load()
+        assert len(saved_data.samples) == 10
+        assert saved_data.samples[0].messages[0].content == original_data.samples[0].messages[0].content
+        assert saved_data.samples[0].messages[1].content == original_data.samples[0].messages[1].content
+        assert saved_data.samples[-1].messages[-1].content == original_data.samples[-1].messages[-1].content
+
     original_data = ShareGPTFormat(SHAREGPT_TEST_JSON)
     original_data.load()
 
     ## Test saving to JSONL
     jsonl_save_path = tmp_path / "saved_sharegpt.jsonl"
     original_data.save(jsonl_save_path)
-    assert jsonl_save_path.exists()
-    # Load saved file and verify contents
-    saved_jsonl_data = ShareGPTFormat(jsonl_save_path)
-    saved_jsonl_data.load()
-    assert len(saved_jsonl_data.samples) == 10
-    assert saved_jsonl_data.samples[0].messages[0].content == original_data.samples[0].messages[0].content
+    check_saved_file(original_data, jsonl_save_path)
 
     ## Test saving to JSON
     json_save_path = tmp_path / "saved_sharegpt.json"
     original_data.save(json_save_path)
-    assert json_save_path.exists()
-    # Load saved file and verify contents
-    saved_json_data = ShareGPTFormat(json_save_path)
-    saved_json_data.load()
-    assert len(saved_json_data.samples) == 10
-    assert saved_json_data.samples[0].messages[0].content == original_data.samples[0].messages[0].content
+    check_saved_file(original_data, json_save_path)
 
     ## Test saving to Parquet
     parquet_save_path = tmp_path / "saved_sharegpt.parquet"
     original_data.save(parquet_save_path)
-    assert parquet_save_path.exists()
-    # Load saved file and verify contents
-    saved_parquet_data = ShareGPTFormat(parquet_save_path)
-    saved_parquet_data.load()
-    assert len(saved_parquet_data.samples) == 10
-    assert saved_parquet_data.samples[0].messages[0].content == original_data.samples[0].messages[0].content
+    check_saved_file(original_data, parquet_save_path)
+
+    ## Test saving to wrong format
+    wrong_format_path = tmp_path / "saved_sharegpt.bin"
+    with pytest.raises(ValueError):
+        original_data.save(wrong_format_path)
