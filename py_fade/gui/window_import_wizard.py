@@ -65,7 +65,6 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from py_fade.gui.components.wizard_base import BaseWizard
 from py_fade.controllers.import_controller import ImportController
 from py_fade.dataset.facet import Facet
 
@@ -114,7 +113,7 @@ class ImportWorkerThread(QThread):
             self.import_failed.emit(str(e))
 
 
-class ImportWizard(BaseWizard):  # pylint: disable=too-many-public-methods
+class ImportWizard(QDialog):  # pylint: disable=too-many-public-methods
     """
     Step-by-step wizard for importing data into the dataset.
     """
@@ -168,6 +167,10 @@ class ImportWizard(BaseWizard):  # pylint: disable=too-many-public-methods
         self.progress_details = None
         self.results_label = None
         self.results_text = None
+        self.content_stack = None
+        self.back_button = None
+        self.next_button = None
+        self.cancel_button = None
 
         self.setWindowTitle("Import Data Wizard")
         self.setModal(True)
