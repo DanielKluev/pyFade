@@ -1,8 +1,8 @@
 """
 Test ExportTemplate functionality.
 """
+# pylint: disable=protected-access
 import pytest
-from unittest.mock import MagicMock
 
 from py_fade.dataset.export_template import ExportTemplate
 

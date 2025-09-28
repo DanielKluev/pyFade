@@ -1,10 +1,12 @@
 """
 Test Widgets test module.
 """
+# pylint: disable=protected-access
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 
+from py_fade.dataset.data_filter import DataFilter
 from py_fade.dataset.facet import Facet
 from py_fade.gui.widget_navigation_sidebar import (
     WidgetNavigationFilterPanel,
@@ -35,9 +37,7 @@ def test_navigation_tree_lists_facets(temp_dataset, qt_app):
         "show": "Facets",
         "data_filter": temp_dataset,  # placeholder, replaced below
     }
-    # Replace placeholder with empty DataFilter to avoid importing here.
-    from py_fade.dataset.data_filter import DataFilter
-
+    # Replace placeholder with empty DataFilter.
     criteria["data_filter"] = DataFilter([])
 
     tree.update_content(criteria, temp_dataset)
@@ -52,6 +52,7 @@ def test_navigation_tree_lists_facets(temp_dataset, qt_app):
 
 def test_navigation_sidebar_emits_selection(app_with_dataset, temp_dataset, ensure_google_icon_font, qt_app):
     """Test that navigation sidebar correctly emits selection events."""
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
     # Ensure a facet exists so the sidebar initialises correctly.
     facet = Facet.create(temp_dataset, "Context", "Sidebar facet")
     temp_dataset.commit()

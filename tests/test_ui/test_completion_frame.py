@@ -7,14 +7,15 @@ from __future__ import annotations
 import hashlib
 from typing import TYPE_CHECKING, Tuple
 from unittest.mock import patch
+
 from PyQt6.QtWidgets import QMessageBox
 
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
-from tests.helpers.data_helpers import create_test_completion
 from py_fade.providers.llm_response import LLMResponse, LLMPTokenLogProbs
+from tests.helpers.data_helpers import create_test_completion
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication

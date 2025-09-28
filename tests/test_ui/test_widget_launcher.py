@@ -1,6 +1,7 @@
 """
 Test Widget Launcher test module.
 """
+# pylint: disable=unused-argument,redefined-outer-name
 from __future__ import annotations
 
 import os
@@ -12,19 +13,18 @@ import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QMessageBox
 
+from py_fade.app import pyFadeApp
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.features_checker import SUPPORTED_FEATURES
 from py_fade.gui.widget_launcher import LauncherWidget, RecentDatasetInfo
 
 if TYPE_CHECKING:
-    from py_fade.app import pyFadeApp
+    pass
 
 
 @pytest.fixture
-def app_for_launcher_tests(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, _qt_app) -> Generator[pyFadeApp, None, None]:
+def app_for_launcher_tests(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, qt_app) -> Generator[pyFadeApp, None, None]:
     """Create a pyFadeApp instance for launcher testing."""
-    from py_fade.app import pyFadeApp
-
     fake_home = tmp_path / "home"
     fake_home.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(pathlib.Path, "home", lambda: fake_home)
@@ -43,13 +43,13 @@ def app_for_launcher_tests(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPat
 def test_launcher_lists_sqlite_datasets_without_password(
     app_for_launcher_tests: pyFadeApp,
     temp_dataset: DatasetDatabase,
-    _ensure_google_icon_font,  # Used for side effect of loading icon font
+    ensure_google_icon_font,  # Used for side effect of loading icon font
     qt_app,
 ) -> None:
     """Test that launcher correctly lists SQLite datasets without passwords."""
-    launcher_app.config.recent_datasets = [str(temp_dataset.db_path)]
+    app_for_launcher_tests.config.recent_datasets = [str(temp_dataset.db_path)]
 
-    launcher = LauncherWidget(None, launcher_app)
+    launcher = LauncherWidget(None, app_for_launcher_tests)
     qt_app.processEvents()
 
     assert launcher.list_widget.count() == 1
@@ -66,7 +66,7 @@ def test_launcher_lists_sqlite_datasets_without_password(
 
 def test_launcher_warns_when_sqlcipher_missing(
     app_for_launcher_tests: pyFadeApp,
-    _ensure_google_icon_font,  # Used for side effect of loading icon font
+    ensure_google_icon_font,  # Used for side effect of loading icon font
     qt_app,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: pathlib.Path,
@@ -85,7 +85,7 @@ def test_launcher_warns_when_sqlcipher_missing(
     monkeypatch.setattr(DatasetDatabase, "check_db_type", classmethod(fake_check))
     monkeypatch.setitem(SUPPORTED_FEATURES, "sqlcipher3", False)
 
-    launcher_app.config.recent_datasets = [str(encrypted_path)]
+    app_for_launcher_tests.config.recent_datasets = [str(encrypted_path)]
 
     warning_calls: list[str] = []
 
@@ -95,7 +95,7 @@ def test_launcher_warns_when_sqlcipher_missing(
 
     monkeypatch.setattr("py_fade.gui.widget_launcher.QMessageBox.warning", fake_warning)
 
-    launcher = LauncherWidget(None, launcher_app)
+    launcher = LauncherWidget(None, app_for_launcher_tests)
     qt_app.processEvents()
 
     assert not launcher.password_frame.isHidden()
@@ -111,7 +111,7 @@ def test_launcher_warns_when_sqlcipher_missing(
 
 def test_launcher_validates_password_before_opening(
     app_for_launcher_tests: pyFadeApp,
-    _ensure_google_icon_font,  # Used for side effect of loading icon font
+    ensure_google_icon_font,  # Used for side effect of loading icon font
     qt_app,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: pathlib.Path,
@@ -140,14 +140,14 @@ def test_launcher_validates_password_before_opening(
     monkeypatch.setattr(DatasetDatabase, "check_password", classmethod(fake_password_check))
     monkeypatch.setitem(SUPPORTED_FEATURES, "sqlcipher3", True)
 
-    launcher_app.config.recent_datasets = [str(encrypted_path)]
+    app_for_launcher_tests.config.recent_datasets = [str(encrypted_path)]
 
     open_calls: list[tuple[pathlib.Path, str]] = []
 
     def fake_open_dataset(path: pathlib.Path, password: str) -> None:
         open_calls.append((path, password))
 
-    monkeypatch.setattr(launcher_app, "open_dataset", fake_open_dataset)
+    monkeypatch.setattr(app_for_launcher_tests, "open_dataset", fake_open_dataset)
 
     critical_calls: list[str] = []
 
@@ -157,7 +157,7 @@ def test_launcher_validates_password_before_opening(
 
     monkeypatch.setattr("py_fade.gui.widget_launcher.QMessageBox.critical", fake_critical)
 
-    launcher = LauncherWidget(None, launcher_app)
+    launcher = LauncherWidget(None, app_for_launcher_tests)
     qt_app.processEvents()
 
     assert not launcher.password_frame.isHidden()

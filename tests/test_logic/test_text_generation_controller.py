@@ -23,13 +23,13 @@ def test_completion_prefix_creation():
         LLMPTokenLogProbs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1), ("Hi", -1.2)]),
         LLMPTokenLogProbs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5), (" there", -2.1)])
     ]
-    
+
     prefix = CompletionPrefix(
         prefix_text=prefix_text,
         prefix_token_size=prefix_token_size,
         logprobs=logprobs
     )
-    
+
     assert prefix.prefix_text == prefix_text
     assert prefix.prefix_token_size == prefix_token_size
     assert len(prefix.logprobs) == 2
@@ -50,10 +50,10 @@ def test_completion_prefix_from_response():
         LLMPTokenLogProbs(token=" and", logprob=-0.8, top_logprobs=[(" and", -0.8)]),
         LLMPTokenLogProbs(token=" more", logprob=-1.2, top_logprobs=[(" more", -1.2)])
     ]
-    
+
     # Try to extract prefix "Hello world"
     prefix = CompletionPrefix.try_get_from_response("Hello world", response)
-    
+
     assert prefix is not None
     assert prefix.prefix_text == "Hello world"
     assert len(prefix.logprobs) == 2
@@ -70,10 +70,10 @@ def test_completion_prefix_from_response_mismatch():
         LLMPTokenLogProbs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1)]),
         LLMPTokenLogProbs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5)])
     ]
-    
+
     # Try to extract a prefix that doesn't match
     prefix = CompletionPrefix.try_get_from_response("Hi there", response)
-    
+
     assert prefix is None
 
 
@@ -83,9 +83,7 @@ def test_completion_prefix_from_response_no_logprobs():
     response.full_response_text = "Hello world"
     response.check_full_response_logprobs.return_value = False
     response.logprobs = None
-    
+
     prefix = CompletionPrefix.try_get_from_response("Hello", response)
-    
+
     assert prefix is None
-
-
