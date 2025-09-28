@@ -14,7 +14,7 @@ import pathlib
 import pytest
 from py_fade.data_formats.lm_eval_results import LMEvalResult
 
-TEST_DATA_DIR = pathlib.Path(__file__).parent / "data"
+TEST_DATA_DIR = pathlib.Path(__file__).parent.parent / "data"
 LM_EVAL_TEST_RESULT_1 = TEST_DATA_DIR / "results_2025-09-09T13-31-53.431753.json"
 LM_EVAL_TEST_RESULT_2 = TEST_DATA_DIR / "results_2025-09-09T13-42-42.857006.json"
 

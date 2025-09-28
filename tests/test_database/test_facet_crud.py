@@ -1,3 +1,6 @@
+"""
+Test Facet Crud test module.
+"""
 from __future__ import annotations
 
 import pytest
@@ -6,6 +9,7 @@ from py_fade.dataset.facet import Facet
 
 
 def test_create_and_lookup_facet(temp_dataset):
+    """Test creating facets and looking them up by name and ID."""
     facet = Facet.create(temp_dataset, "Data Quality", "Evaluate inputs and outputs")
     temp_dataset.commit()
 
@@ -20,6 +24,7 @@ def test_create_and_lookup_facet(temp_dataset):
 
 
 def test_unique_facet_name_enforced(temp_dataset):
+    """Test that facet names must be unique within a dataset."""
     Facet.create(temp_dataset, "Response Coherence", "Track flow")
     temp_dataset.commit()
 
@@ -28,6 +33,7 @@ def test_unique_facet_name_enforced(temp_dataset):
 
 
 def test_update_and_delete_facet(temp_dataset):
+    """Test updating and deleting facets."""
     facet = Facet.create(temp_dataset, "Factual Accuracy", "Initial description")
     temp_dataset.commit()
 
@@ -46,6 +52,7 @@ def test_update_and_delete_facet(temp_dataset):
 
 
 def test_get_all_orders_by_latest_first(temp_dataset):
+    """Test that facets are returned in latest-first order."""
     first = Facet.create(temp_dataset, "Creative Writing", "Writing skills")
     temp_dataset.commit()
     second = Facet.create(temp_dataset, "Code Generation", "Coding abilities")
