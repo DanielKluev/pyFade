@@ -1,15 +1,18 @@
 name: Quality Assurance
 
+# This workflow automatically triggers on:
+# 1. All pushes to any branch (including Copilot commits)
+# 2. Pull request events (opened, updated, reopened)
+# 3. Daily maintenance run
+# No manual approval is required for Copilot authored commits.
+
 on: 
   push:
   pull_request:
     types: [opened, synchronize, reopened]
-  # Automatically trigger on Copilot authored commits without manual approval
-  workflow_run:
-    workflows: ["*"]
-    types:
-      - completed
-    if: github.actor == 'github-actions[bot]' || contains(github.event.head_commit.message, 'copilot')
+  schedule:
+    # Run daily at 2 AM UTC for maintenance
+    - cron: '0 2 * * *'
 
 jobs:
   build:

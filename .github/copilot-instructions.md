@@ -75,7 +75,9 @@ class ClassName1:
 - When not debugging, ensure tests run cleanly without debug output, and that they are efficient and reliable, managing verbosity and debug logging via appropriate `logging` module configurations.
 - To run the application, use `python run.py` from the project root. This will launch the GUI.
 - To run entire test suite, use `pytest` from the project root (PyQt6 must be installed for the widgets).
+- To run unified CI quality assurance (pytest + pylint), use `ci-qa` command after installing the project in editable mode with `pip install -e .`. This runs both pytest and pylint on py_fade and tests packages.
 - Regularly run `pylint` on the codebase to ensure there are no linting issues. Address any issues that arise, adhering to PEP 8 style guidelines and project conventions.
+- All pylint configuration is now in `pyproject.toml` under `[tool.pylint.*]` sections. No separate `.pylintrc` file is used.
 - You are **NOT** allowed to run arbitrary python code or add temporary debug scripts. All testing and debugging **ONLY** as described above, via unit tests and logging.
 - **NEVER** log sensitive information such as passwords or API keys. Ensure that any logging of data is done in a way that does not expose sensitive information.
 
@@ -87,7 +89,7 @@ class ClassName1:
 ## 6) Project layout (short map to important files and their purpose)
 
 Top-level files (root):
-- `pyproject.toml` — project metadata, dependencies, build system (PEP 621/518) and tools configuration (yapf).
+- `pyproject.toml` — project metadata, dependencies, build system (PEP 621/518) and tools configuration (yapf, pylint, pytest, project scripts).
 - `README.md` — project overview and features.
 - `requirements.txt` — core runtime dependencies (PyQt6, qt-material, SQLAlchemy, numpy, tiktoken, ollama).
 - `run.py` — application entrypoint; parses args and starts `py_fade.app.py`.
@@ -100,6 +102,7 @@ Python package `py_fade/` (important modules):
 - `py_fade/gui/components/` — reusable GUI components (e.g., `widget_token_picker.py`).
 - `py_fade/dataset/` — dataset management and persistence code.
 - `py_fade/providers/` — provider implementations for model backends (e.g., `ollama.py`, `base_provider.py`); For testing there's `mock_echo_model.py` that simulates a model by echoing the prompt.
+- `py_fade/scripts/` — utility scripts including `ci_qa.py` for unified CI quality assurance.
 - `tests/` — scripts to test various components, functionality, and performance.
 
 ---
