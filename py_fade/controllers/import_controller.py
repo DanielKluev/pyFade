@@ -50,6 +50,7 @@ class ImportController:
         self.target_facet = None  # Facet for ratings
         self.rating_config = {}  # Rating configuration
         self.import_summary = ImportSummary()
+        self.group_path = None  # Custom group path for samples
 
     def add_source(self, source_path: pathlib.Path|str, format: str | None = None) -> LMEvalResult:
         """
@@ -181,17 +182,44 @@ class ImportController:
         self.log.info("Set ratings: correct=%d, incorrect=%d, chosen=%d, rejected=%d", 
                      correct, incorrect, chosen, rejected)
 
+    def set_group_path(self, group_path: str) -> None:
+        """
+        Set a custom group path for imported samples.
+        """
+        self.group_path = group_path
+        self.log.info("Set group path: %s", group_path)
+
+    def _get_group_path(self) -> str:
+        """
+        Get the group path for imported samples.
+        If not set explicitly, infers from the first source's origin name or filename.
+        """
+        if self.group_path:
+            return self.group_path
+        
+        # Infer from sources
+        if self.sources:
+            first_source = self.sources[0]
+            # Try to use origin name (benchmark name) if available
+            if hasattr(first_source, 'origin_name') and first_source.origin_name:
+                return first_source.origin_name
+            # Fall back to filename stem
+            if hasattr(first_source, 'result_json_path'):
+                return first_source.result_json_path.stem
+        
+        # Default fallback
+        return "import"
+
     def import_to_dataset(self) -> int:
         """
         Create Sample, PromptRevision, PromptCompletion and PromptCompletionRating rows 
         based on current active selection.
         Returns the number of imported records.
         """
-        if not self.target_facet:
-            raise ValueError("Target facet must be set before importing")
-        
-        if not self.rating_config:
-            raise ValueError("Rating configuration must be set before importing")
+        # Rating configuration and facet are optional - only required if ratings are being set
+        need_ratings = bool(self.rating_config)
+        if need_ratings and not self.target_facet:
+            raise ValueError("Target facet must be set when rating configuration is provided")
 
         imported_count = 0
         samples_created = 0
@@ -220,7 +248,7 @@ class ImportController:
                 self.dataset,
                 title=f"Import: {prompt_hash[:8]}",
                 prompt_revision=prompt_revision,
-                group_path="lm_eval_import"
+                group_path=self._get_group_path()
             )
             if sample:
                 samples_created += 1
@@ -247,13 +275,14 @@ class ImportController:
                 self.dataset.session.flush()  # Get the ID
                 completions_created += 1
 
-                # Set rating based on success
-                is_success = record.is_success()
-                if is_success is not None:
-                    rating = self.rating_config["correct"] if is_success else self.rating_config["incorrect"]
-                    PromptCompletionRating.set_rating(
-                        self.dataset, completion, self.target_facet, rating
-                    )
+                # Set rating based on success (only if rating configuration is provided)
+                if need_ratings and self.target_facet:
+                    is_success = record.is_success()
+                    if is_success is not None:
+                        rating = self.rating_config["correct"] if is_success else self.rating_config["incorrect"]
+                        PromptCompletionRating.set_rating(
+                            self.dataset, completion, self.target_facet, rating
+                        )
 
                 imported_count += 1
 

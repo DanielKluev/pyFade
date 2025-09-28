@@ -99,3 +99,47 @@ class TestImportController:
         assert len(controller.filters) == 1
         assert controller.filters[0]["type"] == "paired_comparison"
         assert controller.filters[0]["config"] == config
+
+    def test_set_group_path(self):
+        """Test that set_group_path stores the group path."""
+        controller = ImportController(MagicMock(), MagicMock())
+        
+        controller.set_group_path("custom_group")
+        assert controller.group_path == "custom_group"
+
+    def test_get_group_path_with_custom_path(self):
+        """Test that _get_group_path returns custom path when set."""
+        controller = ImportController(MagicMock(), MagicMock())
+        controller.set_group_path("my_custom_group")
+        
+        assert controller._get_group_path() == "my_custom_group"
+
+    def test_get_group_path_infers_from_source_origin(self):
+        """Test that _get_group_path infers from source origin name."""
+        controller = ImportController(MagicMock(), MagicMock())
+        
+        # Mock source with origin name
+        mock_source = MagicMock()
+        mock_source.origin_name = "gsm8k"
+        controller.sources = [mock_source]
+        
+        assert controller._get_group_path() == "gsm8k"
+
+    def test_get_group_path_fallback_to_filename(self):
+        """Test that _get_group_path falls back to filename stem."""
+        controller = ImportController(MagicMock(), MagicMock())
+        
+        # Mock source without origin name but with result_json_path
+        mock_source = MagicMock()
+        mock_source.origin_name = None
+        mock_source.result_json_path = MagicMock()
+        mock_source.result_json_path.stem = "results_test_file"
+        controller.sources = [mock_source]
+        
+        assert controller._get_group_path() == "results_test_file"
+
+    def test_get_group_path_default_fallback(self):
+        """Test that _get_group_path provides default fallback."""
+        controller = ImportController(MagicMock(), MagicMock())
+        # No sources, should use default
+        assert controller._get_group_path() == "import"
