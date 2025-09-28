@@ -1,5 +1,5 @@
 """llama.cpp provider implementation with AMD GPU support and prefill awareness."""
-# pylint: disable=wrong-import-position,invalid-name,duplicate-code
+# pylint: disable=wrong-import-position,invalid-name,duplicate-code,import-error
 
 import logging
 import os
@@ -22,8 +22,8 @@ from py_fade.providers.base_provider import (
 from py_fade.providers.llm_response import LLMPTokenLogProbs, LLMResponse
 
 try:
-    import llama_cpp
-    from llama_cpp import Llama
+    import llama_cpp # pylint: disable=import-error
+    from llama_cpp import Llama # pylint: disable=import-error
 
     IS_LLAMA_CPP_AVAILABLE = True
 except Exception as e:  # pylint: disable=broad-exception-caught
