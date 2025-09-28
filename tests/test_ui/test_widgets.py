@@ -14,6 +14,7 @@ from py_fade.gui.widget_navigation_sidebar import (
 
 
 def test_filter_panel_builds_text_search_filter(qt_app):
+    """Test that filter panel correctly builds text search filters."""
     panel = WidgetNavigationFilterPanel()
     panel.search_input.setText("  Important  ")
     qt_app.processEvents()
@@ -25,6 +26,7 @@ def test_filter_panel_builds_text_search_filter(qt_app):
 
 
 def test_navigation_tree_lists_facets(temp_dataset, qt_app):
+    """Test that navigation tree correctly lists facets from the dataset."""
     Facet.create(temp_dataset, "Evaluation", "Primary facet")
     temp_dataset.commit()
 
@@ -49,6 +51,7 @@ def test_navigation_tree_lists_facets(temp_dataset, qt_app):
 
 
 def test_navigation_sidebar_emits_selection(app_with_dataset, temp_dataset, ensure_google_icon_font, qt_app):
+    """Test that navigation sidebar correctly emits selection events."""
     # Ensure a facet exists so the sidebar initialises correctly.
     facet = Facet.create(temp_dataset, "Context", "Sidebar facet")
     temp_dataset.commit()

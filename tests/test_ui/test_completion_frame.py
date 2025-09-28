@@ -5,18 +5,15 @@
 from __future__ import annotations
 
 import hashlib
-import logging
 from typing import TYPE_CHECKING, Tuple
-from unittest.mock import MagicMock, patch
-
-import pytest
-from PyQt6.QtCore import Qt
+from unittest.mock import patch
 from PyQt6.QtWidgets import QMessageBox
 
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
+from tests.helpers.data_helpers import create_test_completion
 from py_fade.providers.llm_response import LLMResponse, LLMPTokenLogProbs
 
 if TYPE_CHECKING:
@@ -41,23 +38,15 @@ def _build_sample_with_completion(
         session.commit()
 
     completion_text = "This is a test completion response."
-    completion_defaults = {
-        "prompt_revision": prompt_revision,
-        "model_id": "test-model",
+    completion_overrides_local = {
         "temperature": 0.7,
         "top_k": 40,
         "completion_text": completion_text,
-        "context_length": 2048,
-        "max_tokens": 128,
         "sha256": hashlib.sha256(completion_text.encode("utf-8")).hexdigest(),
-        "is_truncated": False,
-        "is_archived": False,
     }
-    completion_defaults.update(completion_overrides)
+    completion_overrides_local.update(completion_overrides)
 
-    completion = PromptCompletion(**completion_defaults)
-    session.add(completion)
-    session.commit()
+    completion = create_test_completion(session, prompt_revision, completion_overrides_local)
 
     return sample, completion
 
@@ -691,7 +680,7 @@ class TestCompletionFrameConfirmationDialogs:
         # Track signal emission
         signal_emitted = False
 
-        def on_discard_requested(comp):
+        def on_discard_requested(_comp):
             nonlocal signal_emitted
             signal_emitted = True
 

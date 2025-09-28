@@ -17,7 +17,6 @@ from py_fade.dataset.export_template import ExportTemplate
 from py_fade.gui.widget_export_template import WidgetExportTemplate
 from py_fade.gui.widget_dataset_top import WidgetDatasetTop
 from tests.helpers.ui_helpers import patch_message_boxes
-from tests.helpers.data_helpers import ensure_test_facets
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -46,7 +45,7 @@ def test_widget_export_template_crud_flow(
     app_with_dataset: "pyFadeApp",
     temp_dataset: "DatasetDatabase",
     qt_app: "QApplication",
-    ensure_google_icon_font: None,
+    _ensure_google_icon_font: None,  # Used for side effect of loading icon font
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -160,7 +159,7 @@ def test_navigation_creates_export_template_tab(
     app_with_dataset: "pyFadeApp",
     temp_dataset: "DatasetDatabase",
     qt_app: "QApplication",
-    ensure_google_icon_font: None,
+    _ensure_google_icon_font: None,  # Used for side effect of loading icon font
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """
@@ -208,7 +207,7 @@ def test_navigation_creates_export_template_tab(
     widget.sidebar.tree_view.item_selected.emit("export_template", template.id)
     qt_app.processEvents()
 
-    existing_widget_id = widget._find_tab_by("export_template", template.id)
+    existing_widget_id = widget._find_tab_by("export_template", template.id)  # pylint: disable=protected-access
     assert existing_widget_id is not None
     tab_info = widget.tabs[existing_widget_id]
     assert isinstance(tab_info["widget"], WidgetExportTemplate)

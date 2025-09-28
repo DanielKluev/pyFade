@@ -11,7 +11,8 @@ Test the full cycle of the application, going through entire user flow:
 - Verify exported JSONL files are correct and complete.
 
 Important: This is comprehensive test of key functionality, so it should be maintained to be up to date and tested frequently.
-Note to AI: **NEVER** delete this docstring. If flow changes, update this docstring to reflect current functionality keeping style and format of original docstring.
+Note to AI: **NEVER** delete this docstring. If flow changes, update this docstring to reflect current functionality keeping
+style and format of original docstring.
 """
 import pathlib
 from typing import TYPE_CHECKING

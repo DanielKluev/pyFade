@@ -37,18 +37,32 @@ def ensure_test_facets(dataset: "DatasetDatabase") -> List[Facet]:
     return facets
 
 
-def create_test_app(tmp_path, monkeypatch, qt_app):
+def create_test_completion(session, prompt_revision, completion_overrides=None):
     """
-    Create a test app instance with temporary home directory.
+    Create a test PromptCompletion with common defaults.
     
-    This is a common pattern used across multiple test files.
+    This helper eliminates duplicate completion creation code across test files.
     """
-    import pathlib
-    from py_fade.app import pyFadeApp
+    from py_fade.dataset.completion import PromptCompletion
     
-    fake_home = tmp_path / "home"
-    fake_home.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(pathlib.Path, "home", lambda: fake_home)
-
-    config_path = fake_home / "config.yaml"
-    return pyFadeApp(config_path=config_path)
+    completion_defaults = {
+        "prompt_revision": prompt_revision,
+        "model_id": "test-model",
+        "full_history": [{"role": "user", "content": "Test prompt"}],
+        "prefill": "",
+        "beam_token": "",
+        "completion_text": "Test completion",
+        "tags": None,
+        "context_length": 2048,
+        "max_tokens": 128,
+        "is_truncated": False,
+        "is_archived": False,
+    }
+    if completion_overrides:
+        completion_defaults.update(completion_overrides)
+    
+    completion = PromptCompletion(**completion_defaults)
+    session.add(completion)
+    session.commit()
+    
+    return completion

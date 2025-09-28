@@ -23,6 +23,7 @@ from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_dataset_top import WidgetDatasetTop
 from py_fade.gui.widget_sample import WidgetSample
+from tests.helpers.data_helpers import create_test_completion
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -46,8 +47,7 @@ def _build_sample_with_completion(
         session.commit()
 
     completion_text = "Once upon a midnight dreary, while I pondered, weak and weary."
-    completion_defaults = {
-        "prompt_revision": prompt_revision,
+    completion_overrides_local = {
         "sha256": hashlib.sha256(completion_text.encode("utf-8")).hexdigest(),
         "model_id": "mock-echo",
         "temperature": 0.3,
@@ -56,16 +56,10 @@ def _build_sample_with_completion(
         "beam_token": "upon",
         "completion_text": completion_text,
         "tags": None,
-        "context_length": 2048,
-        "max_tokens": 128,
-        "is_truncated": False,
-        "is_archived": False,
     }
-    completion_defaults.update(completion_overrides)
+    completion_overrides_local.update(completion_overrides)
 
-    completion = PromptCompletion(**completion_defaults)
-    session.add(completion)
-    session.commit()
+    completion = create_test_completion(session, prompt_revision, completion_overrides_local)
     session.refresh(completion)
     session.refresh(prompt_revision)
 
@@ -229,12 +223,12 @@ def test_default_facet_restored_on_dataset_reload(
     dataset.commit()
     PromptCompletionRating.set_rating(dataset, completion, facet, 6)
 
+    # Create test app with temporary home directory
     fake_home = tmp_path / "home"
     fake_home.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(pathlib.Path, "home", lambda: fake_home)
 
     config_path = fake_home / "config.yaml"
-
     app = pyFadeApp(config_path=config_path)
     app.current_dataset = dataset
     widget = WidgetDatasetTop(None, app, dataset)

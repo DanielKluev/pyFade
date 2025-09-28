@@ -10,6 +10,7 @@ from py_fade.providers.llm_response import LLMPTokenLogProbs
 
 
 def test_token_picker_normalises_llm_logprob_objects(qt_app):
+    """Test that token picker properly normalizes LLMPTokenLogProbs objects into tuples."""
     tokens: list[LLMPTokenLogProbs | tuple[str, float]] = [
         LLMPTokenLogProbs(token="B", logprob=-1.2),
         LLMPTokenLogProbs(token="A", logprob=-0.4),
@@ -27,6 +28,7 @@ def test_token_picker_normalises_llm_logprob_objects(qt_app):
 
 
 def test_token_picker_single_select_emits_selected_tokens(qt_app):
+    """Test that token picker in single-select mode emits selected tokens immediately."""
     tokens: list[LLMPTokenLogProbs | tuple[str, float]] = [
         ("first", -0.1),
         ("second", -0.3),
@@ -57,6 +59,7 @@ def test_token_picker_single_select_emits_selected_tokens(qt_app):
 
 
 def test_token_picker_multi_select_requires_accept(qt_app):
+    """Test that token picker in multi-select mode requires explicit accept action."""
     tokens: list[LLMPTokenLogProbs | tuple[str, float]] = [
         ("alpha", -0.5),
         ("beta", -0.2),
