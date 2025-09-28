@@ -17,7 +17,6 @@ from py_fade.dataset.export_template import ExportTemplate
 from py_fade.gui.widget_export_template import WidgetExportTemplate
 from py_fade.gui.widget_dataset_top import WidgetDatasetTop
 from tests.helpers.ui_helpers import patch_message_boxes
-from tests.helpers.data_helpers import ensure_test_facets
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication

@@ -5,12 +5,8 @@
 from __future__ import annotations
 
 import hashlib
-import logging
 from typing import TYPE_CHECKING, Tuple
-from unittest.mock import MagicMock, patch
-
-import pytest
-from PyQt6.QtCore import Qt
+from unittest.mock import patch
 from PyQt6.QtWidgets import QMessageBox
 
 from py_fade.dataset.completion import PromptCompletion

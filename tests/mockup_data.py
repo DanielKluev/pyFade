@@ -17,13 +17,13 @@ LOREM_IPSUM_TEXT = (
     "mollit anim id est laborum."
 )
 
-class TestDatasetGenerator:
+class TestDatasetGenerator:  # pylint: disable=too-few-public-methods
     """
     Generator for test datasets, providing clean, deterministic data.
     """
-    def __init__(self, dataset: "DatasetDatabase"):
+    def __init__(self, database: "DatasetDatabase"):
         self.log = logging.getLogger("TestDatasetGenerator")
-        self.dataset = dataset
+        self.dataset = database
 
     def fill_dataset(self):
         """
