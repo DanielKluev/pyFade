@@ -33,7 +33,7 @@ LM_EVAL_TEST_RESULT_1 = TEST_DATA_DIR / "results_2025-09-09T13-31-53.431753.json
 LM_EVAL_TEST_RESULT_2 = TEST_DATA_DIR / "results_2025-09-09T13-42-42.857006.json"
 
 @pytest.mark.skip(reason="Work in progress, not implemented yet")
-def test_full_cycle_lm_eval(app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase"):
+def test_full_cycle_lm_eval(app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase", tmp_path: pathlib.Path) -> None:
     """
     Test the full cycle of the application, going through entire user flow.
     Go with case when we import two sets of lm_eval_results, from base and tuned models,
