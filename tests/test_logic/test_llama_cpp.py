@@ -23,11 +23,13 @@ def _make_provider() -> PrefillAwareLlamaCppInternal:
     reason="llama_cpp is installed; the ImportError branch is not expected",
 )
 def test_prefill_provider_requires_llama_cpp_installation():
+    """Test that PrefillAwareLlamaCppInternal raises ImportError when llama_cpp is not available."""
     with pytest.raises(ImportError):
         PrefillAwareLlamaCppInternal()
 
 
 def test_convert_chat_completion_logprobs_extracts_top_tokens():
+    """Test that chat completion logprobs are properly converted to internal format."""
     provider = _make_provider()
     raw = {
         "content": [
@@ -54,6 +56,7 @@ def test_convert_chat_completion_logprobs_extracts_top_tokens():
 
 
 def test_convert_simple_completion_logprobs_handles_missing_top_entries():
+    """Test that simple completion logprobs conversion handles missing top_logprobs entries gracefully."""
     provider = _make_provider()
     raw = {
         "tokens": ["token", "trail"],
@@ -69,6 +72,7 @@ def test_convert_simple_completion_logprobs_handles_missing_top_entries():
 
 
 def test_mask_logprobs_matches_completion_suffix():
+    """Test that logprobs masking correctly matches completion text suffixes."""
     provider = _make_provider()
     logprobs = [
         LLMPTokenLogProbs(token="Sure", logprob=-0.1),

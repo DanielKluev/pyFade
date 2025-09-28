@@ -11,7 +11,8 @@ Test the full cycle of the application, going through entire user flow:
 - Verify exported JSONL files are correct and complete.
 
 Important: This is comprehensive test of key functionality, so it should be maintained to be up to date and tested frequently.
-Note to AI: **NEVER** delete this docstring. If flow changes, update this docstring to reflect current functionality keeping style and format of original docstring.
+Note to AI: **NEVER** delete this docstring. If flow changes, update this docstring to reflect current functionality keeping
+style and format of original docstring.
 """
 import pathlib
 from typing import TYPE_CHECKING
@@ -35,10 +36,10 @@ def test_full_cycle(app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabas
     assert temp_dataset.session is not None
 
     # Create four facets: style, safety, coding, math
-    facet_math = Facet.create(temp_dataset, "Math", "Facet for math skills")
-    facet_style = Facet.create(temp_dataset, "Style", "Facet for style preferences")
-    facet_safety = Facet.create(temp_dataset, "Safety", "Facet for safety restrictions")
-    facet_coding = Facet.create(temp_dataset, "Coding", "Facet for coding skills")
+    Facet.create(temp_dataset, "Math", "Facet for math skills")
+    Facet.create(temp_dataset, "Style", "Facet for style preferences")
+    Facet.create(temp_dataset, "Safety", "Facet for safety restrictions")
+    Facet.create(temp_dataset, "Coding", "Facet for coding skills")
     temp_dataset.commit()
 
     facets = temp_dataset.session.query(Facet).all()

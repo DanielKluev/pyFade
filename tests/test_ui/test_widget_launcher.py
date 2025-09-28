@@ -21,7 +21,8 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def launcher_app(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, qt_app) -> Generator[pyFadeApp, None, None]:
+def app_for_launcher_tests(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, _qt_app) -> Generator[pyFadeApp, None, None]:
+    """Create a pyFadeApp instance for launcher testing."""
     from py_fade.app import pyFadeApp
 
     fake_home = tmp_path / "home"
@@ -40,11 +41,12 @@ def launcher_app(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, qt_app
 
 
 def test_launcher_lists_sqlite_datasets_without_password(
-    launcher_app: pyFadeApp,
+    app_for_launcher_tests: pyFadeApp,
     temp_dataset: DatasetDatabase,
-    ensure_google_icon_font,
+    _ensure_google_icon_font,  # Used for side effect of loading icon font
     qt_app,
 ) -> None:
+    """Test that launcher correctly lists SQLite datasets without passwords."""
     launcher_app.config.recent_datasets = [str(temp_dataset.db_path)]
 
     launcher = LauncherWidget(None, launcher_app)
@@ -63,12 +65,13 @@ def test_launcher_lists_sqlite_datasets_without_password(
 
 
 def test_launcher_warns_when_sqlcipher_missing(
-    launcher_app: pyFadeApp,
-    ensure_google_icon_font,
+    app_for_launcher_tests: pyFadeApp,
+    _ensure_google_icon_font,  # Used for side effect of loading icon font
     qt_app,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: pathlib.Path,
 ) -> None:
+    """Test that launcher shows appropriate warning when SQLCipher is missing for encrypted databases."""
     encrypted_path = tmp_path / "secure.db"
     encrypted_path.write_bytes(os.urandom(512))
 
@@ -86,7 +89,7 @@ def test_launcher_warns_when_sqlcipher_missing(
 
     warning_calls: list[str] = []
 
-    def fake_warning(parent, title: str, message: str) -> QMessageBox.StandardButton:
+    def fake_warning(_parent, _title: str, message: str) -> QMessageBox.StandardButton:
         warning_calls.append(message)
         return QMessageBox.StandardButton.Ok
 
@@ -107,12 +110,13 @@ def test_launcher_warns_when_sqlcipher_missing(
 
 
 def test_launcher_validates_password_before_opening(
-    launcher_app: pyFadeApp,
-    ensure_google_icon_font,
+    app_for_launcher_tests: pyFadeApp,
+    _ensure_google_icon_font,  # Used for side effect of loading icon font
     qt_app,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: pathlib.Path,
 ) -> None:
+    """Test that launcher validates password before attempting to open encrypted databases."""
     encrypted_path = tmp_path / "secure.db"
     encrypted_path.write_bytes(os.urandom(1024))
     expected_password = "passw0rd"
@@ -147,7 +151,7 @@ def test_launcher_validates_password_before_opening(
 
     critical_calls: list[str] = []
 
-    def fake_critical(parent, title: str, message: str) -> QMessageBox.StandardButton:
+    def fake_critical(_parent, _title: str, message: str) -> QMessageBox.StandardButton:
         critical_calls.append(message)
         return QMessageBox.StandardButton.Ok
 

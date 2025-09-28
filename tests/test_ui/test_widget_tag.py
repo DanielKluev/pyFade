@@ -25,7 +25,7 @@ def test_widget_tag_crud_flow(
     app_with_dataset: "pyFadeApp",
     temp_dataset: "DatasetDatabase",
     qt_app: "QApplication",
-    ensure_google_icon_font: None,
+    _ensure_google_icon_font: None,  # Used for side effect of loading icon font
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -96,7 +96,7 @@ def test_widget_tag_validation_prevents_duplicates(
     app_with_dataset: "pyFadeApp",
     temp_dataset: "DatasetDatabase",
     qt_app: "QApplication",
-    ensure_google_icon_font: None,
+    _ensure_google_icon_font: None,  # Used for side effect of loading icon font
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -143,7 +143,7 @@ def test_navigation_opens_tag_tab(
     app_with_dataset: "pyFadeApp",
     temp_dataset: "DatasetDatabase",
     qt_app: "QApplication",
-    ensure_google_icon_font: None,
+    _ensure_google_icon_font: None,  # Used for side effect of loading icon font
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """
@@ -157,6 +157,8 @@ def test_navigation_opens_tag_tab(
     patch_message_boxes(monkeypatch, logger)
 
     tag = Tag.create(temp_dataset, "Review", "Marks samples for peer review")
+
+    # Set up widget test environment  
     session = temp_dataset.session
     assert session is not None
     session.flush()
@@ -171,7 +173,7 @@ def test_navigation_opens_tag_tab(
     widget.sidebar.tree_view.item_selected.emit("tag", tag.id)
     qt_app.processEvents()
 
-    existing_widget_id = widget._find_tab_by("tag", tag.id)
+    existing_widget_id = widget._find_tab_by("tag", tag.id)  # pylint: disable=protected-access
     assert existing_widget_id is not None
     tab_info = widget.tabs[existing_widget_id]
     assert isinstance(tab_info["widget"], WidgetTag)
