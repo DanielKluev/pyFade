@@ -27,6 +27,7 @@ This file helps a code-writing agent onboard the pyFade repository quickly. It c
 - Type hints are used extensively.
 - Keep code documented with docstrings and comments. **NEVER** remove comments, instead update them if they are out of date.
 - Line length limit is 140 characters. Do not split function signatures or calls across multiple lines unless absolutely necessary.
+- Use `yapf` for code formatting, configured in `pyproject.toml`. Run `yapf -i <file>` to format a file in place. Consider `yapf` to be the source of truth for formatting. Run it on changed files before committing.
 - All modules, classes, and functions should have docstrings. Docstrings should start on new line after triple double quotes. Docstrings for class should describe the purpose of the class and any important details. Docstrings for methods should describe the purpose of the method, its parameters, return values, and any important details. Test docstrings should describe what is being tested and the expected outcome.
 - Use `logging` module for logging, do not use print statements. Use appropriate log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL). Use per-class loggers via `self.log = logging.getLogger(CLASS_NAME)`. Use lazy evaluation of log messages via `%` of the logger methods, e.g. `logger.debug("Message: %s", variable)` whenever possible.
 - Do not use local imports unless absolutely necessary to avoid circular dependencies, prefer module-level imports.
@@ -49,16 +50,18 @@ class ClassName1:
     attribute1: int
     attribute2: str
 
-    def method_name(self, param1: int, param2: str) -> bool:
+    def method_with_lots_of_kwargs(self, param1: int, param2: str, kwarg_param3: str = "default", kwarg_param4: int = 42,
+                                   kwarg_param5: float = 3.14, kwarg_param6: bool = True) -> bool:
         """
         Do something important.
 
         Uses `param1` to do X and `param2` to do Y.
+        Optional `kwarg_param3` controls Z behavior.
 
         Returns the return value.
         """
         # First, log the method call with parameters
-        self.log.debug("Executing method_name with param1=%d, param2=%s", param1, param2)
+        self.log.debug("Executing method_with_lots_of_kwargs with param1=%d, param2=%s", param1, param2)
         # Method implementation here
         return True
 ```
@@ -84,10 +87,11 @@ class ClassName1:
 ## 6) Project layout (short map to important files and their purpose)
 
 Top-level files (root):
+- `pyproject.toml` — project metadata, dependencies, build system (PEP 621/518) and tools configuration (yapf).
 - `README.md` — project overview and features.
 - `requirements.txt` — core runtime dependencies (PyQt6, qt-material, SQLAlchemy, numpy, tiktoken, ollama).
 - `run.py` — application entrypoint; parses args and starts `py_fade.app.py`.
-- `Changelog.md` — summary of notable updates.
+- `Changelog.md` — log of notable updates. New features should be added here when completed.
 
 Python package `py_fade/` (important modules):
 - `py_fade/app.py` — main app class `pyFadeApp`, GUI launcher, config wiring; note the hardcoded DB path.
