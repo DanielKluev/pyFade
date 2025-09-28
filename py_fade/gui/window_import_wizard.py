@@ -114,7 +114,7 @@ class ImportWorkerThread(QThread):
             self.import_failed.emit(str(e))
 
 
-class ImportWizard(QDialog):  # pylint: disable=too-many-public-methods
+class ImportWizard(BaseWizard):  # pylint: disable=too-many-public-methods
     """
     Step-by-step wizard for importing data into the dataset.
     """
@@ -177,7 +177,7 @@ class ImportWizard(QDialog):  # pylint: disable=too-many-public-methods
         self.load_facets()
         self.show_step(self.STEP_FILE_SELECTION)
 
-    def setup_ui(self):
+    def setup_ui(self):  # pylint: disable=duplicate-code
         """
         Create and arrange the wizard UI components.
         """

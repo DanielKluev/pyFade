@@ -53,7 +53,7 @@ class BaseWizard(QDialog):
         self.setup_step_widgets()
         self.show_step(0)
 
-    def setup_ui(self):
+    def setup_ui(self):  # pylint: disable=duplicate-code
         """
         Create and arrange the common wizard UI components.
         """
