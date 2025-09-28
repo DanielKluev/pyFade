@@ -42,12 +42,10 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtWidgets import (
-    QDialog,
     QVBoxLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QStackedWidget,
     QFileDialog,
     QListWidget,
     QListWidgetItem,
@@ -436,23 +434,23 @@ class ImportWizard(BaseWizard):  # pylint: disable=too-many-public-methods
         for facet in self.available_facets:
             self.facet_combo.addItem(facet.name, facet)
 
-    def show_step(self, step_index: int):
+    def show_step(self, step: int):
         """
         Show the specified step and update navigation buttons.
         """
-        self.content_stack.setCurrentIndex(step_index)
+        self.content_stack.setCurrentIndex(step)
 
         # Update button states
-        self.back_button.setEnabled(step_index > self.STEP_FILE_SELECTION)
+        self.back_button.setEnabled(step > self.STEP_FILE_SELECTION)
 
-        if step_index == self.STEP_RESULTS:
+        if step == self.STEP_RESULTS:
             self.next_button.setText("Close")
             self.cancel_button.setVisible(False)
-        elif step_index == self.STEP_IMPORT_PROGRESS:
+        elif step == self.STEP_IMPORT_PROGRESS:
             self.next_button.setEnabled(False)
             self.back_button.setEnabled(False)
             self.cancel_button.setText("Cancel Import")
-        elif step_index == self.STEP_CONFIRMATION:
+        elif step == self.STEP_CONFIRMATION:
             self.next_button.setText("Start Import")
         else:
             self.next_button.setText("Next →")
@@ -461,11 +459,11 @@ class ImportWizard(BaseWizard):  # pylint: disable=too-many-public-methods
             self.cancel_button.setVisible(True)
 
         # Update step-specific content
-        if step_index == self.STEP_FORMAT_DETECTION:
+        if step == self.STEP_FORMAT_DETECTION:
             self.update_format_detection()
-        elif step_index == self.STEP_PREVIEW_FILTER:
+        elif step == self.STEP_PREVIEW_FILTER:
             self.update_preview()
-        elif step_index == self.STEP_CONFIRMATION:
+        elif step == self.STEP_CONFIRMATION:
             self.update_confirmation()
 
     def go_back(self):
