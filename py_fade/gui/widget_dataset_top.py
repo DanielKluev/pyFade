@@ -15,6 +15,7 @@ from PyQt6.QtCore import QPoint, Qt, QUrl
 from PyQt6.QtGui import QAction, QDesktopServices
 from PyQt6.QtWidgets import (
     QComboBox,
+    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -90,6 +91,7 @@ class WidgetDatasetTop(QMainWindow):
         self.action_save_unencrypted_copy: QAction | None = None
         self.action_close_dataset: QAction | None = None
         self.action_exit_application: QAction | None = None
+        self.action_import_wizard: QAction | None = None
         self.action_manage_export_templates: QAction | None = None
         self.action_export_current_facet: QAction | None = None
         self.action_open_encryption_docs: QAction | None = None
@@ -196,6 +198,8 @@ class WidgetDatasetTop(QMainWindow):
         if file_menu is None:  # pragma: no cover - defensive guard
             return
         self.file_menu = file_menu
+        self.action_import_wizard = file_menu.addAction("Import Data…")
+        file_menu.addSeparator()
         self.action_encrypt_save_as = file_menu.addAction("Encrypt and Save As…")
         self.action_change_password = file_menu.addAction("Change Password…")
         self.action_save_unencrypted_copy = file_menu.addAction("Save Unencrypted Copy As…")
@@ -208,9 +212,7 @@ class WidgetDatasetTop(QMainWindow):
             return
         self.export_menu = export_menu
         self.action_manage_export_templates = export_menu.addAction("Manage Export Templates")
-        self.action_export_current_facet = export_menu.addAction(
-            "Open Current Facet in Export Editor"
-        )
+        self.action_export_current_facet = export_menu.addAction("Open Current Facet in Export Editor")
 
         help_menu = menu_bar.addMenu("&Help")
         if help_menu is None:  # pragma: no cover - defensive guard
@@ -229,46 +231,31 @@ class WidgetDatasetTop(QMainWindow):
         except (OSError, RuntimeError) as exc:  # pragma: no cover - defensive guard
             self.log.warning("Failed to probe dataset encryption state: %s", exc)
 
-        tooltip_sqlcipher_missing = (
-            "SQLCipher support is required. Install the sqlcipher3 package to enable this action."
-        )
+        tooltip_sqlcipher_missing = ("SQLCipher support is required. Install the sqlcipher3 package to enable this action.")
 
         if self.action_encrypt_save_as is not None:
             self.action_encrypt_save_as.setVisible(not is_encrypted)
             self.action_encrypt_save_as.setEnabled(not is_encrypted and is_sqlcipher_available)
             self.action_encrypt_save_as.setToolTip(
-                "Create an encrypted copy of this dataset."
-                if is_sqlcipher_available
-                else tooltip_sqlcipher_missing
-            )
+                "Create an encrypted copy of this dataset." if is_sqlcipher_available else tooltip_sqlcipher_missing)
 
         if self.action_change_password is not None:
             self.action_change_password.setVisible(is_encrypted)
             self.action_change_password.setEnabled(is_encrypted and is_sqlcipher_available)
             self.action_change_password.setToolTip(
-                "Update the SQLCipher password for this dataset."
-                if is_sqlcipher_available
-                else tooltip_sqlcipher_missing
-            )
+                "Update the SQLCipher password for this dataset." if is_sqlcipher_available else tooltip_sqlcipher_missing)
 
         if self.action_save_unencrypted_copy is not None:
             self.action_save_unencrypted_copy.setVisible(is_encrypted)
             self.action_save_unencrypted_copy.setEnabled(is_encrypted and is_sqlcipher_available)
             self.action_save_unencrypted_copy.setToolTip(
-                "Export a plain SQLite copy of this encrypted dataset."
-                if is_sqlcipher_available
-                else tooltip_sqlcipher_missing
-            )
+                "Export a plain SQLite copy of this encrypted dataset." if is_sqlcipher_available else tooltip_sqlcipher_missing)
 
         docs_path = pathlib.Path(__file__).resolve().parents[2] / "docs" / "encryption.md"
         if self.action_open_encryption_docs is not None:
             has_docs = docs_path.exists()
             self.action_open_encryption_docs.setEnabled(has_docs)
-            tooltip = (
-                "View the encryption guide in your browser."
-                if has_docs
-                else "Encryption guide file not found."
-            )
+            tooltip = ("View the encryption guide in your browser." if has_docs else "Encryption guide file not found.")
             self.action_open_encryption_docs.setToolTip(tooltip)
 
         if self.action_manage_export_templates is not None:
@@ -370,9 +357,7 @@ class WidgetDatasetTop(QMainWindow):
             return
 
         suggested_name = f"{self.dataset.db_path.stem}-unencrypted.db"
-        destination = self._prompt_for_dataset_destination(
-            "Save Unencrypted Copy As…", suggested_name
-        )
+        destination = self._prompt_for_dataset_destination("Save Unencrypted Copy As…", suggested_name)
         if destination is None:
             return
 
@@ -409,6 +394,19 @@ class WidgetDatasetTop(QMainWindow):
         if self.app.q_app is not None:
             self.app.q_app.quit()
 
+    def _handle_import_wizard(self, _checked: bool = False) -> None:
+        """Open the Import Data Wizard."""
+
+        # Import here to avoid circular dependency
+        from py_fade.gui.window_import_wizard import ImportWizard
+
+        self.log.info("Opening Import Data Wizard")
+        wizard = ImportWizard(self, self.app, self.dataset)
+        if wizard.exec() == QDialog.DialogCode.Accepted:
+            # Refresh the sidebar to show any newly imported data
+            if hasattr(self.sidebar, "refresh"):
+                self.sidebar.refresh()
+
     def _handle_manage_export_templates(self, _checked: bool = False) -> None:
         """Open an export template editor tab and highlight export templates in the sidebar."""
 
@@ -436,9 +434,7 @@ class WidgetDatasetTop(QMainWindow):
         self._focus_widget(widget)
         if isinstance(widget, WidgetExportTemplate):
             widget.name_input.setText(f"{self.current_facet.name} Export")
-            widget.description_input.setText(
-                f"Auto-generated template for facet '{self.current_facet.name}'."
-            )
+            widget.description_input.setText(f"Auto-generated template for facet '{self.current_facet.name}'.")
             index = widget.facet_selector.findData(self.current_facet.id)
             if index >= 0:
                 widget.facet_selector.setCurrentIndex(index)
@@ -461,16 +457,12 @@ class WidgetDatasetTop(QMainWindow):
     def _handle_about_dialog(self, _checked: bool = False) -> None:
         """Show a lightweight about dialog for pyFADE."""
 
-        message = (
-            "pyFADE – Faceted Alignment Dataset Editor\n"
-            f"Dataset path: {self.dataset.db_path}\n"
-            "Visit https://github.com/DanielKluev/pyFade for project details."
-        )
+        message = ("pyFADE – Faceted Alignment Dataset Editor\n"
+                   f"Dataset path: {self.dataset.db_path}\n"
+                   "Visit https://github.com/DanielKluev/pyFade for project details.")
         QMessageBox.information(self, "About pyFADE", message)
 
-    def _prompt_for_dataset_destination(
-        self, title: str, suggested_name: str
-    ) -> pathlib.Path | None:
+    def _prompt_for_dataset_destination(self, title: str, suggested_name: str) -> pathlib.Path | None:
         """Ask the user for a destination file path, returning ``None`` on cancel."""
 
         default_path = self.dataset.db_path.with_name(suggested_name)
@@ -523,11 +515,9 @@ class WidgetDatasetTop(QMainWindow):
         response = QMessageBox.question(
             self,
             "Reopen dataset",
-            (
-                "Encryption settings have changed. Reopen the dataset from:\n"
-                f"{path}\n"
-                "now to refresh cached state?"
-            ),
+            ("Encryption settings have changed. Reopen the dataset from:\n"
+             f"{path}\n"
+             "now to refresh cached state?"),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes,
         )
@@ -551,6 +541,8 @@ class WidgetDatasetTop(QMainWindow):
             self.facet_combo.currentIndexChanged.connect(self._on_facet_selection_changed)
         if self.model_combo is not None:
             self.model_combo.currentTextChanged.connect(self._on_model_selection_changed)
+        if self.action_import_wizard is not None:
+            self.action_import_wizard.triggered.connect(self._handle_import_wizard)
         if self.action_encrypt_save_as is not None:
             self.action_encrypt_save_as.triggered.connect(self._handle_encrypt_save_as)
         if self.action_change_password is not None:
@@ -562,9 +554,7 @@ class WidgetDatasetTop(QMainWindow):
         if self.action_exit_application is not None:
             self.action_exit_application.triggered.connect(self._handle_exit_application)
         if self.action_manage_export_templates is not None:
-            self.action_manage_export_templates.triggered.connect(
-                self._handle_manage_export_templates
-            )
+            self.action_manage_export_templates.triggered.connect(self._handle_manage_export_templates)
         if self.action_export_current_facet is not None:
             self.action_export_current_facet.triggered.connect(self._handle_export_current_facet)
         if self.action_open_encryption_docs is not None:
@@ -578,9 +568,7 @@ class WidgetDatasetTop(QMainWindow):
     def set_facets(self) -> None:
         """Populate facet selector based on current dataset state and preferences."""
         if not self.dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
         if self.facet_combo is None:
             raise RuntimeError("Facet combo box is not initialized.")
 
@@ -706,9 +694,7 @@ class WidgetDatasetTop(QMainWindow):
     def populate_tabs(self) -> None:
         """Populate the main tab area with dataset content."""
         self.overview_widget = self.create_overview_tab()
-        self._register_tab(
-            self.overview_widget, "Overview", "overview", entity_id=0, closable=False, focus=False
-        )
+        self._register_tab(self.overview_widget, "Overview", "overview", entity_id=0, closable=False, focus=False)
         sample_widget_id = self.create_sample_tab(None, focus=True)
         self._focus_widget(self.tabs[sample_widget_id]["widget"])
 
@@ -717,8 +703,7 @@ class WidgetDatasetTop(QMainWindow):
         overview_widget = QWidget()
         layout = QVBoxLayout(overview_widget)
         layout.setContentsMargins(20, 20, 20, 20)
-        info_label = QLabel(
-            f"""
+        info_label = QLabel(f"""
         <h2>Dataset Overview</h2>
         <p><b>Database Path:</b> {self.dataset.db_path}</p>
         <p><b>Status:</b> {'Connected' if self.dataset.session else 'Not Connected'}</p>
@@ -731,8 +716,7 @@ class WidgetDatasetTop(QMainWindow):
         <li>Total Completions: TBD</li>
         <li>Available Facets: TBD</li>
         </ul>
-        """
-        )
+        """)
         info_label.setWordWrap(True)
         layout.addWidget(info_label)
         layout.addStretch()
@@ -777,12 +761,8 @@ class WidgetDatasetTop(QMainWindow):
         title = f"S: {sample.title}" if sample else "New Sample"
         widget_id = self._register_tab(sample_widget, title, "sample", sample_id, focus=focus)
         self._apply_context_to_sample(sample_widget)
-        sample_widget.sample_saved.connect(
-            lambda saved, wid=widget_id: self._on_sample_saved(wid, saved)
-        )
-        sample_widget.sample_copied.connect(
-            lambda original, wid=widget_id: self._on_sample_copied(wid, original)
-        )
+        sample_widget.sample_saved.connect(lambda saved, wid=widget_id: self._on_sample_saved(wid, saved))
+        sample_widget.sample_copied.connect(lambda original, wid=widget_id: self._on_sample_copied(wid, original))
         return widget_id
 
     def create_facet_tab(self, facet: Facet | None, *, focus: bool = True) -> int:
@@ -800,29 +780,19 @@ class WidgetDatasetTop(QMainWindow):
         title = f"T: {tag.name}" if tag else "New Tag"
         widget_id = self._register_tab(tag_widget, title, "tag", tag_id, focus=focus)
         tag_widget.tag_saved.connect(lambda saved, wid=widget_id: self._on_tag_saved(wid, saved))
-        tag_widget.tag_deleted.connect(
-            lambda deleted, wid=widget_id: self._on_tag_deleted(wid, deleted)
-        )
+        tag_widget.tag_deleted.connect(lambda deleted, wid=widget_id: self._on_tag_deleted(wid, deleted))
         tag_widget.tag_cancelled.connect(lambda wid=widget_id: self._on_tag_cancelled(wid))
         return widget_id
 
-    def create_export_template_tab(
-        self, template: ExportTemplate | None, *, focus: bool = True
-    ) -> int:
+    def create_export_template_tab(self, template: ExportTemplate | None, *, focus: bool = True) -> int:
         """Create a new tab for managing an export template."""
 
         template_widget = WidgetExportTemplate(self, self.app, self.dataset, template)
         template_id = template.id if template else 0
         title = f"X: {template.name}" if template else "New Export Template"
-        widget_id = self._register_tab(
-            template_widget, title, "export_template", template_id, focus=focus
-        )
-        template_widget.template_saved.connect(
-            lambda saved, wid=widget_id: self._on_export_template_saved(wid, saved)
-        )
-        template_widget.template_deleted.connect(
-            lambda deleted, wid=widget_id: self._on_export_template_deleted(wid, deleted)
-        )
+        widget_id = self._register_tab(template_widget, title, "export_template", template_id, focus=focus)
+        template_widget.template_saved.connect(lambda saved, wid=widget_id: self._on_export_template_saved(wid, saved))
+        template_widget.template_deleted.connect(lambda deleted, wid=widget_id: self._on_export_template_deleted(wid, deleted))
         template_widget.template_copied.connect(self._on_export_template_copied)
         return widget_id
 
@@ -963,9 +933,7 @@ class WidgetDatasetTop(QMainWindow):
         """Handle sidebar navigation selections by opening the relevant tab."""
 
         if self.dataset.session is None:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
         normalized_type = item_type.lower()
         existing_widget_id = self._find_tab_by(normalized_type, item_id)
         if existing_widget_id:
