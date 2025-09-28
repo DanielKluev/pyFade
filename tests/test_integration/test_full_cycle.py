@@ -32,7 +32,6 @@ TEST_DATA_DIR = pathlib.Path(__file__).parent.parent / "data"
 LM_EVAL_TEST_RESULT_1 = TEST_DATA_DIR / "results_2025-09-09T13-31-53.431753.json"
 LM_EVAL_TEST_RESULT_2 = TEST_DATA_DIR / "results_2025-09-09T13-42-42.857006.json"
 
-@pytest.mark.skip(reason="Work in progress, not implemented yet")
 def test_full_cycle_lm_eval(app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase", tmp_path: pathlib.Path) -> None:
     """
     Test the full cycle of the application, going through entire user flow.
@@ -90,6 +89,9 @@ def test_full_cycle_lm_eval(app_with_dataset: "pyFadeApp", temp_dataset: "Datase
     # Create export template for math facet, SFT style
     facet_config = {
         "facet_id": facet_math.id,
+        "limit_type": "count",
+        "limit_value": 100,
+        "order": "random"
         }
     template_sft = ExportTemplate.create(
         dataset=temp_dataset,
@@ -105,7 +107,7 @@ def test_full_cycle_lm_eval(app_with_dataset: "pyFadeApp", temp_dataset: "Datase
 
     # Create export controller and run export
     export_controller = ExportController(app_with_dataset, temp_dataset, template_sft)
-    output_path_sft = pathlib.Path(temp_dataset.path) / "export_math_sft.jsonl"
+    output_path_sft = temp_dataset.db_path.parent / "export_math_sft.jsonl"
     export_controller.set_output_path(output_path_sft)
     assert export_controller.run_export() == 1  # One sample exported
     assert output_path_sft.exists()
