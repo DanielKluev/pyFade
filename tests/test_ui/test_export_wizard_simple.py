@@ -23,20 +23,18 @@ def test_export_wizard_can_be_instantiated_with_mock_data(app_with_dataset, temp
     facet = Facet.create(temp_dataset, "Test Facet", "Test facet description")
     temp_dataset.commit()
 
-    template = ExportTemplate.create(
-        dataset=temp_dataset,
-        name="Test Template",
-        description="Test template description",
-        model_families=["Gemma3"],
-        training_type="SFT",
-        output_format="JSONL (ShareGPT)",
-        facets=[{"facet_id": facet.id, "limit_type": "count", "limit_value": 100, "order": "random"}]
-    )
+    template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
+                                     model_families=["Gemma3"], training_type="SFT", output_format="JSONL (ShareGPT)", facets=[{
+                                         "facet_id": facet.id,
+                                         "limit_type": "count",
+                                         "limit_value": 100,
+                                         "order": "random"
+                                     }])
     temp_dataset.commit()
 
     # Create the wizard without adding to qtbot to avoid complex UI dependencies
     wizard = ExportWizard(None, app_with_dataset, temp_dataset)
-    
+
     # Basic checks
     assert wizard.windowTitle() == "Export Data Wizard"
     assert wizard.isModal()
@@ -53,7 +51,7 @@ def test_export_wizard_menu_integration():
     # Mock the import to avoid complex UI initialization
     with patch('py_fade.gui.widget_dataset_top.WidgetNavigationSidebar'), \
          patch('py_fade.gui.auxillary.aux_google_icon_font.google_icon_font'):
-        
+
         # This test would verify menu integration but requires too much mocking
         # The core functionality is tested in other files
         assert True  # Placeholder for now

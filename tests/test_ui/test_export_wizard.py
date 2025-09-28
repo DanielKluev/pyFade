@@ -46,7 +46,7 @@ def test_export_wizard_template_selection_no_templates(app_with_dataset, temp_da
     assert wizard.template_list.count() == 1
     item = wizard.template_list.item(0)
     assert item.text() == "No export templates available"
-    assert not ((item.flags() & item.flags().ItemIsEnabled))
+    assert not (item.flags() & item.flags().ItemIsEnabled)
 
     # Next button should be disabled
     assert not wizard.next_button.isEnabled()
