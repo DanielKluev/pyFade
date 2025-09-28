@@ -45,7 +45,7 @@ def test_widget_export_template_crud_flow(
     app_with_dataset: "pyFadeApp",
     temp_dataset: "DatasetDatabase",
     qt_app: "QApplication",
-    ensure_google_icon_font: None,  # Used for side effect of loading icon font
+    _ensure_google_icon_font: None,  # Used for side effect of loading icon font
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -159,7 +159,7 @@ def test_navigation_creates_export_template_tab(
     app_with_dataset: "pyFadeApp",
     temp_dataset: "DatasetDatabase",
     qt_app: "QApplication",
-    ensure_google_icon_font: None,  # Used for side effect of loading icon font
+    _ensure_google_icon_font: None,  # Used for side effect of loading icon font
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """
