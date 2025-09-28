@@ -471,7 +471,11 @@ class ImportWizard(QDialog):
         """
         Load available facets from the dataset.
         """
-        self.available_facets = list(self.dataset.session.query(Facet).all())
+        if self.dataset is None:
+            self.available_facets = []
+        else:
+            self.available_facets = list(self.dataset.session.query(Facet).all())
+
         self.facet_combo.clear()
         self.facet_combo.addItem("(No facet)", None)
         for facet in self.available_facets:

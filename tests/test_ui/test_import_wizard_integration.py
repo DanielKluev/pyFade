@@ -6,13 +6,13 @@ from py_fade.gui.widget_dataset_top import WidgetDatasetTop
 from py_fade.gui.window_import_wizard import ImportWizard, ImportWorkerThread
 
 
-def test_import_wizard_menu_integration(app_with_dataset, temp_dataset, qt_app, ensure_google_icon_font):
+def test_import_wizard_menu_integration(app_with_dataset, temp_dataset, qtbot, ensure_google_icon_font):
     """
     Test that the Import Data menu item is properly integrated into the dataset top widget.
     """
     # Create the dataset top widget
     widget = WidgetDatasetTop(None, app_with_dataset, temp_dataset)
-    qt_app.processEvents()
+    qtbot.addWidget(widget)
 
     # Verify the menu item exists
     assert widget.action_import_wizard is not None
@@ -27,17 +27,14 @@ def test_import_wizard_menu_integration(app_with_dataset, temp_dataset, qt_app, 
     assert hasattr(widget, '_handle_import_wizard')
     assert callable(widget._handle_import_wizard)
 
-    widget.close()
-    qt_app.processEvents()
 
-
-def test_import_wizard_instantiation_from_menu(app_with_dataset, temp_dataset, qt_app):
+def test_import_wizard_instantiation_from_menu(app_with_dataset, temp_dataset, qtbot):
     """
     Test that ImportWizard can be instantiated and shown properly.
     """
     # Create wizard directly (as the menu handler would)
     wizard = ImportWizard(None, app_with_dataset, temp_dataset)
-    qt_app.processEvents()
+    qtbot.addWidget(wizard)
 
     # Test basic properties
     assert wizard.windowTitle() == "Import Data Wizard"
@@ -48,10 +45,6 @@ def test_import_wizard_instantiation_from_menu(app_with_dataset, temp_dataset, q
 
     # Test initial step display
     assert wizard.content_stack.currentIndex() == ImportWizard.STEP_FILE_SELECTION
-
-    # Close the wizard
-    wizard.close()
-    qt_app.processEvents()
 
 
 def test_import_worker_thread_creation():
