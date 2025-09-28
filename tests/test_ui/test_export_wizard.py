@@ -8,6 +8,7 @@ from py_fade.dataset.export_template import ExportTemplate
 from py_fade.dataset.facet import Facet
 from py_fade.gui.window_export_wizard import ExportWizard, ExportWorkerThread
 from py_fade.controllers.export_controller import ExportController
+from tests.helpers.export_wizard_helpers import create_test_template
 
 
 def test_export_wizard_initialization(app_with_dataset, temp_dataset, qtbot):
@@ -57,17 +58,7 @@ def test_export_wizard_template_selection_with_templates(app_with_dataset, temp_
     Test template selection when templates are available.
     """
     # Create a test template
-    facet = Facet.create(temp_dataset, "Test Facet", "Test facet description")
-    temp_dataset.commit()
-
-    template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
-                                     model_families=["Gemma3"], training_type="SFT", output_format="JSONL (ShareGPT)", facets=[{
-                                         "facet_id": facet.id,
-                                         "limit_type": "count",
-                                         "limit_value": 100,
-                                         "order": "random"
-                                     }])
-    temp_dataset.commit()
+    _facet, template = create_test_template(temp_dataset)
 
     wizard = ExportWizard(None, app_with_dataset, temp_dataset)
     qtbot.addWidget(wizard)
@@ -100,17 +91,7 @@ def test_export_wizard_navigation_forward(app_with_dataset, temp_dataset, qtbot)
     Test forward navigation through wizard steps.
     """
     # Create a test template
-    facet = Facet.create(temp_dataset, "Test Facet", "Test facet description")
-    temp_dataset.commit()
-
-    _template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
-                                     model_families=["Gemma3"], training_type="SFT", output_format="JSONL (ShareGPT)", facets=[{
-                                         "facet_id": facet.id,
-                                         "limit_type": "count",
-                                         "limit_value": 100,
-                                         "order": "random"
-                                     }])
-    temp_dataset.commit()
+    _facet, _template = create_test_template(temp_dataset)
 
     wizard = ExportWizard(None, app_with_dataset, temp_dataset)
     qtbot.addWidget(wizard)
@@ -135,17 +116,7 @@ def test_export_wizard_navigation_backward(app_with_dataset, temp_dataset, qtbot
     Test backward navigation through wizard steps.
     """
     # Create a test template
-    facet = Facet.create(temp_dataset, "Test Facet", "Test facet description")
-    temp_dataset.commit()
-
-    _template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
-                                     model_families=["Gemma3"], training_type="SFT", output_format="JSONL (ShareGPT)", facets=[{
-                                         "facet_id": facet.id,
-                                         "limit_type": "count",
-                                         "limit_value": 100,
-                                         "order": "random"
-                                     }])
-    temp_dataset.commit()
+    _facet, _template = create_test_template(temp_dataset)
 
     wizard = ExportWizard(None, app_with_dataset, temp_dataset)
     qtbot.addWidget(wizard)
@@ -167,17 +138,7 @@ def test_export_wizard_output_path_selection(app_with_dataset, temp_dataset, qtb
     Test output path selection functionality.
     """
     # Create a test template
-    facet = Facet.create(temp_dataset, "Test Facet", "Test facet description")
-    temp_dataset.commit()
-
-    _template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
-                                     model_families=["Gemma3"], training_type="SFT", output_format="JSONL (ShareGPT)", facets=[{
-                                         "facet_id": facet.id,
-                                         "limit_type": "count",
-                                         "limit_value": 100,
-                                         "order": "random"
-                                     }])
-    temp_dataset.commit()
+    _facet, _template = create_test_template(temp_dataset)
 
     wizard = ExportWizard(None, app_with_dataset, temp_dataset)
     qtbot.addWidget(wizard)
@@ -282,17 +243,7 @@ def test_export_wizard_full_flow_success(app_with_dataset, temp_dataset, qtbot, 
     Test complete export wizard flow with successful export.
     """
     # Create a test template with sample data
-    facet = Facet.create(temp_dataset, "Test Facet", "Test facet description")
-    temp_dataset.commit()
-
-    _template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
-                                     model_families=["Gemma3"], training_type="SFT", output_format="JSONL (ShareGPT)", facets=[{
-                                         "facet_id": facet.id,
-                                         "limit_type": "count",
-                                         "limit_value": 100,
-                                         "order": "random"
-                                     }])
-    temp_dataset.commit()
+    _facet, _template = create_test_template(temp_dataset)
 
     wizard = ExportWizard(None, app_with_dataset, temp_dataset)
     qtbot.addWidget(wizard)
@@ -336,17 +287,7 @@ def test_export_wizard_full_flow_failure(app_with_dataset, temp_dataset, qtbot, 
     Test complete export wizard flow with export failure.
     """
     # Create a test template
-    facet = Facet.create(temp_dataset, "Test Facet", "Test facet description")
-    temp_dataset.commit()
-
-    template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",
-                                     model_families=["Gemma3"], training_type="SFT", output_format="JSONL (ShareGPT)", facets=[{
-                                         "facet_id": facet.id,
-                                         "limit_type": "count",
-                                         "limit_value": 100,
-                                         "order": "random"
-                                     }])
-    temp_dataset.commit()
+    _facet, template = create_test_template(temp_dataset)
 
     wizard = ExportWizard(None, app_with_dataset, temp_dataset)
     qtbot.addWidget(wizard)
