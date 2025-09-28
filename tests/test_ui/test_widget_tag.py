@@ -158,7 +158,7 @@ def test_navigation_opens_tag_tab(
 
     tag = Tag.create(temp_dataset, "Review", "Marks samples for peer review")
 
-    # Set up widget test environment  
+    # Set up widget test environment
     session = temp_dataset.session
     assert session is not None
     session.flush()

@@ -88,7 +88,7 @@ def test_token_picker_multi_select_requires_accept(qt_app):
         widget.clear_selection()
         qt_app.processEvents()
 
-        assert widget.get_selected_tokens() == []
+        assert not widget.get_selected_tokens()
         assert not first_checkbox.isChecked()
         assert not second_checkbox.isChecked()
     finally:

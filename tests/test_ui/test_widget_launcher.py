@@ -47,9 +47,9 @@ def test_launcher_lists_sqlite_datasets_without_password(
     qt_app,
 ) -> None:
     """Test that launcher correctly lists SQLite datasets without passwords."""
-    launcher_app.config.recent_datasets = [str(temp_dataset.db_path)]
+    app_for_launcher_tests.config.recent_datasets = [str(temp_dataset.db_path)]
 
-    launcher = LauncherWidget(None, launcher_app)
+    launcher = LauncherWidget(None, app_for_launcher_tests)
     qt_app.processEvents()
 
     assert launcher.list_widget.count() == 1
@@ -85,7 +85,7 @@ def test_launcher_warns_when_sqlcipher_missing(
     monkeypatch.setattr(DatasetDatabase, "check_db_type", classmethod(fake_check))
     monkeypatch.setitem(SUPPORTED_FEATURES, "sqlcipher3", False)
 
-    launcher_app.config.recent_datasets = [str(encrypted_path)]
+    app_for_launcher_tests.config.recent_datasets = [str(encrypted_path)]
 
     warning_calls: list[str] = []
 
@@ -95,7 +95,7 @@ def test_launcher_warns_when_sqlcipher_missing(
 
     monkeypatch.setattr("py_fade.gui.widget_launcher.QMessageBox.warning", fake_warning)
 
-    launcher = LauncherWidget(None, launcher_app)
+    launcher = LauncherWidget(None, app_for_launcher_tests)
     qt_app.processEvents()
 
     assert not launcher.password_frame.isHidden()
@@ -140,14 +140,14 @@ def test_launcher_validates_password_before_opening(
     monkeypatch.setattr(DatasetDatabase, "check_password", classmethod(fake_password_check))
     monkeypatch.setitem(SUPPORTED_FEATURES, "sqlcipher3", True)
 
-    launcher_app.config.recent_datasets = [str(encrypted_path)]
+    app_for_launcher_tests.config.recent_datasets = [str(encrypted_path)]
 
     open_calls: list[tuple[pathlib.Path, str]] = []
 
     def fake_open_dataset(path: pathlib.Path, password: str) -> None:
         open_calls.append((path, password))
 
-    monkeypatch.setattr(launcher_app, "open_dataset", fake_open_dataset)
+    monkeypatch.setattr(app_for_launcher_tests, "open_dataset", fake_open_dataset)
 
     critical_calls: list[str] = []
 
@@ -157,7 +157,7 @@ def test_launcher_validates_password_before_opening(
 
     monkeypatch.setattr("py_fade.gui.widget_launcher.QMessageBox.critical", fake_critical)
 
-    launcher = LauncherWidget(None, launcher_app)
+    launcher = LauncherWidget(None, app_for_launcher_tests)
     qt_app.processEvents()
 
     assert not launcher.password_frame.isHidden()

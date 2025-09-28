@@ -16,7 +16,7 @@ style and format of original docstring.
 """
 import pathlib
 from typing import TYPE_CHECKING
-import pytest
+
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.sample import Sample
@@ -32,7 +32,7 @@ TEST_DATA_DIR = pathlib.Path(__file__).parent.parent / "data"
 LM_EVAL_TEST_RESULT_1 = TEST_DATA_DIR / "results_2025-09-09T13-31-53.431753.json"
 LM_EVAL_TEST_RESULT_2 = TEST_DATA_DIR / "results_2025-09-09T13-42-42.857006.json"
 
-def test_full_cycle_lm_eval(app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase", tmp_path: pathlib.Path) -> None:
+def test_full_cycle_lm_eval(app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase") -> None:
     """
     Test the full cycle of the application, going through entire user flow.
     Go with case when we import two sets of lm_eval_results, from base and tuned models,
@@ -57,7 +57,7 @@ def test_full_cycle_lm_eval(app_with_dataset: "pyFadeApp", temp_dataset: "Datase
     # Set up import of samples with lm_eval_results format
     import_controller = ImportController(app_with_dataset, temp_dataset)
     source1 = import_controller.add_source(LM_EVAL_TEST_RESULT_1)
-    source2 = import_controller.add_source(LM_EVAL_TEST_RESULT_2)
+    import_controller.add_source(LM_EVAL_TEST_RESULT_2)
     assert len(import_controller.sources) == 2
 
     # Run data loading
@@ -67,7 +67,7 @@ def test_full_cycle_lm_eval(app_with_dataset: "pyFadeApp", temp_dataset: "Datase
 
     # Set up regression filtering, assuming first source is tuned, second is base
     import_controller.add_filter("paired_comparison", {
-        "filter_type": "new_failure", 
+        "filter_type": "new_failure",
         "set_facet_pairwise_ranking": True, # Treat paired benchmarks as DPO signal, auto choose correct over wrong
         })
     import_controller.apply_filters()

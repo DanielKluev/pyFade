@@ -31,8 +31,8 @@ def test_widget_facet_crud_flow(
 ) -> None:
     """
     Test complete CRUD operations for facets through the WidgetFacet interface.
-    
-    Verifies creation, reading, updating, and deletion of facets with proper 
+
+    Verifies creation, reading, updating, and deletion of facets with proper
     validation and UI state management.
     """
     caplog.set_level(logging.DEBUG, logger="WidgetFacet")
@@ -98,7 +98,7 @@ def test_widget_facet_validation_prevents_duplicates(
 ) -> None:
     """
     Test facet name validation prevents duplicate names.
-    
+
     Verifies that the widget properly validates unique facet names and shows
     appropriate error messages when duplicates are attempted.
     """
@@ -144,7 +144,7 @@ def test_navigation_opens_facet_tab(
 ) -> None:
     """
     Test navigation from sidebar opens appropriate facet tabs.
-    
+
     Verifies that clicking on facets in the navigation sidebar opens the correct
     facet editing interface with proper state initialization.
     """

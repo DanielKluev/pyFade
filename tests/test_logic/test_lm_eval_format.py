@@ -56,7 +56,7 @@ def test_lm_eval_compare() -> None:
 def test_lm_eval_save_raises_not_implemented():
     """Test that save() method raises NotImplementedError as expected."""
     eval_result = LMEvalResult(LM_EVAL_TEST_RESULT_1)
-    
+
     with pytest.raises(NotImplementedError, match="read-only and does not support saving"):
         eval_result.save()
 
