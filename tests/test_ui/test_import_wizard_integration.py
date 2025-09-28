@@ -1,35 +1,72 @@
 """
-Test Import Wizard menu integration.
+Test Import Wizard menu integration with pytest-qt.
 """
-def test_import_wizard_menu_exists():
-    """
-    Test that the Import Data menu item exists and can be imported.
-    """
-    from py_fade.gui.widget_dataset_top import WidgetDatasetTop
-    from py_fade.gui.window_import_wizard import ImportWizard
-    
-    # Test that the classes can be imported successfully
-    assert WidgetDatasetTop is not None
-    assert ImportWizard is not None
-    
-    # Test that ImportWizard has the expected structure
-    assert hasattr(ImportWizard, 'STEP_FILE_SELECTION')
-    assert hasattr(ImportWizard, 'STEP_FORMAT_DETECTION')
-    assert hasattr(ImportWizard, 'STEP_PREVIEW_FILTER')
-    assert hasattr(ImportWizard, 'STEP_CONFIGURATION')
-    assert hasattr(ImportWizard, 'STEP_CONFIRMATION')
-    assert hasattr(ImportWizard, 'STEP_IMPORT_PROGRESS')
-    assert hasattr(ImportWizard, 'STEP_RESULTS')
+
+from py_fade.gui.widget_dataset_top import WidgetDatasetTop
+from py_fade.gui.window_import_wizard import ImportWizard, ImportWorkerThread
 
 
-def test_import_worker_thread_exists():
+def test_import_wizard_menu_integration(app_with_dataset, temp_dataset, qt_app, ensure_google_icon_font):
     """
-    Test that ImportWorkerThread can be imported and has the expected structure.
+    Test that the Import Data menu item is properly integrated into the dataset top widget.
     """
-    from py_fade.gui.window_import_wizard import ImportWorkerThread
-    
-    assert ImportWorkerThread is not None
-    assert hasattr(ImportWorkerThread, 'progress_updated')
-    assert hasattr(ImportWorkerThread, 'import_completed')
-    assert hasattr(ImportWorkerThread, 'import_failed')
-    assert hasattr(ImportWorkerThread, 'run')
+    # Create the dataset top widget
+    widget = WidgetDatasetTop(None, app_with_dataset, temp_dataset)
+    qt_app.processEvents()
+
+    # Verify the menu item exists
+    assert widget.action_import_wizard is not None
+
+    # Verify the menu item has the correct text
+    assert widget.action_import_wizard.text() == "Import Data…"
+
+    # Verify the menu item is in the file menu
+    assert widget.action_import_wizard.parent() == widget.file_menu
+
+    # Verify the handler is connected (we can test the method exists)
+    assert hasattr(widget, '_handle_import_wizard')
+    assert callable(widget._handle_import_wizard)
+
+    widget.close()
+    qt_app.processEvents()
+
+
+def test_import_wizard_instantiation_from_menu(app_with_dataset, temp_dataset, qt_app):
+    """
+    Test that ImportWizard can be instantiated and shown properly.
+    """
+    # Create wizard directly (as the menu handler would)
+    wizard = ImportWizard(None, app_with_dataset, temp_dataset)
+    qt_app.processEvents()
+
+    # Test basic properties
+    assert wizard.windowTitle() == "Import Data Wizard"
+    assert wizard.isModal()
+
+    # Test that it has the expected step widgets
+    assert wizard.content_stack.count() == 7  # Should have 7 steps
+
+    # Test initial step display
+    assert wizard.content_stack.currentIndex() == ImportWizard.STEP_FILE_SELECTION
+
+    # Close the wizard
+    wizard.close()
+    qt_app.processEvents()
+
+
+def test_import_worker_thread_creation():
+    """
+    Test that ImportWorkerThread can be created and has expected interface.
+    """
+    from py_fade.controllers.import_controller import ImportController
+
+    # Create import controller and worker
+    import_controller = ImportController(None, None)
+    worker = ImportWorkerThread(import_controller)
+
+    assert worker is not None
+    assert hasattr(worker, 'progress_updated')
+    assert hasattr(worker, 'import_completed')
+    assert hasattr(worker, 'import_failed')
+    assert hasattr(worker, 'run')
+    assert worker.import_controller == import_controller

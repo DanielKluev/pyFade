@@ -231,7 +231,7 @@ class WidgetDatasetTop(QMainWindow):
         except (OSError, RuntimeError) as exc:  # pragma: no cover - defensive guard
             self.log.warning("Failed to probe dataset encryption state: %s", exc)
 
-        tooltip_sqlcipher_missing = ("SQLCipher support is required. Install the sqlcipher3 package to enable this action.")
+        tooltip_sqlcipher_missing = "SQLCipher support is required. Install the sqlcipher3 package to enable this action."
 
         if self.action_encrypt_save_as is not None:
             self.action_encrypt_save_as.setVisible(not is_encrypted)

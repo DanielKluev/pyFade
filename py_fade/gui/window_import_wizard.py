@@ -799,9 +799,9 @@ class ImportWizard(QDialog):
 
         # Update results
         results_parts = [
-            f"Import completed successfully!",
-            f"",
-            f"RESULTS:",
+            "Import completed successfully!",
+            "",
+            "RESULTS:",
             f"  • Records imported: {imported_count}",
             f"  • Samples created: {self.import_controller.import_summary.imported_samples}",
             f"  • Completions created: {self.import_controller.import_summary.imported_completions}",
