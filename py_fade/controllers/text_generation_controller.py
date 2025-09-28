@@ -90,14 +90,11 @@ class TextGenerationController:
     all_completions: list[LLMResponse]
     cached_prefixes: dict[str, CompletionPrefix]
 
-    def __init__(
-        self,
-        app: "PyFadeApp",
-        mapped_model: "MappedModel",
-        dataset: "DatasetDatabase",
-        prompt_revision: PromptRevision,
-    ) -> None:
-        """Bind the controller to the owning app, dataset, and selected model."""
+    def __init__(self, app: "PyFadeApp", mapped_model: "MappedModel", dataset: "DatasetDatabase", 
+                 prompt_revision: PromptRevision) -> None:
+        """
+        Bind the controller to the owning app, dataset, and selected model.
+        """
         self.log = logging.getLogger("TextGenerationController")
         self.app = app
         self.all_completions = []
