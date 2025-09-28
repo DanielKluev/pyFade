@@ -1,6 +1,7 @@
 """
 Test Widgets test module.
 """
+# pylint: disable=protected-access
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt

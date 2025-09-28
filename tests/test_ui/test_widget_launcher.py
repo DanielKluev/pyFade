@@ -1,6 +1,7 @@
 """
 Test Widget Launcher test module.
 """
+# pylint: disable=unused-argument,redefined-outer-name
 from __future__ import annotations
 
 import os
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def app_for_launcher_tests(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, _qt_app) -> Generator[pyFadeApp, None, None]:
+def app_for_launcher_tests(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, qt_app) -> Generator[pyFadeApp, None, None]:
     """Create a pyFadeApp instance for launcher testing."""
     fake_home = tmp_path / "home"
     fake_home.mkdir(parents=True, exist_ok=True)
@@ -42,7 +43,7 @@ def app_for_launcher_tests(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPat
 def test_launcher_lists_sqlite_datasets_without_password(
     app_for_launcher_tests: pyFadeApp,
     temp_dataset: DatasetDatabase,
-    _ensure_google_icon_font,  # Used for side effect of loading icon font
+    ensure_google_icon_font,  # Used for side effect of loading icon font
     qt_app,
 ) -> None:
     """Test that launcher correctly lists SQLite datasets without passwords."""
@@ -65,7 +66,7 @@ def test_launcher_lists_sqlite_datasets_without_password(
 
 def test_launcher_warns_when_sqlcipher_missing(
     app_for_launcher_tests: pyFadeApp,
-    _ensure_google_icon_font,  # Used for side effect of loading icon font
+    ensure_google_icon_font,  # Used for side effect of loading icon font
     qt_app,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: pathlib.Path,
@@ -110,7 +111,7 @@ def test_launcher_warns_when_sqlcipher_missing(
 
 def test_launcher_validates_password_before_opening(
     app_for_launcher_tests: pyFadeApp,
-    _ensure_google_icon_font,  # Used for side effect of loading icon font
+    ensure_google_icon_font,  # Used for side effect of loading icon font
     qt_app,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: pathlib.Path,

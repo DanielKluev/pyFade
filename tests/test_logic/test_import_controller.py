@@ -1,6 +1,7 @@
 """
 Test ImportController functionality.
 """
+# pylint: disable=protected-access
 import json
 import pathlib
 import tempfile

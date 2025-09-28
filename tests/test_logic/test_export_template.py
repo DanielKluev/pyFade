@@ -1,6 +1,7 @@
 """
 Test ExportTemplate functionality.
 """
+# pylint: disable=protected-access
 import pytest
 
 from py_fade.dataset.export_template import ExportTemplate

@@ -3,6 +3,7 @@ Test suite for WidgetTag GUI component.
 
 Tests tag creation, editing, deletion, validation, and navigation functionality.
 """
+# pylint: disable=unused-argument
 from __future__ import annotations
 
 import logging
@@ -25,7 +26,7 @@ def test_widget_tag_crud_flow(
     app_with_dataset: "pyFadeApp",
     temp_dataset: "DatasetDatabase",
     qt_app: "QApplication",
-    _ensure_google_icon_font: None,  # Used for side effect of loading icon font
+    ensure_google_icon_font: None,  # Used for side effect of loading icon font
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -96,7 +97,7 @@ def test_widget_tag_validation_prevents_duplicates(
     app_with_dataset: "pyFadeApp",
     temp_dataset: "DatasetDatabase",
     qt_app: "QApplication",
-    _ensure_google_icon_font: None,  # Used for side effect of loading icon font
+    ensure_google_icon_font: None,  # Used for side effect of loading icon font
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -143,7 +144,7 @@ def test_navigation_opens_tag_tab(
     app_with_dataset: "pyFadeApp",
     temp_dataset: "DatasetDatabase",
     qt_app: "QApplication",
-    _ensure_google_icon_font: None,  # Used for side effect of loading icon font
+    ensure_google_icon_font: None,  # Used for side effect of loading icon font
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """

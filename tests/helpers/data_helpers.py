@@ -3,6 +3,7 @@ Database and data setup helpers for testing.
 """
 from __future__ import annotations
 
+import hashlib
 from typing import TYPE_CHECKING, List
 
 from py_fade.dataset.completion import PromptCompletion
@@ -43,13 +44,18 @@ def create_test_completion(session, prompt_revision, completion_overrides=None):
 
     This helper eliminates duplicate completion creation code across test files.
     """
+    completion_text = completion_overrides.get("completion_text", "Test completion") if completion_overrides else "Test completion"
+    sha256_hash = hashlib.sha256(completion_text.encode("utf-8")).hexdigest()
+
     completion_defaults = {
         "prompt_revision": prompt_revision,
         "model_id": "test-model",
-        "full_history": [{"role": "user", "content": "Test prompt"}],
+        "temperature": 0.7,
+        "top_k": 40,
+        "sha256": sha256_hash,
         "prefill": "",
         "beam_token": "",
-        "completion_text": "Test completion",
+        "completion_text": completion_text,
         "tags": None,
         "context_length": 2048,
         "max_tokens": 128,
@@ -58,6 +64,9 @@ def create_test_completion(session, prompt_revision, completion_overrides=None):
     }
     if completion_overrides:
         completion_defaults.update(completion_overrides)
+        # Regenerate hash if completion_text was overridden
+        if "completion_text" in completion_overrides:
+            completion_defaults["sha256"] = hashlib.sha256(completion_defaults["completion_text"].encode("utf-8")).hexdigest()
 
     completion = PromptCompletion(**completion_defaults)
     session.add(completion)
