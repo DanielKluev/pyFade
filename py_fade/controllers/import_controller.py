@@ -10,7 +10,6 @@ import logging
 import pathlib
 from typing import TYPE_CHECKING
 
-from py_fade.app import PyFadeApp
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.prompt import PromptRevision
@@ -18,6 +17,9 @@ from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.facet import Facet
 from py_fade.data_formats.lm_eval_results import LMEvalResult
+
+if TYPE_CHECKING:
+    from py_fade.app import PyFadeApp
 
 if TYPE_CHECKING:
     from py_fade.data_formats.lm_eval_results import LMEvalSample
@@ -33,11 +35,13 @@ class ImportSummary:
     imported_samples: int = 0
     imported_completions: int = 0
 
+
 class ImportController:
     """
     ImportController manages the import of data into the dataset.
     Handles format detection, samples extraction, filtering, validation, and insertion.
     """
+
     def __init__(self, app: "PyFadeApp", dataset: "DatasetDatabase") -> None:
         """
         Initialize the controller with references to the app and dataset.
@@ -53,7 +57,7 @@ class ImportController:
         self.import_summary = ImportSummary()
         self.group_path = None  # Custom group path for samples
 
-    def add_source(self, source_path: pathlib.Path|str, data_format: str | None = None) -> LMEvalResult:
+    def add_source(self, source_path: pathlib.Path | str, data_format: str | None = None) -> LMEvalResult:
         """
         Add a new data source to the controller.
         Detects format if not provided, binds appropriate parser.
@@ -173,14 +177,8 @@ class ImportController:
         """
         Configure rating values for outcomes.
         """
-        self.rating_config = {
-            "correct": correct,
-            "incorrect": incorrect,
-            "chosen": chosen,
-            "rejected": rejected
-        }
-        self.log.info("Set ratings: correct=%d, incorrect=%d, chosen=%d, rejected=%d",
-                     correct, incorrect, chosen, rejected)
+        self.rating_config = {"correct": correct, "incorrect": incorrect, "chosen": chosen, "rejected": rejected}
+        self.log.info("Set ratings: correct=%d, incorrect=%d, chosen=%d, rejected=%d", correct, incorrect, chosen, rejected)
 
     def set_group_path(self, group_path: str) -> None:
         """
@@ -236,41 +234,23 @@ class ImportController:
         for prompt_hash, records in records_by_hash.items():
             # Create or get PromptRevision
             prompt_text = records[0].prompt_text
-            prompt_revision = PromptRevision.get_or_create(
-                self.dataset,
-                prompt_text,
-                context_length=self.app.config.default_context_length,
-                max_tokens=self.app.config.default_max_tokens
-            )
+            prompt_revision = PromptRevision.get_or_create(self.dataset, prompt_text, context_length=self.app.config.default_context_length,
+                                                           max_tokens=self.app.config.default_max_tokens)
 
             # Create Sample if it doesn't exist
-            sample = Sample.create_if_unique(
-                self.dataset,
-                title=f"Import: {prompt_hash[:8]}",
-                prompt_revision=prompt_revision,
-                group_path=self._get_group_path()
-            )
+            sample = Sample.create_if_unique(self.dataset, title=f"Import: {prompt_hash[:8]}", prompt_revision=prompt_revision,
+                                             group_path=self._get_group_path())
             if sample:
                 samples_created += 1
 
             # Create completions for each record
             for record in records:
                 # Create PromptCompletion
-                completion = PromptCompletion(
-                    prompt_revision=prompt_revision,
-                    sha256=self._compute_sha256(record.response_text),
-                    model_id=self._find_model_id_for_record(record),
-                    temperature=0.0,
-                    top_k=1,
-                    prefill=None,
-                    beam_token=None,
-                    completion_text=record.response_text,
-                    tags=None,
-                    context_length=self.app.config.default_context_length,
-                    max_tokens=self.app.config.default_max_tokens,
-                    is_truncated=False,
-                    is_archived=False
-                )
+                completion = PromptCompletion(prompt_revision=prompt_revision, sha256=self._compute_sha256(record.response_text),
+                                              model_id=self._find_model_id_for_record(record), temperature=0.0, top_k=1, prefill=None,
+                                              beam_token=None, completion_text=record.response_text, tags=None,
+                                              context_length=self.app.config.default_context_length,
+                                              max_tokens=self.app.config.default_max_tokens, is_truncated=False, is_archived=False)
                 self.dataset.session.add(completion)
                 self.dataset.session.flush()  # Get the ID
                 completions_created += 1
@@ -280,22 +260,17 @@ class ImportController:
                     is_success = record.is_success()
                     if is_success is not None:
                         rating = self.rating_config["correct"] if is_success else self.rating_config["incorrect"]
-                        PromptCompletionRating.set_rating(
-                            self.dataset, completion, self.target_facet, rating
-                        )
+                        PromptCompletionRating.set_rating(self.dataset, completion, self.target_facet, rating)
 
                 imported_count += 1
 
         self.dataset.session.commit()
 
         # Update summary
-        self.import_summary = ImportSummary(
-            imported_samples=samples_created,
-            imported_completions=completions_created
-        )
+        self.import_summary = ImportSummary(imported_samples=samples_created, imported_completions=completions_created)
 
-        self.log.info("Import completed: %d records imported, %d samples created, %d completions created",
-                     imported_count, samples_created, completions_created)
+        self.log.info("Import completed: %d records imported, %d samples created, %d completions created", imported_count, samples_created,
+                      completions_created)
         return imported_count
 
     def _find_model_id_for_record(self, record: "LMEvalSample") -> str:
