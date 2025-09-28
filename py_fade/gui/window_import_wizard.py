@@ -65,6 +65,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from py_fade.gui.components.wizard_base import BaseWizard
 from py_fade.controllers.import_controller import ImportController
 from py_fade.dataset.facet import Facet
 
@@ -113,7 +114,7 @@ class ImportWorkerThread(QThread):
             self.import_failed.emit(str(e))
 
 
-class ImportWizard(QDialog):  # pylint: disable=too-many-public-methods
+class ImportWizard(BaseWizard):  # pylint: disable=too-many-public-methods
     """
     Step-by-step wizard for importing data into the dataset.
     """
@@ -127,11 +128,7 @@ class ImportWizard(QDialog):  # pylint: disable=too-many-public-methods
     STEP_RESULTS = 6
 
     def __init__(self, parent: QWidget | None, app: "pyFadeApp", dataset: "DatasetDatabase"):
-        super().__init__(parent)
-
-        self.log = logging.getLogger("ImportWizard")
-        self.app = app
-        self.dataset = dataset
+        # Initialize import-specific attributes
         self.import_controller = ImportController(app, dataset)
         self.import_worker: ImportWorkerThread | None = None
 
@@ -140,13 +137,6 @@ class ImportWizard(QDialog):  # pylint: disable=too-many-public-methods
         self.available_facets: list[Facet] = []
 
         # Initialize UI widget attributes to avoid pylint warnings
-        self.file_selection_widget = None
-        self.format_detection_widget = None
-        self.preview_filter_widget = None
-        self.configuration_widget = None
-        self.confirmation_widget = None
-        self.progress_widget = None
-        self.results_widget = None
         self.file_list = None
         self.add_file_button = None
         self.remove_file_button = None
@@ -168,82 +158,63 @@ class ImportWizard(QDialog):  # pylint: disable=too-many-public-methods
         self.results_label = None
         self.results_text = None
 
-        self.setWindowTitle("Import Data Wizard")
-        self.setModal(True)
-        self.resize(800, 600)
+        # Call parent constructor (this will call setup_step_widgets)
+        super().__init__(parent, app, dataset, "Import Data Wizard")
 
-        self.setup_ui()
+        # Load facets after UI is set up
         self.load_facets()
-        self.show_step(self.STEP_FILE_SELECTION)
-
-    def setup_ui(self):
-        """
-        Create and arrange the wizard UI components.
-        """
-        main_layout = QVBoxLayout(self)
-
-        # Header
-        header_label = QLabel("Import Data Wizard", self)
-        header_label.setStyleSheet("font-size: 18px; font-weight: bold; margin-bottom: 10px;")
-        main_layout.addWidget(header_label)
-
-        # Step content area
-        self.content_stack = QStackedWidget(self)
-        main_layout.addWidget(self.content_stack)
-
-        # Navigation buttons
-        button_layout = QHBoxLayout()
-        self.back_button = QPushButton("← Back", self)
-        self.back_button.clicked.connect(self.go_back)
-        self.back_button.setEnabled(False)
-
-        self.next_button = QPushButton("Next →", self)
-        self.next_button.clicked.connect(self.go_next)
-
-        self.cancel_button = QPushButton("Cancel", self)
-        self.cancel_button.clicked.connect(self.reject)
-
-        button_layout.addWidget(self.back_button)
-        button_layout.addStretch()
-        button_layout.addWidget(self.cancel_button)
-        button_layout.addWidget(self.next_button)
-
-        main_layout.addLayout(button_layout)
-
-        # Create all step widgets
-        self.setup_step_widgets()
 
     def setup_step_widgets(self):
         """
         Create widgets for each step of the wizard.
         """
         # Step 0: File Selection
-        self.file_selection_widget = self.create_file_selection_widget()
-        self.content_stack.addWidget(self.file_selection_widget)
+        file_selection_widget = self.create_file_selection_widget()
+        self.content_stack.addWidget(file_selection_widget)
 
         # Step 1: Format Detection
-        self.format_detection_widget = self.create_format_detection_widget()
-        self.content_stack.addWidget(self.format_detection_widget)
+        format_detection_widget = self.create_format_detection_widget()
+        self.content_stack.addWidget(format_detection_widget)
 
         # Step 2: Preview & Filter
-        self.preview_filter_widget = self.create_preview_filter_widget()
-        self.content_stack.addWidget(self.preview_filter_widget)
+        preview_filter_widget = self.create_preview_filter_widget()
+        self.content_stack.addWidget(preview_filter_widget)
 
         # Step 3: Configuration
-        self.configuration_widget = self.create_configuration_widget()
-        self.content_stack.addWidget(self.configuration_widget)
+        configuration_widget = self.create_configuration_widget()
+        self.content_stack.addWidget(configuration_widget)
 
         # Step 4: Confirmation
-        self.confirmation_widget = self.create_confirmation_widget()
-        self.content_stack.addWidget(self.confirmation_widget)
+        confirmation_widget = self.create_confirmation_widget()
+        self.content_stack.addWidget(confirmation_widget)
 
-        # Step 5: Import Progress
-        self.progress_widget = self.create_progress_widget()
-        self.content_stack.addWidget(self.progress_widget)
+        # Step 5: Import Progress - use BaseWizard method but customize
+        progress_widget = self.create_progress_widget("Importing data from selected files. Please wait...", "Preparing import...")
+        self.content_stack.addWidget(progress_widget)
 
-        # Step 6: Results
-        self.results_widget = self.create_results_widget()
-        self.content_stack.addWidget(self.results_widget)
+        # Get references to progress components and customize
+        self.progress_bar = progress_widget.findChild(QProgressBar, "progress_bar")
+        progress_label = progress_widget.findChild(QLabel, "progress_label")
+        if progress_label:
+            progress_label.setObjectName("progress_status_label")  # For compatibility
+            self.progress_status_label = progress_label
+
+        # Add progress details text area
+        layout = progress_widget.layout()
+        self.progress_details = QTextEdit(progress_widget)
+        self.progress_details.setReadOnly(True)
+        self.progress_details.setMaximumHeight(200)
+        layout.addWidget(self.progress_details)
+
+        # Step 6: Results - use BaseWizard method
+        results_widget = self.create_results_widget("Import completed!")
+        self.content_stack.addWidget(results_widget)
+
+        # Get references to results components
+        results_label = results_widget.findChild(QLabel, "results_label")
+        if results_label:
+            self.results_label = results_label
+        self.results_text = results_widget.findChild(QTextEdit, "results_text")
 
     def create_file_selection_widget(self) -> QWidget:
         """
@@ -448,49 +419,6 @@ class ImportWizard(QDialog):  # pylint: disable=too-many-public-methods
         self.summary_text.setReadOnly(True)
         self.summary_text.setMaximumHeight(300)
         layout.addWidget(self.summary_text)
-
-        return widget
-
-    def create_progress_widget(self) -> QWidget:
-        """
-        Create the import progress step widget.
-        """
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        # Progress bar
-        self.progress_bar = QProgressBar(widget)
-        self.progress_bar.setRange(0, 100)
-        layout.addWidget(self.progress_bar)
-
-        # Status label
-        self.progress_status_label = QLabel("Preparing import...", widget)
-        layout.addWidget(self.progress_status_label)
-
-        # Progress details
-        self.progress_details = QTextEdit(widget)
-        self.progress_details.setReadOnly(True)
-        self.progress_details.setMaximumHeight(200)
-        layout.addWidget(self.progress_details)
-
-        return widget
-
-    def create_results_widget(self) -> QWidget:
-        """
-        Create the results step widget.
-        """
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        # Results summary
-        self.results_label = QLabel("Import completed!", widget)
-        self.results_label.setStyleSheet("font-size: 16px; font-weight: bold;")
-        layout.addWidget(self.results_label)
-
-        # Results details
-        self.results_text = QTextEdit(widget)
-        self.results_text.setReadOnly(True)
-        layout.addWidget(self.results_text)
 
         return widget
 

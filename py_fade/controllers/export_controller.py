@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import exists
 
-from py_fade.app import PyFadeApp
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.export_template import ExportTemplate
 from py_fade.dataset.sample import Sample
@@ -19,7 +18,7 @@ from py_fade.data_formats.base_data_classes import CommonMessage, CommonConversa
 from py_fade.data_formats.share_gpt_format import ShareGPTFormat
 
 if TYPE_CHECKING:
-    pass
+    from py_fade.app import PyFadeApp
 
 
 class ExportController:
