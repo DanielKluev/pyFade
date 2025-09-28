@@ -45,7 +45,7 @@ def test_widget_export_template_crud_flow(
     app_with_dataset: "pyFadeApp",
     temp_dataset: "DatasetDatabase",
     qt_app: "QApplication",
-    ensure_google_icon_font: None,
+    ensure_google_icon_font: None,  # Used for side effect of loading icon font
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -159,7 +159,7 @@ def test_navigation_creates_export_template_tab(
     app_with_dataset: "pyFadeApp",
     temp_dataset: "DatasetDatabase",
     qt_app: "QApplication",
-    ensure_google_icon_font: None,
+    ensure_google_icon_font: None,  # Used for side effect of loading icon font
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """
@@ -207,7 +207,7 @@ def test_navigation_creates_export_template_tab(
     widget.sidebar.tree_view.item_selected.emit("export_template", template.id)
     qt_app.processEvents()
 
-    existing_widget_id = widget._find_tab_by("export_template", template.id)
+    existing_widget_id = widget._find_tab_by("export_template", template.id)  # pylint: disable=protected-access
     assert existing_widget_id is not None
     tab_info = widget.tabs[existing_widget_id]
     assert isinstance(tab_info["widget"], WidgetExportTemplate)
