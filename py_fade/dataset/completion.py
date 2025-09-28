@@ -130,3 +130,8 @@ class PromptCompletion(dataset_base):
         if not facet:
             return None
         return next((rating for rating in self.ratings if rating.facet_id == facet.id), None)
+
+    @staticmethod 
+    def _compute_sha256(text: str) -> str:
+        """Compute SHA256 hash of text."""
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()

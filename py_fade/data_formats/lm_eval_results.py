@@ -16,6 +16,7 @@ import math
 import pathlib
 from typing import Any, Dict, Iterable, List, Optional
 
+from py_fade.data_formats.base_data_format import BaseDataFormat
 
 MODULE_LOGGER = logging.getLogger(__name__)
 
@@ -66,13 +67,17 @@ class LMEvalSample:
         return None
 
 
-class LMEvalResult:
+class LMEvalResult(BaseDataFormat):
     """Loader and comparator for lm-eval harness result archives."""
 
     def __init__(self, result_json_path: pathlib.Path | str) -> None:
-        self.result_json_path = pathlib.Path(result_json_path)
         self.log = logging.getLogger(self.__class__.__name__)
+        self._loaded = False
+        self.set_path(result_json_path)
 
+    def set_path(self, path: pathlib.Path | str) -> None:
+        """Set the base path for this data format instance."""
+        self.result_json_path = pathlib.Path(path)
         # Try to find samples JSONL file next to results JSON file.
         match_pattern = self.result_json_path.stem.replace("results_", "*") + ".jsonl"
         candidates = list(self.result_json_path.parent.glob(match_pattern))
@@ -94,8 +99,10 @@ class LMEvalResult:
         self._samples_by_hash: Dict[str, LMEvalSample] = {}
         self._loaded = False
 
-    def load(self) -> None:
+    def load(self, file_path: str|pathlib.Path|None = None) -> int:
         """Read the summary JSON and sample JSONL files into memory."""
+        if file_path:
+            self.set_path(file_path)
 
         summary = self._read_json(self.result_json_path)
         self.model_id = self._infer_model_id(summary)
@@ -112,6 +119,20 @@ class LMEvalResult:
             self.result_json_path,
             self.model_id,
             self.origin_name,
+        )
+        return len(self.samples)
+
+    def save(self, file_path: str|pathlib.Path|None = None) -> int:
+        """
+        Save data to the destination.
+        
+        LMEvalResult format is primarily for loading and comparing evaluation results,
+        not for exporting. This method is implemented for ABC compliance but raises
+        NotImplementedError to indicate the format doesn't support saving.
+        """
+        raise NotImplementedError(
+            "LMEvalResult format is read-only and does not support saving. "
+            "Use this format for loading and comparing lm-evaluation-harness results."
         )
 
     def compare(self, other: "LMEvalResult") -> Dict[str, List[LMEvalSample]]:
