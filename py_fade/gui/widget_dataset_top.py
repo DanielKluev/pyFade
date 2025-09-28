@@ -93,6 +93,7 @@ class WidgetDatasetTop(QMainWindow):
         self.action_exit_application: QAction | None = None
         self.action_import_wizard: QAction | None = None
         self.action_manage_export_templates: QAction | None = None
+        self.action_export_wizard: QAction | None = None
         self.action_export_current_facet: QAction | None = None
         self.action_open_encryption_docs: QAction | None = None
         self.action_about: QAction | None = None
@@ -212,6 +213,7 @@ class WidgetDatasetTop(QMainWindow):
             return
         self.export_menu = export_menu
         self.action_manage_export_templates = export_menu.addAction("Manage Export Templates")
+        self.action_export_wizard = export_menu.addAction("Export Wizard...")
         self.action_export_current_facet = export_menu.addAction("Open Current Facet in Export Editor")
 
         help_menu = menu_bar.addMenu("&Help")
@@ -260,6 +262,9 @@ class WidgetDatasetTop(QMainWindow):
 
         if self.action_manage_export_templates is not None:
             self.action_manage_export_templates.setEnabled(True)
+
+        if self.action_export_wizard is not None:
+            self.action_export_wizard.setEnabled(True)
 
         if self.action_export_current_facet is not None:
             self.action_export_current_facet.setEnabled(self.current_facet is not None)
@@ -418,6 +423,19 @@ class WidgetDatasetTop(QMainWindow):
         if hasattr(self.sidebar, "refresh"):
             self.sidebar.refresh()
 
+    def _handle_export_wizard(self, _checked: bool = False) -> None:
+        """Open the Export Data Wizard."""
+
+        # Import here to avoid circular dependency
+        from py_fade.gui.window_export_wizard import ExportWizard  # pylint: disable=import-outside-toplevel
+
+        self.log.info("Opening Export Data Wizard")
+        wizard = ExportWizard(self, self.app, self.dataset)
+        if wizard.exec() == QDialog.DialogCode.Accepted:
+            # Refresh the sidebar in case export affected anything
+            if hasattr(self.sidebar, "refresh"):
+                self.sidebar.refresh()
+
     def _handle_export_current_facet(self, _checked: bool = False) -> None:
         """Bootstrap an export template scoped to the currently selected facet."""
 
@@ -555,6 +573,8 @@ class WidgetDatasetTop(QMainWindow):
             self.action_exit_application.triggered.connect(self._handle_exit_application)
         if self.action_manage_export_templates is not None:
             self.action_manage_export_templates.triggered.connect(self._handle_manage_export_templates)
+        if self.action_export_wizard is not None:
+            self.action_export_wizard.triggered.connect(self._handle_export_wizard)
         if self.action_export_current_facet is not None:
             self.action_export_current_facet.triggered.connect(self._handle_export_current_facet)
         if self.action_open_encryption_docs is not None:
