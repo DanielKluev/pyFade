@@ -12,19 +12,18 @@ import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QMessageBox
 
+from py_fade.app import pyFadeApp
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.features_checker import SUPPORTED_FEATURES
 from py_fade.gui.widget_launcher import LauncherWidget, RecentDatasetInfo
 
 if TYPE_CHECKING:
-    from py_fade.app import pyFadeApp
+    pass
 
 
 @pytest.fixture
 def app_for_launcher_tests(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, _qt_app) -> Generator[pyFadeApp, None, None]:
     """Create a pyFadeApp instance for launcher testing."""
-    from py_fade.app import pyFadeApp
-
     fake_home = tmp_path / "home"
     fake_home.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(pathlib.Path, "home", lambda: fake_home)

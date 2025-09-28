@@ -51,6 +51,7 @@ def test_navigation_tree_lists_facets(temp_dataset, qt_app):
 
 def test_navigation_sidebar_emits_selection(app_with_dataset, temp_dataset, ensure_google_icon_font, qt_app):
     """Test that navigation sidebar correctly emits selection events."""
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
     # Ensure a facet exists so the sidebar initialises correctly.
     facet = Facet.create(temp_dataset, "Context", "Sidebar facet")
     temp_dataset.commit()
