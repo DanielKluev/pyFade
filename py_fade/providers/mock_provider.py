@@ -36,7 +36,8 @@ from py_fade.providers.base_provider import (
     LOGPROB_LEVEL_TOP_LOGPROBS,
     BasePrefillAwareProvider,
 )
-from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMResponse
+from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMResponse, LLMResponseLogprobs
+from py_fade.data_formats.base_data_classes import CommonConversation
 
 _GPT2_ENCODING = tiktoken.get_encoding("gpt2")
 _COMMON_OPENERS: Sequence[str] = (
@@ -353,13 +354,8 @@ class MockLLMProvider(BasePrefillAwareProvider):
     id: str = "mock"
     is_local_vram: bool = False
 
-    def __init__(
-        self,
-        default_temperature: float = 0.7,
-        default_top_k: int = 40,
-        default_context_length: int = 1024,
-        default_max_tokens: int = 128,
-    ) -> None:
+    def __init__(self, default_temperature: float = 0.7, default_top_k: int = 40, default_context_length: int = 1024,
+                 default_max_tokens: int = 128) -> None:
         self.log = logging.getLogger("MockLLMProvider")
         super().__init__(
             default_temperature,
@@ -368,30 +364,15 @@ class MockLLMProvider(BasePrefillAwareProvider):
             default_max_tokens,
         )
 
-    def generate(
-        self,
-        model_id: str,
-        prompt: str,
-        prefill: str | None = None,
-        **kwargs,
-    ) -> LLMResponse:
+    def generate(self, model_id: str, prompt: CommonConversation, prefill: str | None = None, **kwargs) -> LLMResponse:
         temperature = kwargs.get("temperature", self.default_temperature)
         top_k = kwargs.get("top_k", self.default_top_k)
         context_length = kwargs.get("context_length", self.default_context_length)
         max_tokens = kwargs.get("max_tokens", self.default_max_tokens)
         top_logprobs = kwargs.get("top_logprobs", 0)
 
-        parsed_messages = self.flat_prefix_template_to_messages(prompt, prefill)
-        history_messages: list[dict[str, str]] = []
-        for index, message in enumerate(parsed_messages):
-            role = message.get("role", "user")
-            content = message.get("content", "")
-            if (prefill and index == len(parsed_messages) - 1 and role == "assistant" and content == prefill):
-                continue
-            history_messages.append({"role": role, "content": content})
-
         generator = MockResponseGenerator(
-            messages=history_messages,
+            messages=prompt.as_list(),
             prefill=prefill or "",
             max_length=max_tokens,
             top_logprobs=top_logprobs,
@@ -409,7 +390,7 @@ class MockLLMProvider(BasePrefillAwareProvider):
 
         return LLMResponse(
             model_id=model_id,
-            full_history=history_messages,
+            prompt_conversation=prompt,
             completion_text=full_response_text,
             generated_part_text=response_text,
             temperature=temperature,
@@ -417,23 +398,18 @@ class MockLLMProvider(BasePrefillAwareProvider):
             prefill=prefill,
             context_length=context_length,
             max_tokens=max_tokens,
-            logprobs=logprobs,
+            logprobs=LLMResponseLogprobs(
+                logprobs_model_id=model_id,
+                logprobs=logprobs,
+            ),
             is_truncated=is_truncated,
             beam_token=kwargs.get("beam_token", None),
         )
 
-    def evaluate_completion(
-        self,
-        model_id: str,
-        prompt: str,
-        completion: str,
-        **kwargs,
-    ) -> list[SinglePositionTokenLogprobs]:
+    def evaluate_completion(self, model_id: str, prompt: CommonConversation, completion: str, **kwargs) -> LLMResponseLogprobs:
         top_logprobs = kwargs.get("top_logprobs", 20)
-        parsed_messages = self.flat_prefix_template_to_messages(prompt)
-        history_messages = [{"role": message.get("role", "user"), "content": message.get("content", "")} for message in parsed_messages]
         generator = MockResponseGenerator(
-            messages=history_messages,
+            messages=prompt.as_list(),
             prefill="",
             max_length=0,
             top_logprobs=top_logprobs,
@@ -447,4 +423,7 @@ class MockLLMProvider(BasePrefillAwareProvider):
                 generated_text,
                 completion,
             )
-        return logprobs
+        return LLMResponseLogprobs(
+            logprobs_model_id=model_id,
+            logprobs=logprobs,
+        )
