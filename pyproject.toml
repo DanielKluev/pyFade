@@ -4,6 +4,9 @@
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+include = ["py_fade*"]
+
 [project]
 name = "pyFADE"
 version = "0.0.1"
@@ -13,9 +16,9 @@ authors = [
 description = "A short description of the pyFADE project."
 readme = "README.md"
 requires-python = ">=3.8"
+license = {text = "MIT"}
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 
@@ -36,9 +39,19 @@ dependencies = [
 "Bug Tracker" = "https://github.com/DanielKluev/pyFade/issues"
 
 [project.optional-dependencies]
-dev = [ "yapf>=0.40.0", "ruff>=0.6.9", "pytest", "pytest-qt", "pylint", ]
+dev = [ 
+  "yapf>=0.40.0", 
+  "ruff>=0.6.9", 
+  "pytest", 
+  "pytest-qt", 
+  "pylint", 
+  "pyqt6-stubs",
+  "mypy",
+  "types-PyYAML",
+]
 
 # -------------------------------------------------------------------
+# YAPF configuration section
 
 [tool.yapf]
 # This section contains the configuration for the YAPF formatter.
@@ -48,3 +61,64 @@ column_limit = 140
 split_before_named_assigns = false
 coalesce_brackets = true
 dedent_closing_brackets = false
+
+# -------------------------------------------------------------------
+# Pylint configuration section
+
+[tool.pylint.MASTER]
+extension-pkg-allow-list = ["PyQt6"]
+
+[tool.pylint.MISC]
+# Allow PyQt6 modules to be imported
+known-third-party = ["PyQt6"]
+
+[tool.pylint."MESSAGES CONTROL"]
+disable = [
+    "R0902",  # too-many-instance-attributes
+    "R0914",  # too-many-locals
+    "R0913",  # too-many-arguments
+    "R0912",  # too-many-branches
+    "R0915",  # too-many-statements
+    "R0917",  # too-many-positional-arguments
+    "R0903",  # too-few-public-methods
+]
+
+[tool.pylint.REPORTS]
+score = true
+
+[tool.pylint.FORMAT]
+max-line-length = 140
+
+# -------------------------------------------------------------------
+# Pytest configuration section
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# -------------------------------------------------------------------
+# Ruff configuration section
+
+[tool.ruff]
+line-length = 140
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "ALL", # include all the rules, including new ones
+]
+ignore = [
+    "F401",  # ignore unused imports
+    "D212",  # ignore "Multi-line docstring summary should start at the first line" - intentional style choice
+    "D200",  # ignore "One-line docstring should fit on one line" - intentional style choice
+    "I001",  # ignore "Import statements are in the wrong order" - intentional style choice
+    "EM101",  # ignore "Exception must not use a string literal, assign to variable first" - intentional, too verbose otherwise
+    "EM102",  # ignore "Exception must not use an f-string literal, assign to variable first" - intentional, too verbose otherwise
+    "TRY003", # ignore "Avoid specifying long messages outside the exception class" - intentional, too verbose otherwise
+    "ANN003", # ignore "Missing type annotation for `**kwargs`" - meaningless in many cases
+    "ANN204", # ignore "Missing return type annotation for special method `__init__`" - no need for __init__
+    "ARG002", # ignore "Unused method argument: `kwargs`" - intentional in many cases
+    "RET504", # ignore "Unnecessary assignment to `result` before `return` statement" - sometimes useful for debugging
+]
