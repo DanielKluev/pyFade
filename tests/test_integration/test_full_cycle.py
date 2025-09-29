@@ -85,6 +85,15 @@ def test_full_cycle_lm_eval(app_with_dataset: "pyFadeApp", temp_dataset: "Datase
     assert len(samples) == 1
     completions = samples[0].completions
     assert len(completions) == 2
+    
+    # IMPORTANT: Check that completions have different model_ids
+    completion_model_ids = [completion.model_id for completion in completions]
+    print(f"DEBUG: Completion model_ids: {completion_model_ids}")
+    
+    # Expected: one completion from tuned model (gemma3:12b-u1) and one from base model (gemma3:12b-it-q4_K_M)
+    expected_models = {"gemma3:12b-u1", "gemma3:12b-it-q4_K_M"}
+    actual_models = set(completion_model_ids)
+    assert actual_models == expected_models, f"Expected models {expected_models}, got {actual_models}"
 
     # Create export template for math facet, SFT style
     facet_config = {
