@@ -7,11 +7,10 @@ from py_fade.providers.mock_provider import (
     MockLLMProvider,
     MockResponseGenerator,
     _COMMON_OPENERS,
+    _VOCAB_TOKEN_STRINGS,
 )
 
-from py_fade.providers.flat_prefix_template import apply_flat_prefix_template
-from py_fade.providers.providers_manager import MappedModel, InferenceProvidersManager
-from py_fade.controllers.text_generation_controller import TextGenerationController
+from py_fade.providers.flat_prefix_template import apply_flat_prefix_template, parse_flat_prefix_string
 from py_fade.data_formats.base_data_classes import CommonConversation
 
 
@@ -131,17 +130,18 @@ def test_mock_provider_generate_accepts_prefill_and_flat_prefix_prompt():
         },
     ]
     prompt = apply_flat_prefix_template(messages)
+    conversation = parse_flat_prefix_string(prompt)
     prefill = "Sure, here's a quick overview: "
 
     response = provider.generate(
         model_id="mock-echo-model",
-        prompt=prompt,
+        prompt=conversation,
         prefill=prefill,
         max_tokens=6,
     )
 
     assert response.prefill == prefill
-    assert response.full_history == messages
+    assert response.prompt_conversation.as_list() == messages
     assert response.completion_text.startswith(prefill)
     assert response.generated_part_text
     assert response.generated_part_text != prefill
@@ -160,7 +160,7 @@ def test_mock_provider_evaluate_completion_matches_completion():
 
     logprobs = provider.evaluate_completion(
         model_id="mock-echo-model",
-        prompt="write something tiny",
+        prompt=CommonConversation.from_single_user("write something tiny"),
         completion=completion,
         top_logprobs=5,
     )
@@ -171,3 +171,156 @@ def test_mock_provider_evaluate_completion_matches_completion():
         if entry.top_logprobs:
             assert entry.top_logprobs[0][0] == entry.token
             assert entry.top_logprobs[0][1] == pytest.approx(entry.logprob)
+
+
+def test_mock_provider_first_position_sentence_starters():
+    """
+    Test that first position includes common sentence starters in top_logprobs.
+
+    Verifies that the first token position includes vocabulary-fitted
+    sentence starters as part of the top_logprobs alternatives.
+    """
+    provider = MockLLMProvider()
+    conversation = CommonConversation.from_single_user("Continue this conversation")
+
+    response = provider.generate(
+        model_id="mock-echo-model",
+        prompt=conversation,
+        top_logprobs=50,
+        max_tokens=1,
+    )
+
+    assert response.logprobs
+    assert len(response.logprobs.logprobs) >= 1
+    first_token_logprobs = response.logprobs.logprobs[0]
+    assert first_token_logprobs.top_logprobs
+
+    # Check that common openers are included in alternatives
+    all_tokens = [t[0] for t in first_token_logprobs.top_logprobs]
+    opener_found = any(opener in all_tokens for opener in _COMMON_OPENERS[:5])
+    assert opener_found, f"Expected at least one common opener in {all_tokens}"
+
+
+def test_mock_provider_large_top_logprobs_uniqueness():
+    """
+    Test that large top_logprobs requests generate all unique tokens.
+
+    Verifies that when requesting a large number of top_logprobs,
+    all tokens in the result are unique, meeting the depth requirement of 200 tokens.
+    """
+    provider = MockLLMProvider()
+    conversation = CommonConversation.from_single_user("Generate a response")
+
+    large_count = 300  # Test beyond the 200 requirement
+    response = provider.generate(
+        model_id="mock-echo-model",
+        prompt=conversation,
+        top_logprobs=large_count,
+        max_tokens=3,
+    )
+
+    assert response.logprobs
+    for entry in response.logprobs.logprobs:
+        assert entry.top_logprobs is not None
+        tokens = [t[0] for t in entry.top_logprobs]
+        assert len(tokens) == large_count
+        assert len(tokens) == len(set(tokens)), f"Found duplicate tokens in {tokens[:10]}..."
+
+
+def test_mock_provider_prefill_overlap_handling():
+    """
+    Test that prefill overlap is handled correctly in token generation.
+
+    Verifies that when a prefill overlaps with the beginning of the generated text,
+    the overlapping portion is correctly skipped in the streaming tokens.
+    """
+    provider = MockLLMProvider()
+    conversation = CommonConversation.from_single_user("Complete this phrase")
+
+    # Test case where prefill might overlap with generated content
+    response = provider.generate(
+        model_id="mock-echo-model",
+        prompt=conversation,
+        prefill="Sure, I'll",
+        max_tokens=10,
+    )
+
+    assert response.prefill == "Sure, I'll"
+    assert response.completion_text.startswith("Sure, I'll")
+    assert response.generated_part_text
+    assert response.generated_part_text != response.prefill
+
+    # Verify the full completion is prefill + generated part
+    assert response.completion_text == response.prefill + response.generated_part_text
+
+
+def test_mock_provider_vocabulary_token_usage():
+    """
+    Test that vocabulary tokens from GPT-2 encoding are used in top_logprobs.
+
+    Verifies that the mock provider uses actual vocabulary tokens
+    for more realistic top_logprobs generation.
+    """
+    provider = MockLLMProvider()
+    conversation = CommonConversation.from_single_user("Test vocabulary usage")
+
+    response = provider.generate(
+        model_id="mock-echo-model",
+        prompt=conversation,
+        top_logprobs=100,
+        max_tokens=3,
+    )
+
+    assert response.logprobs
+    vocab_tokens_found = 0
+
+    for entry in response.logprobs.logprobs:
+        assert entry.top_logprobs is not None
+        tokens = [t[0] for t in entry.top_logprobs]
+
+        # Check if any vocabulary tokens are present
+        for token in tokens:
+            if token in _VOCAB_TOKEN_STRINGS:
+                vocab_tokens_found += 1
+                break
+
+    # Should find vocabulary tokens in the results
+    assert vocab_tokens_found > 0, "Expected to find vocabulary tokens in top_logprobs"
+
+
+def test_mock_provider_deterministic_with_improvements():
+    """
+    Test that improved mock provider maintains deterministic behavior.
+
+    Verifies that despite the improvements, the mock provider still
+    produces deterministic outputs for the same inputs.
+    """
+    provider = MockLLMProvider()
+    conversation = CommonConversation.from_single_user("Test determinism")
+
+    # Generate the same request twice
+    response1 = provider.generate(
+        model_id="mock-echo-model",
+        prompt=conversation,
+        top_logprobs=50,
+        max_tokens=5,
+    )
+
+    response2 = provider.generate(
+        model_id="mock-echo-model",
+        prompt=conversation,
+        top_logprobs=50,
+        max_tokens=5,
+    )
+
+    # Should be identical
+    assert response1.generated_part_text == response2.generated_part_text
+    assert response1.completion_text == response2.completion_text
+
+    # Logprobs should also be identical
+    assert len(response1.logprobs.logprobs) == len(response2.logprobs.logprobs)
+    for lp1, lp2 in zip(response1.logprobs.logprobs, response2.logprobs.logprobs):
+        assert lp1.token == lp2.token
+        assert lp1.logprob == pytest.approx(lp2.logprob)
+        if lp1.top_logprobs and lp2.top_logprobs:
+            assert lp1.top_logprobs == lp2.top_logprobs
