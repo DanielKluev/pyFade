@@ -19,7 +19,6 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QSpinBox,
     QSplitter,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -29,6 +28,7 @@ from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
+from py_fade.gui.components.widget_plain_text_edit import PlainTextEdit
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from py_fade.gui.widget_new_completion import NewCompletionFrame
 from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow
@@ -94,7 +94,7 @@ class WidgetSample(QWidget):
         prompt_frame = QFrame(self)
         prompt_layout = QVBoxLayout(prompt_frame)
 
-        self.prompt_area = QTextEdit(self)
+        self.prompt_area = PlainTextEdit(self)
         self.prompt_area.setPlaceholderText("Enter your prompt here...")
         self.prompt_area.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding))
         self.prompt_area.setMinimumHeight(160)

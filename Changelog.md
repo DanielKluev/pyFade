@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **Prompt Editor Rich Text Bug**: Fixed issue where prompt editor allowed rich markup from copy-paste operations. The prompt editor now enforces plain text only while preserving programmed formatting markers (flat prefix templates).
+  - Created `PlainTextEdit` component that extends `QTextEdit` with plain text enforcement
+  - Replaced `QTextEdit` with `PlainTextEdit` in `WidgetSample` prompt area
+  - Added comprehensive tests for rich text rejection and plain text enforcement
+
+### Added
+- `PlainTextEdit` widget component for plain text only editing with rich text rejection
+
 ## Version 0.0.1 (to be released)
 
 - Initial public release of pyFADE.
