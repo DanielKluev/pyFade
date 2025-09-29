@@ -69,9 +69,7 @@ class WidgetSample(QWidget):
     def __init__(self, parent: QWidget | None, app: "pyFadeApp", sample: Sample | None = None):
         super().__init__(parent)
         if not app.current_dataset:
-            raise RuntimeError(
-                "App does not have a current dataset set. Should open a dataset first."
-            )
+            raise RuntimeError("App does not have a current dataset set. Should open a dataset first.")
 
         self.app = app
         self.dataset = app.current_dataset
@@ -98,9 +96,7 @@ class WidgetSample(QWidget):
 
         self.prompt_area = QTextEdit(self)
         self.prompt_area.setPlaceholderText("Enter your prompt here...")
-        self.prompt_area.setSizePolicy(
-            QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        )
+        self.prompt_area.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding))
         self.prompt_area.setMinimumHeight(160)
         self.prompt_area.textChanged.connect(self.update_token_usage)
 
@@ -245,18 +241,14 @@ class WidgetSample(QWidget):
         total_tokens = prompt_tokens + max_tokens
 
         # Update label text
-        label_text = (
-            f"Tokens: Prompt: {prompt_tokens} | Response: {max_tokens} | Total: "
-            f"{total_tokens} / {context_length}"
-        )
+        label_text = (f"Tokens: Prompt: {prompt_tokens} | Response: {max_tokens} | Total: "
+                      f"{total_tokens} / {context_length}")
         self.token_usage_label.setText(label_text)
 
         # Highlight if total exceeds context length
         if total_tokens > context_length:
-            self.token_usage_label.setStyleSheet(
-                "color: #ff4444; font-weight: bold; font-size: 11px; padding: 4px; "
-                "background-color: #ffe6e6;"
-            )
+            self.token_usage_label.setStyleSheet("color: #ff4444; font-weight: bold; font-size: 11px; padding: 4px; "
+                                                 "background-color: #ffe6e6;")
         else:
             self.token_usage_label.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
 
@@ -367,13 +359,23 @@ class WidgetSample(QWidget):
         self.populate_outputs()
 
     def _on_completion_resume_requested(self, completion: "PromptCompletion") -> None:
-        """Emit a resume request for the given completion."""
+        """Handle resume request for a completion - open ThreeWayCompletionEditorWindow."""
+        if not self.app:
+            return
 
+        # Open the editor window in blocking mode
+        editor = ThreeWayCompletionEditorWindow(self.app, self.dataset, completion, facet=self.active_facet, parent=self)
+
+        # Show as modal dialog
+        result = editor.exec()
+        if result:
+            # Refresh the outputs to reflect any changes made in the editor
+            self.populate_outputs()
+
+        # Also emit the signal for backward compatibility in case any code depends on it
         self.completion_resume_requested.emit(completion)
 
-    def _on_completion_evaluate_requested(
-        self, completion: "PromptCompletion", model_name: str
-    ) -> None:
+    def _on_completion_evaluate_requested(self, completion: "PromptCompletion", model_name: str) -> None:
         """Emit an evaluate request for logprob generation."""
 
         self.completion_evaluate_requested.emit(completion, model_name)
@@ -384,9 +386,7 @@ class WidgetSample(QWidget):
             return
 
         # Open the editor window in blocking mode
-        editor = ThreeWayCompletionEditorWindow(
-            self.app, self.dataset, completion, facet=self.active_facet, parent=self
-        )
+        editor = ThreeWayCompletionEditorWindow(self.app, self.dataset, completion, facet=self.active_facet, parent=self)
 
         # Show as modal dialog
         result = editor.exec()
@@ -417,9 +417,7 @@ class WidgetSample(QWidget):
         """
         Add new accepted response to sample and then add completion to the scroll area.
         """
-        prompt_revision, completion = self.dataset.add_response_as_prompt_and_completion(
-            self.prompt_area.toPlainText(), response
-        )
+        prompt_revision, completion = self.dataset.add_response_as_prompt_and_completion(self.prompt_area.toPlainText(), response)
         self.last_prompt_revision = prompt_revision
         # Create a new CompletionFrame for the saved completion
         frame = self._create_completion_frame(completion)
@@ -478,14 +476,15 @@ class WidgetSample(QWidget):
         prompt_text = self.prompt_area.toPlainText().strip()
         if not prompt_text:
             # Qt MessageBox
-            QMessageBox.warning(
-                self, "Warning", "Please enter a prompt before starting beam search."
-            )
+            QMessageBox.warning(self, "Warning", "Please enter a prompt before starting beam search.")
             return
 
         # Create and show beam search widget as new window
         self.beam_search_widget = WidgetCompletionBeams(
-            parent=None, app=self.app, prompt=prompt_text, sample_widget=self  # Independent window
+            parent=None,
+            app=self.app,
+            prompt=prompt_text,
+            sample_widget=self  # Independent window
         )
         self.beam_search_widget.show()
 
