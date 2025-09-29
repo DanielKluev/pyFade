@@ -28,9 +28,9 @@ from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.gui.components.widget_completion_text_editor import CompletionTextEdit
 from py_fade.data_formats.base_data_classes import CommonCompletionProtocol, CommonCompletionLogprobsProtocol
 from py_fade.providers.providers_manager import MappedModel
+from py_fade.dataset.completion import PromptCompletion
 
 if TYPE_CHECKING:
-    from py_fade.dataset.completion import PromptCompletion
     from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.dataset.facet import Facet
     from py_fade.providers.llm_response import LLMResponse
@@ -143,7 +143,7 @@ class CompletionFrame(QFrame):
 
     def _setup_action_buttons(self) -> None:
         """Setup action buttons based on display mode."""
-        if not self.actions_layout:
+        if self.actions_layout is None:
             raise RuntimeError("Actions layout not initialized.")
 
         # Common buttons
@@ -529,6 +529,7 @@ class CompletionFrame(QFrame):
             logprobs_for_model = None
 
         if logprobs_for_model:
+            self.log.debug("min_logprob: %s, avg_logprob: %s", logprobs_for_model.min_logprob, logprobs_for_model.avg_logprob)
             if logprobs_for_model.min_logprob is not None:
                 tooltip = (f"Logprobs min: {logprobs_for_model.min_logprob:.3f}, "
                            f"avg: {logprobs_for_model.avg_logprob:.3f}")

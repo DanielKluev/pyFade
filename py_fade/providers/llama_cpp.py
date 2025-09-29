@@ -19,7 +19,8 @@ from py_fade.providers.base_provider import (
     LOGPROB_LEVEL_TOP_LOGPROBS,
     BasePrefillAwareProvider,
 )
-from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMResponse
+from py_fade.data_formats.base_data_classes import CommonConversation
+from py_fade.providers.llm_response import LLMResponseLogprobs, SinglePositionTokenLogprobs, LLMResponse
 
 try:
     import llama_cpp  # pylint: disable=import-error
@@ -64,15 +65,8 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         self.current_model_gguf_file = None
         self.current_model_logits_all = False
 
-    def load_model(
-        self,
-        model_id: str,
-        gguf_file: str,
-        n_gpu_layers: int = -1,
-        verbose: bool = False,
-        logits_all: bool = False,
-        n_ctx: int = 1024,
-    ) -> Optional["Llama"]:
+    def load_model(self, model_id: str, gguf_file: str, n_gpu_layers: int = -1, verbose: bool = False, logits_all: bool = False,
+                   n_ctx: int = 1024) -> Optional["Llama"]:
         """
         If current loaded model is same as requested, return it.
         Else unload current model and load the new one.
@@ -117,10 +111,9 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             self.log.error("Failed to load Llama model from %s: %s", gguf_file, e)
             return None
 
-    def generate(self, model_id: str, prompt: str, prefill: str | None = None, **kwargs) -> LLMResponse:
+    def generate(self, model_id: str, prompt: CommonConversation, prefill: str | None = None, **kwargs) -> LLMResponse:
         """
-        Generate a completion using the Llama.cpp backend, optionally with a prefill.
-        If prefill is provided, we insert it as a start of assistant response.
+        Generate a completion using the Llama.cpp backend, optionally with assistant message prefill.
         """
         if not IS_LLAMA_CPP_AVAILABLE or not llama_cpp:
             raise ImportError("llama_cpp is not available. Ensure llama-cpp-python is installed.")
@@ -161,14 +154,10 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             top_logprobs,
             "<yes>" if prefill else "<no>",
         )
-        messages = [{"role": "user", "content": prompt}]
-        history = messages.copy()
-        # Add prefill as beginning of assistant message if provided
-        if prefill:
-            messages.append({"role": "assistant", "content": prefill})
+        prompt_with_prefill = prompt.copy_with_prefill(prefill)
 
         if template_func and callable(template_func):
-            formatted_prompt: str = template_func(messages)  # type: ignore
+            formatted_prompt: str = template_func(prompt_with_prefill)  # type: ignore
             self.log.info("Formatted prompt with template:\n%s\n%s", formatted_prompt, "-" * 40)
 
             # Simple completion has logprobs:int|None, chat completion has logprobs:bool, top_logprobs:int|None
@@ -188,7 +177,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         else:
             is_chat_completion = True
             response = model.create_chat_completion(
-                messages=messages,  # type: ignore
+                messages=prompt_with_prefill.as_list(),  # type: ignore
                 max_tokens=max_tokens,
                 temperature=temperature,
                 top_k=top_k,
@@ -198,7 +187,6 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
 
         # print(response)
         is_truncated = False
-        logprobs = []
         last_choice = response.get("choices", [{}])[0]  # type: ignore
         termination_reason = last_choice.get("finish_reason", "unknown")
         if termination_reason == "length":
@@ -213,13 +201,13 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         #   Else it's a dict with 'content': list of per-token info
         response_logprobs = last_choice.get("logprobs", {})  # type: dict # type: ignore
         if is_chat_completion:
-            logprobs = (self._convert_chat_completion_logprobs(response_logprobs) if response_logprobs else [])
+            logprobs = self._convert_chat_completion_logprobs(response_logprobs)
         else:
-            logprobs = (self._convert_simple_completion_logprobs(response_logprobs) if response_logprobs else [])
+            logprobs = self._convert_simple_completion_logprobs(response_logprobs)
 
         return LLMResponse(
             model_id=model_id,
-            full_history=history,
+            prompt_conversation=prompt,
             completion_text=full_response_text,
             generated_part_text=response_content,
             temperature=temperature,
@@ -229,10 +217,11 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             max_tokens=max_tokens,
             logprobs=logprobs,
             is_truncated=is_truncated,
+            is_archived=False,
             beam_token=kwargs.get("beam_token", None),
         )
 
-    def evaluate_completion(self, model_id: str, prompt: str, completion: str, **kwargs) -> list[SinglePositionTokenLogprobs]:
+    def evaluate_completion(self, model_id: str, prompt: CommonConversation, completion: str, **kwargs) -> LLMResponseLogprobs:
         """
         Evaluate a given completion for given prompt by bound model.
         Returns list of LLMPTokenLogProbs for each token in completion.
@@ -279,9 +268,8 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             top_logprobs,
         )
 
-        messages = [{"role": "user", "content": prompt}]
-        messages.append({"role": "assistant", "content": completion})
-        formatted_prompt: str = template_func(messages)  # type: ignore
+        prompt_with_completion = prompt.copy_with_prefill(completion)
+        formatted_prompt: str = template_func(prompt_with_completion)  # type: ignore
         self.log.info("Formatted prompt with template:\n%s\n%s", formatted_prompt, "-" * 40)
         response = model(
             formatted_prompt,
@@ -311,7 +299,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             raise ValueError("Failed to match completion tokens in logprobs. Completion may be too long or not match exactly.")
         return completion_logprobs
 
-    def _convert_chat_completion_logprobs(self, logprobs_dict: dict) -> list[SinglePositionTokenLogprobs]:
+    def _convert_chat_completion_logprobs(self, logprobs_dict: dict) -> LLMResponseLogprobs | None:
         """
         Convert chat completion logprobs dict to list of LLMPTokenLogProbs.
         """
@@ -330,9 +318,12 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
                             continue
                         top_logprobs_list.append((alternative.get("token", ""), alternative.get("logprob", 0.0)))
                 logprobs.append(SinglePositionTokenLogprobs(token=token, logprob=logprob, top_logprobs=top_logprobs_list))
-        return logprobs
+        return LLMResponseLogprobs(
+            logprobs_model_id=self.current_model_id or "",
+            logprobs=logprobs,
+        )
 
-    def _convert_simple_completion_logprobs(self, logprobs_dict: dict) -> list[SinglePositionTokenLogprobs]:
+    def _convert_simple_completion_logprobs(self, logprobs_dict: dict) -> LLMResponseLogprobs | None:
         """
         Convert simple completion logprobs dict to list of LLMPTokenLogProbs.
         Example input: {'tokens': ['Okay'], 'text_offset': [59], 'token_logprobs':
@@ -352,10 +343,12 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
                     for alt_token, alt_logprob in top_logprobs_dict.items():
                         top_logprobs_list.append((alt_token, float(alt_logprob)))
             logprobs_list.append(SinglePositionTokenLogprobs(token=token, logprob=logprob, top_logprobs=top_logprobs_list))
-        return logprobs_list
+        return LLMResponseLogprobs(
+            logprobs_model_id=self.current_model_id or "",
+            logprobs=logprobs_list,
+        )
 
-    def mask_logprobs_by_str(self, logprobs: list[SinglePositionTokenLogprobs], mask_str: str,
-                             max_skip: int) -> list[SinglePositionTokenLogprobs] | None:
+    def mask_logprobs_by_str(self, logprobs: list[SinglePositionTokenLogprobs], mask_str: str, max_skip: int) -> LLMResponseLogprobs | None:
         """
         Given a list of LLMPTokenLogProbs and a mask string, return a new list where only tokens that are
             exact match over mask_str are kept.
@@ -393,4 +386,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         # print("Mask:", repr(mask_str))
         # print("Input logprobs:", logprobs)
         # print("Masked logprobs:", masked_logprobs)
-        return masked_logprobs
+        return LLMResponseLogprobs(
+            logprobs_model_id=self.current_model_id or "",
+            logprobs=masked_logprobs,
+        )

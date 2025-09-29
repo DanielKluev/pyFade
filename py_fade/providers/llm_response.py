@@ -21,6 +21,37 @@ class LLMResponseLogprobs(CommonCompletionLogprobsProtocol):
     min_logprob: float | None = None  # min(logprobs), minimal logprob of any token in response
     avg_logprob: float | None = None  # average(logprobs), average logprob of all tokens in response
 
+    @classmethod
+    def from_sequence(
+        cls, logprobs_model_id: str, *sequence:
+        "list[SinglePositionTokenLogprobs] | SinglePositionTokenLogprobs | CommonCompletionLogprobsProtocol | LLMResponseLogprobs | None"
+    ) -> "LLMResponseLogprobs":
+        """
+        Create LLMResponseLogprobs from a sequence of logprobs, supporting mixing different input types.
+        """
+        logprobs = []
+        for item in sequence:
+            if isinstance(item, cls):
+                logprobs.extend(item.logprobs)
+            elif isinstance(item, list):
+                logprobs.extend(item)
+            elif isinstance(item, SinglePositionTokenLogprobs):
+                logprobs.append(item)
+            else:
+                continue
+        return cls(logprobs_model_id="", logprobs=logprobs)
+
+    @property
+    def first_token_top_logprobs(self) -> list[tuple[str, float]]:
+        """
+        Return top logprobs for the first token of current completion, if available.
+        """
+        if self.logprobs and len(self.logprobs) > 0:
+            first_token_logprobs = self.logprobs[0]
+            if first_token_logprobs.top_logprobs:
+                return first_token_logprobs.top_logprobs
+        return []
+
     def __bool__(self):
         """
         True if logprobs are available, False otherwise.
@@ -36,6 +67,16 @@ class LLMResponseLogprobs(CommonCompletionLogprobsProtocol):
 
     def __iter__(self):
         return iter(self.logprobs)
+
+    def __getitem__(self, key) -> "LLMResponseLogprobs":
+        if isinstance(key, slice):
+            logprobs = self.logprobs.__getitem__(key)
+        else:
+            logprobs = [self.logprobs[key]]  # Single item, wrap in list
+        return LLMResponseLogprobs(
+            logprobs_model_id=self.logprobs_model_id,
+            logprobs=logprobs,
+        )
 
 
 @dataclass(slots=True)
@@ -58,6 +99,7 @@ class LLMResponse(CommonCompletionProtocol):
     logprobs: LLMResponseLogprobs | None = None  # per-token logprobs if available
     is_truncated: bool | None = None  # whether generation stopped due to max_tokens limit
     is_full_response_logprobs: bool | None = None  # whether logprobs cover full_response_text (True) or just part (False).
+    is_archived: bool = False  # whether this completion is archived and hidden by default
 
     @classmethod
     def from_completion_and_logprobs(cls, completion: "PromptCompletion", logprobs: "PromptCompletionLogprobs") -> "LLMResponse":

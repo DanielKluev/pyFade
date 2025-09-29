@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import re
 
+from py_fade.data_formats.base_data_classes import CommonConversation, CommonMessage
+
 FLAT_PREFIX_SYSTEM = "<|system|>"
 FLAT_PREFIX_USER = "<|user|>"
 FLAT_PREFIX_ASSISTANT = "<|assistant|>"
@@ -22,9 +24,9 @@ _TOKEN_TO_ROLE = {
 _TOKEN_PATTERN = re.compile("(" + "|".join(re.escape(token) for token in _TOKEN_TO_ROLE) + ")")
 
 
-def parse_flat_prefix_string(flat_prefix_string: str | None) -> list[dict]:
+def parse_flat_prefix_string(flat_prefix_string: str | None) -> CommonConversation:
     """
-    Parse a flat prefix string into Messages API format dict.
+    Parse a flat prefix string into CommonConversation format.
 
     Args:
         flat_prefix_string (str): The flat prefix string to parse. Role tokens may be
@@ -34,15 +36,15 @@ def parse_flat_prefix_string(flat_prefix_string: str | None) -> list[dict]:
         if `flat_prefix_string` is empty or None, returns an empty list.
 
     Returns:
-        list[dict]: A list of messages with 'role' and 'content'.
+        CommonConversation: A list of messages with 'role' and 'content'.
     """
     if flat_prefix_string is None:
-        return []
+        raise ValueError("flat_prefix_string cannot be None")
 
     if flat_prefix_string.strip() == "":
-        return []
+        raise ValueError("flat_prefix_string cannot be empty or whitespace")
 
-    messages: list[dict] = []
+    messages: CommonConversation = CommonConversation(messages=[])
     current_role: str | None = None
     current_content_parts: list[str] = []
     saw_token = False

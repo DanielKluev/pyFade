@@ -10,8 +10,8 @@ from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
-from py_fade.data_formats.base_data_classes import CommonCompletionProtocol, CommonCompletionLogprobsProtocol
-
+from py_fade.data_formats.base_data_classes import CommonCompletionProtocol, CommonCompletionLogprobsProtocol, CommonConversation
+from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.dataset_base import dataset_base
@@ -127,3 +127,11 @@ class PromptCompletion(dataset_base):
             if lp.logprobs_model_id == model_id:
                 return lp
         return None
+
+    @property
+    def prompt_conversation(self) -> CommonConversation:
+        """
+        Reconstruct the prompt conversation from the associated PromptRevision text.
+        """
+        prompt_text = self.prompt_revision.prompt_text
+        return parse_flat_prefix_string(prompt_text)

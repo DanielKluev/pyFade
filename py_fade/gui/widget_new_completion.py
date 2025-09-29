@@ -170,14 +170,24 @@ class NewCompletionFrame(QFrame):
             self.status_label.setText(f"Error: Model '{self.model_combo.currentText()}' not found")
             self.generate_btn.setEnabled(True)
             return
+        prompt_text: str = widget_sample.prompt_area.toPlainText().strip()  # type: ignore
+        context_length: int = widget_sample.context_length_field.value()  # type: ignore
+        max_tokens: int = widget_sample.max_tokens_field.value()  # type: ignore
+        try:
+            controller = self.app.get_or_create_text_generation_controller(mapped_model, prompt_text, context_length=context_length,
+                                                                           max_tokens=max_tokens)
+        except ValueError as e:
+            self.status_label.setText(f"Error: {e}")
+            self.generate_btn.setEnabled(True)
+            return
+        prefill = self.prefill_edit.toPlainText().strip()
 
-        self.generated_completion = mapped_model.generate(
-            prompt=widget_sample.prompt_area.toPlainText().strip(),  # type: ignore
-            prefill=self.prefill_edit.toPlainText() or None,
+        self.generated_completion = controller.generate(
+            prefill=prefill,
             temperature=self.temp_spin.value(),
             top_k=self.topk_spin.value(),
-            context_length=widget_sample.context_length_field.value(),  # type: ignore
-            max_tokens=widget_sample.max_tokens_field.value(),  # type: ignore
+            context_length=context_length,
+            max_tokens=max_tokens,
         )
         self.display_completion()
 

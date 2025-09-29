@@ -3,6 +3,7 @@
 import logging
 import pathlib
 
+from py_fade.data_formats.base_data_classes import CommonConversation, CommonCompletionLogprobsProtocol
 from py_fade.providers.base_provider import BasePrefillAwareProvider
 from py_fade.providers.llama_cpp import PrefillAwareLlamaCppInternal, IS_LLAMA_CPP_AVAILABLE
 from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMResponse
@@ -34,16 +35,17 @@ class MappedModel:
         """Get the full path identifier for this mapped model."""
         return f"{self.model_id} ({self.provider.id})"
 
-    def generate(self, prompt: str, prefill: str | None = None, **kwargs) -> LLMResponse:
+    def generate(self, prompt: CommonConversation, prefill: str | None = None, **kwargs) -> LLMResponse:
         """Generate text using the mapped model and provider."""
         # Merge provider_params into kwargs, with kwargs taking precedence
         merged_kwargs = {**self.provider_params, **kwargs}
         return self.provider.generate(self.model_id, prompt, prefill, **merged_kwargs)
 
-    def evaluate_completion(self, prompt: str, completion: str, **kwargs) -> list[SinglePositionTokenLogprobs]:
+    def evaluate_completion(self, prompt: CommonConversation, completion: str, **kwargs) -> CommonCompletionLogprobsProtocol:
         """
         Evaluate a given completion for given prompt by bound model.
-        Returns list of LLMPTokenLogProbs for each token in completion.
+
+        Returns token logprobs and metadata as defined in CommonCompletionLogprobsProtocol.
         """
         merged_kwargs = {**self.provider_params, **kwargs}
         return self.provider.evaluate_completion(self.model_id, prompt, completion, **merged_kwargs)

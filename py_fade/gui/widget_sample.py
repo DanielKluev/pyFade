@@ -479,12 +479,17 @@ class WidgetSample(QWidget):
             QMessageBox.warning(self, "Warning", "Please enter a prompt before starting beam search.")
             return
 
+        if not self.active_model:
+            QMessageBox.warning(self, "Warning", "Please select a model before starting beam search.")
+            return
+
         # Create and show beam search widget as new window
         self.beam_search_widget = WidgetCompletionBeams(
-            parent=None,
+            parent=None,  # Independent window
             app=self.app,
             prompt=prompt_text,
-            sample_widget=self  # Independent window
+            sample_widget=self,
+            mapped_model=self.active_model,
         )
         self.beam_search_widget.show()
 

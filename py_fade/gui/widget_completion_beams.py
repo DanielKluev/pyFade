@@ -1,7 +1,7 @@
 """Interactive widget for beam-search exploration of model completions."""
 
 from __future__ import annotations
-
+import logging
 from functools import partial
 from typing import TYPE_CHECKING
 
@@ -25,9 +25,11 @@ from PyQt6.QtWidgets import (
 )
 
 from py_fade.controllers.text_generation_controller import TextGenerationController
+from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.gui.components.widget_token_picker import WidgetTokenPicker
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.providers.llm_response import LLMResponse
+from py_fade.providers.providers_manager import MappedModel
 
 if TYPE_CHECKING:
     from py_fade.app import PyFadeApp
@@ -105,14 +107,18 @@ class WidgetCompletionBeams(QWidget):
     """
 
     grid_width = 4  # Number of columns in the grid layout for beams
+    dataset: DatasetDatabase
 
-    def __init__(
-        self, parent: QWidget | None, app: "PyFadeApp", prompt: str, sample_widget: "WidgetSample"
-    ):
+    def __init__(self, parent: QWidget | None, app: "PyFadeApp", prompt: str, sample_widget: "WidgetSample", mapped_model: MappedModel):
         super().__init__(parent)
+        self.log = logging.getLogger("WidgetCompletionBeams")
         self.app = app
+        if not app.current_dataset:
+            raise RuntimeError("No dataset loaded in app")
+        self.dataset = app.current_dataset
         self.prompt = prompt
         self.sample_widget = sample_widget
+        self.mapped_model = mapped_model
         self.beam_frames: list[tuple[LLMResponse, "CompletionFrame"]] = []
         self.worker_thread: BeamGenerationWorker | None = None
         self.beam_controller: TextGenerationController | None = None  # Reusable beam controller
@@ -163,6 +169,12 @@ class WidgetCompletionBeams(QWidget):
         self.model_combo = QComboBox(self)
         self.model_combo.addItems(self.app.available_models)
         params_layout.addWidget(self.model_combo, 0, 3)
+        # Freeze self.model_combo to the provided mapped_model
+        if self.mapped_model:
+            index = self.model_combo.findText(self.mapped_model.model_id)
+            if index >= 0:
+                self.model_combo.setCurrentIndex(index)
+            self.model_combo.setEnabled(False)  # Disable changing model in beam widget
 
         # Width (number of beams)
         params_layout.addWidget(QLabel("Width (beams):"), 1, 0)
@@ -296,9 +308,7 @@ class WidgetCompletionBeams(QWidget):
     def _get_or_create_beam_controller(self) -> TextGenerationController:
         """Get or create the beam controller for the current parameters."""
         model_path = self.model_combo.currentText()
-        controller = self.app.get_or_create_text_generation_controller(
-            mapped_model=model_path, prompt_revision=self.prompt
-        )
+        controller = self.app.get_or_create_text_generation_controller(mapped_model=model_path, prompt_revision=self.prompt)
         return controller
 
     def selective_beams(self):
@@ -350,9 +360,7 @@ class WidgetCompletionBeams(QWidget):
         self.token_picker_window = dialog
         dialog.exec()
 
-    def _on_tokens_selected(
-        self, selected_tokens: list[tuple[str, float]], *, dialog: QDialog
-    ) -> None:
+    def _on_tokens_selected(self, selected_tokens: list[tuple[str, float]], *, dialog: QDialog) -> None:
         """Handle token selection and start beam generation."""
         dialog.accept()  # Close the dialog
 
@@ -445,13 +453,14 @@ class WidgetCompletionBeams(QWidget):
         """Add a beam result to the display grid."""
         # Create CompletionFrame in beam mode to display the beam
         frame = CompletionFrame(
-            dataset=self.app.current_dataset,
+            dataset=self.dataset,
             completion=beam,
             parent=self.beams_container,
             display_mode="beam",
         )
         frame.setFixedWidth(400)
         frame.setFixedHeight(300)
+        frame.set_target_model(self.mapped_model)
 
         # Connect beam frame signals
         frame.discard_requested.connect(self.on_beam_discarded)
@@ -468,9 +477,7 @@ class WidgetCompletionBeams(QWidget):
     def sort_beam_frames(self):
         """Sort beam frames by min_logprob descending."""
         # Sort by min_logprob if available, otherwise by response length
-        self.beam_frames.sort(
-            key=lambda x: getattr(x[0], "min_logprob", -float("inf")), reverse=True
-        )
+        self.beam_frames.sort(key=lambda x: getattr(x[0], "min_logprob", -float("inf")), reverse=True)
 
         # Clear and re-add frames in sorted order
         for i in reversed(range(self.beams_layout.count())):

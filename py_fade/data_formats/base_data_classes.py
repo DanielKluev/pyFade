@@ -15,6 +15,12 @@ class CommonMessage:
     role: str
     content: str
 
+    def as_dict(self) -> dict[str, str]:
+        """
+        Return message as dict with 'role' and 'content'.
+        """
+        return {"role": self.role, "content": self.content}
+
 
 @dataclass(frozen=True, slots=True)
 class CommonConversation:
@@ -22,6 +28,53 @@ class CommonConversation:
     Message API conversation format.
     """
     messages: list[CommonMessage]
+
+    def append(self, message: CommonMessage | dict) -> None:
+        """
+        Append a message to the conversation.
+        Accepts either CommonMessage or dict with 'role' and 'content'.
+        """
+        if isinstance(message, dict):
+            if "role" in message and "content" in message:
+                message = CommonMessage(role=message["role"], content=message["content"])
+            else:
+                raise ValueError("Dict message must have 'role' and 'content' keys.")
+
+        if not isinstance(message, CommonMessage):
+            raise ValueError("Message must be CommonMessage or dict with 'role' and 'content'.")
+
+        if not message.role in ("user", "assistant", "system"):
+            raise ValueError("Message role must be 'user', 'assistant', or 'system'.")
+
+        if self.messages:
+            if self.messages[-1].role == message.role:
+                raise ValueError("Cannot append two consecutive messages with the same role.")
+            if message.role == "system":
+                raise ValueError("System messages can only appear at the start of the conversation.")
+        self.messages.append(message)
+
+    def copy_with_prefill(self, prefill: str | None) -> "CommonConversation":
+        """
+        Return a copy of the conversation with prefill inserted as the start of the assistant message.
+
+        If previous turn is not user, raise ValueError, as prefill can only be start of assistant message.        
+        If prefill is None or empty, returns a copy of the original conversation.
+        """
+        if not prefill:
+            return CommonConversation(messages=self.messages.copy())
+
+        if not self.messages or self.messages[-1].role != "user":
+            raise ValueError("Prefill can only be added to the start of an assistant message.")
+
+        new_messages = self.messages.copy()
+        new_messages.append(CommonMessage(role="assistant", content=prefill))
+        return CommonConversation(messages=new_messages)
+
+    def as_list(self) -> list[dict[str, str]]:
+        """
+        Return conversation as list of dicts with 'role' and 'content'.
+        """
+        return [msg.as_dict() for msg in self.messages]
 
 
 @dataclass(slots=True)

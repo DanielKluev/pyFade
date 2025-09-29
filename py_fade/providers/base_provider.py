@@ -4,6 +4,7 @@ import logging
 
 from tiktoken import get_encoding
 
+from py_fade.data_formats.base_data_classes import CommonConversation, CommonCompletionLogprobsProtocol
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMResponse
 
@@ -34,21 +35,17 @@ class BasePrefillAwareProvider:
     id: str = "base"
     is_local_vram: bool = False  # Whether the model runs locally and uses VRAM
 
-    def __init__(
-        self,
-        default_temperature: float = 0.7,
-        default_top_k: int = 40,
-        default_context_length: int = 1024,
-        default_max_tokens: int = 128,
-    ):
+    def __init__(self, default_temperature: float = 0.7, default_top_k: int = 40, default_context_length: int = 1024,
+                 default_max_tokens: int = 128):
         self.default_temperature = default_temperature
         self.default_top_k = default_top_k
         self.default_context_length = default_context_length
         self.default_max_tokens = default_max_tokens
 
-    def flat_prefix_template_to_messages(self, prompt: str, prefill: str | None = None) -> list[dict]:
+    def flat_prefix_template_to_messages(self, prompt: str, prefill: str | None = None) -> CommonConversation:
         """
-        Convert flat prefix template string to Messages API format.
+        Convert flat prefix template string to CommonConversation format.
+
         If prefill is provided, it is inserted as the start of the assistant message.
         """
         messages = parse_flat_prefix_string(prompt)
@@ -57,14 +54,19 @@ class BasePrefillAwareProvider:
             messages.append({"role": "assistant", "content": prefill})
         return messages
 
-    def generate(self, model_id: str, prompt: str, prefill: str | None = None, **kwargs) -> LLMResponse:
-        """Generate completion for the given prompt using the specified model."""
+    def generate(self, model_id: str, prompt: CommonConversation, prefill: str | None = None, **kwargs) -> LLMResponse:
+        """
+        Generate completion for the given prompt using the specified model.
+        
+        Returns an LLMResponse object containing the generated text and metadata.
+        """
         raise NotImplementedError("Subclasses must implement the generate method.")
 
-    def evaluate_completion(self, model_id: str, prompt: str, completion: str, **kwargs) -> list[SinglePositionTokenLogprobs]:
+    def evaluate_completion(self, model_id: str, prompt: CommonConversation, completion: str, **kwargs) -> CommonCompletionLogprobsProtocol:
         """
         Evaluate a given completion for given prompt by bound model.
-        Returns list of LLMPTokenLogProbs for each token in completion.
+
+        Returns token logprobs and metadata as defined in CommonCompletionLogprobsProtocol.
         """
         raise NotImplementedError("Subclasses must implement the evaluate_completion method.")
 
