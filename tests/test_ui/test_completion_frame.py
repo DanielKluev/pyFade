@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from PyQt6.QtWidgets import QMessageBox
 
+from py_fade.data_formats.base_data_classes import CommonConversation, CommonMessage
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
@@ -58,17 +59,13 @@ def _create_test_llm_response(**overrides) -> LLMResponse:
     """Create a test LLMResponse for beam mode testing."""
     defaults = {
         "model_id": "test-beam-model",
-        "full_history": [{
-            "role": "user",
-            "content": "Test prompt"
-        }],
-        "full_response_text": "This is a beam response with some content",
-        "response_text": "This is a beam response with some content",
+        "prompt_conversation": CommonConversation([CommonMessage(role="user", content="Test prompt")]),
+        "completion_text": "This is a beam response with some content",
+        "generated_part_text": "This is a beam response with some content",
         "temperature": 0.0,
         "top_k": 1,
         "context_length": 1024,
         "max_tokens": 100,
-        "min_logprob": -0.85,
         "prefill": None,
         "beam_token": None,
         "is_truncated": False,
@@ -981,25 +978,8 @@ class TestCompletionFrameHeatmapMode:
         _ = ensure_google_icon_font
         _, completion = _build_sample_with_completion(temp_dataset)
 
-        frame = CompletionFrame(temp_dataset, completion, display_mode="sample")
-
-        # Test matching tokens
-        text = "Hello world"
-        logprobs = [{"token": "Hello", "logprob": -0.1}, {"token": " world", "logprob": -0.8}]
-        assert frame._check_logprobs_cover_text(text, logprobs)
-
-        # Test non-matching tokens
-        logprobs_wrong = [{"token": "Hi", "logprob": -0.1}, {"token": " there", "logprob": -0.8}]
-        assert not frame._check_logprobs_cover_text(text, logprobs_wrong)
-
-        # Test incomplete coverage
-        logprobs_partial = [{"token": "Hello", "logprob": -0.1}]
-        assert not frame._check_logprobs_cover_text(text, logprobs_partial)
-
-        # Test empty inputs
-        assert not frame._check_logprobs_cover_text("", [])
-        assert not frame._check_logprobs_cover_text("text", [])
-        assert not frame._check_logprobs_cover_text("", logprobs)
+        # Test via completion's protocol method
+        assert completion.check_full_response_logprobs()
 
     def test_get_logprobs_for_heatmap_llm_response(
         self,

@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import (
 
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_rating import PromptCompletionRating
+from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 
 if TYPE_CHECKING:  # pragma: no cover - import hints only
     from py_fade.app import pyFadeApp
@@ -336,9 +337,12 @@ class ThreeWayCompletionEditorWindow(QDialog):
         prompt_text = self.prompt_edit.toPlainText()
         original_text = self.original_edit.toPlainText()
 
+        # Parse the prompt text to get a CommonConversation object
+        prompt_conversation = parse_flat_prefix_string(prompt_text)
+
         try:
             response = mapped_model.generate(
-                prompt=prompt_text,
+                prompt=prompt_conversation,
                 prefill=original_text,
                 temperature=self.original_completion.temperature,
                 top_k=self.original_completion.top_k,

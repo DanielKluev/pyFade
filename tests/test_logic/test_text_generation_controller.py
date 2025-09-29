@@ -24,7 +24,7 @@ def test_completion_prefix_creation():
         SinglePositionTokenLogprobs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5), (" there", -2.1)])
     ]
 
-    prefix = CompletionPrefix(prefix_text=prefix_text, prefix_token_size=prefix_token_size, logprobs=logprobs)
+    prefix = CompletionPrefix(prefix_text=prefix_text, prefix_token_size=prefix_token_size, logprobs=logprobs, next_token_logprobs=None)
 
     assert prefix.prefix_text == prefix_text
     assert prefix.prefix_token_size == prefix_token_size
@@ -38,7 +38,7 @@ def test_completion_prefix_from_response():
     """Test extracting CompletionPrefix from LLMResponse."""
     # Create a mock LLMResponse with proper logprobs
     response = MagicMock(spec=LLMResponse)
-    response.full_response_text = "Hello world and more"
+    response.completion_text = "Hello world and more"
     response.check_full_response_logprobs.return_value = True
     response.logprobs = [
         SinglePositionTokenLogprobs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1)]),
@@ -60,7 +60,7 @@ def test_completion_prefix_from_response():
 def test_completion_prefix_from_response_mismatch():
     """Test that CompletionPrefix extraction fails with mismatched prefix."""
     response = MagicMock(spec=LLMResponse)
-    response.full_response_text = "Hello world"
+    response.completion_text = "Hello world"
     response.check_full_response_logprobs.return_value = True
     response.logprobs = [
         SinglePositionTokenLogprobs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1)]),
@@ -76,7 +76,7 @@ def test_completion_prefix_from_response_mismatch():
 def test_completion_prefix_from_response_no_logprobs():
     """Test that CompletionPrefix extraction fails without logprobs."""
     response = MagicMock(spec=LLMResponse)
-    response.full_response_text = "Hello world"
+    response.completion_text = "Hello world"
     response.check_full_response_logprobs.return_value = False
     response.logprobs = None
 

@@ -6,7 +6,7 @@ import pathlib
 from py_fade.data_formats.base_data_classes import CommonConversation, CommonCompletionLogprobsProtocol
 from py_fade.providers.base_provider import BasePrefillAwareProvider
 from py_fade.providers.llama_cpp import PrefillAwareLlamaCppInternal, IS_LLAMA_CPP_AVAILABLE
-from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMResponse
+from py_fade.providers.llm_response import LLMResponse
 from py_fade.providers.llm_templates import get_template_function
 from py_fade.providers.mock_provider import MockLLMProvider
 from py_fade.providers.ollama import OllamaRegistry, PrefillAwareOllama

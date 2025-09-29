@@ -22,7 +22,7 @@ class CompletionPrefix:
     prefix_text: str
     prefix_token_size: int
     logprobs: CommonCompletionLogprobsProtocol
-    next_token_logprobs: list[tuple[str, float]] | None  # Top logprobs for next token after prefix, if known
+    next_token_logprobs: list[tuple[str, float]] | None = None  # Top logprobs for next token after prefix, if known
 
     @classmethod
     def try_get_from_response(cls, prefix_text: str, response: LLMResponse) -> "CompletionPrefix|None":

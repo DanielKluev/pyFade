@@ -24,7 +24,7 @@ class CommonMessage:
     def __eq__(self, value: object) -> bool:
         if isinstance(value, CommonMessage):
             return self.role == value.role and self.content == value.content
-        elif isinstance(value, dict):
+        if isinstance(value, dict):
             return self.role == value.get("role") and self.content == value.get("content")
         return False
 
@@ -57,7 +57,7 @@ class CommonConversation:
         if not isinstance(message, CommonMessage):
             raise ValueError("Message must be CommonMessage or dict with 'role' and 'content'.")
 
-        if not message.role in ("user", "assistant", "system"):
+        if message.role not in ("user", "assistant", "system"):
             raise ValueError("Message role must be 'user', 'assistant', or 'system'.")
 
         if self.messages:
@@ -93,7 +93,7 @@ class CommonConversation:
     def __eq__(self, value: object) -> bool:
         if isinstance(value, CommonConversation):
             return self.messages == value.messages
-        elif isinstance(value, list):
+        if isinstance(value, list):
             return self.as_list() == value
         return False
 
@@ -179,7 +179,7 @@ class CommonCompletionProtocol(Protocol):
         Get logprobs for the given model ID, if available.
         Returns `CommonCompletionLogprobsProtocol` compatible result or None if logprobs for the target model_id are not available.
         """
-        ...
+        raise NotImplementedError
 
     def check_full_response_logprobs(self, target_model_id: str | None = None) -> bool:
         """
@@ -193,13 +193,11 @@ class CommonCompletionProtocol(Protocol):
         if not logprobs_entry:
             return False
 
-        result = None
         resp_pos = 0
         for lp in logprobs_entry:
             if lp.logprob is None:
                 logging.getLogger("LLMResponse").warning("Logprob is None, cannot match full response logprobs.")
-                result = False
-                break
+                return False
             # Check if token matches the response text at current position
             if self.completion_text[resp_pos:resp_pos + len(lp.token)] != lp.token:
                 expected_text = self.completion_text[resp_pos:resp_pos + len(lp.token)]
@@ -209,9 +207,6 @@ class CommonCompletionProtocol(Protocol):
                     resp_pos,
                     expected_text,
                 )
-                result = False
-                break
+                return False
             resp_pos += len(lp.token)
-        if result is None:
-            result = resp_pos == len(self.completion_text)
-        return result
+        return resp_pos == len(self.completion_text)

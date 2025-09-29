@@ -6,7 +6,7 @@ from tiktoken import get_encoding
 
 from py_fade.data_formats.base_data_classes import CommonConversation, CommonCompletionLogprobsProtocol
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
-from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMResponse
+from py_fade.providers.llm_response import LLMResponse
 
 LOGGER = logging.getLogger("BasePrefillAwareProvider")
 
