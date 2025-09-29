@@ -18,8 +18,6 @@ import tempfile
 import pathlib
 from typing import TYPE_CHECKING
 
-import pytest
-
 from py_fade.controllers.import_controller import ImportController
 from py_fade.controllers.export_controller import ExportController
 from py_fade.data_formats.facet_backup import FacetBackupFormat
@@ -28,6 +26,8 @@ from py_fade.dataset.sample import Sample
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_rating import PromptCompletionRating
+from tests.helpers.facet_backup_helpers import (create_temp_database, create_temp_backup_file, create_test_facet_with_data,
+                                                export_facet_to_backup, import_facet_from_backup)
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -189,40 +189,17 @@ class TestFacetBackupFullCycle:
 
     def _create_test_data_basic(self, dataset: "DatasetDatabase") -> None:
         """Create basic test data: 1 facet, 1 sample, 1 completion, 1 rating."""
-        facet = Facet.create(dataset, "Full Cycle Test Facet", "Facet for full cycle testing")
-        dataset.commit()
-
-        prompt_rev = PromptRevision.get_or_create(dataset, "Full cycle test prompt", 2048, 512)
-        dataset.commit()
-
-        sample = Sample.create_if_unique(dataset, "Full Cycle Test Sample", prompt_rev, "full_cycle_test")
-        dataset.commit()
-
-        # Create completion
-        import hashlib
-        completion_text = "Full cycle test completion"
-        sha256 = hashlib.sha256(completion_text.encode("utf-8")).hexdigest()
-
-        completion = PromptCompletion(sha256=sha256, prompt_revision_id=prompt_rev.id, model_id="full-cycle-test-model", temperature=0.7,
-                                      top_k=40, completion_text=completion_text, tags={"test": True}, prefill=None, beam_token=None,
-                                      is_truncated=False, context_length=2048, max_tokens=512)
-        dataset.session.add(completion)
-        dataset.commit()
-
-        PromptCompletionRating.set_rating(dataset, completion, facet, 8)
-        dataset.commit()
+        create_test_facet_with_data(dataset, "Full Cycle Test Facet", "Facet for full cycle testing")
 
     def _create_test_data_complex(self, dataset: "DatasetDatabase") -> None:
         """Create complex test data: 1 facet, 3 samples, 6 completions, 6 ratings."""
-        facet = Facet.create(dataset, "Complex Cycle Test Facet", "Complex facet for full cycle testing")
-        dataset.commit()
+        create_test_facet_with_data(dataset, "Complex Cycle Test Facet", "Complex facet for full cycle testing", sample_count=3,
+                                    completions_per_sample=2)
 
         for i in range(3):
             prompt_rev = PromptRevision.get_or_create(dataset, f"Complex cycle prompt {i}", 2048, 512)
-            dataset.commit()
 
             sample = Sample.create_if_unique(dataset, f"Complex Cycle Sample {i}", prompt_rev, f"complex_cycle_{i}")
-            dataset.commit()
 
             # Create 2 completions per sample
             for j in range(2):
@@ -236,11 +213,6 @@ class TestFacetBackupFullCycle:
                                                   "index": i
                                               }, prefill=None, beam_token=None, is_truncated=False, context_length=2048, max_tokens=512)
                 dataset.session.add(completion)
-                dataset.commit()
-
-                PromptCompletionRating.set_rating(dataset, completion, facet, 6 + j)
-
-        dataset.commit()
 
     def _validate_semantic_equivalency_basic(self, source_dataset: "DatasetDatabase", target_dataset: "DatasetDatabase") -> None:
         """Validate that basic data was imported with semantic equivalency."""

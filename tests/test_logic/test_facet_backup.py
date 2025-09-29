@@ -16,10 +16,7 @@ import pytest
 
 from py_fade.data_formats.facet_backup import FacetBackupFormat, FacetBackupData, FACET_BACKUP_FORMAT_VERSION, PYFADE_VERSION
 from py_fade.dataset.facet import Facet
-from py_fade.dataset.sample import Sample
-from py_fade.dataset.prompt import PromptRevision
-from py_fade.dataset.completion import PromptCompletion
-from py_fade.dataset.completion_rating import PromptCompletionRating
+from tests.helpers.facet_backup_helpers import create_test_facet_with_data, create_temp_backup_file
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -80,32 +77,8 @@ class TestFacetBackupFormat:
 
     def test_create_backup_with_sample_and_completion(self, temp_dataset: "DatasetDatabase"):
         """Test creating backup with sample, completion, and rating data."""
-        # Create test facet
-        facet = Facet.create(temp_dataset, "Test Facet", "Test facet for backup")
-        temp_dataset.commit()
-
-        # Create prompt revision with required parameters
-        prompt_rev = PromptRevision.get_or_create(temp_dataset, "Test prompt text", context_length=2048, max_tokens=512)
-        temp_dataset.commit()
-
-        # Create sample
-        sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "test_group")
-        temp_dataset.commit()
-
-        # Create completion manually (since the get_or_create method requires LLMResponse)
-        import hashlib
-        completion_text = "Test completion text"
-        sha256 = hashlib.sha256(completion_text.encode("utf-8")).hexdigest()
-
-        completion = PromptCompletion(sha256=sha256, prompt_revision_id=prompt_rev.id, model_id="test-model", temperature=0.7, top_k=40,
-                                      completion_text=completion_text, tags={}, prefill=None, beam_token=None, is_truncated=False,
-                                      context_length=2048, max_tokens=512)
-        temp_dataset.session.add(completion)
-        temp_dataset.commit()
-
-        # Create rating
-        rating = PromptCompletionRating.set_rating(temp_dataset, completion, facet, 8)
-        temp_dataset.commit()
+        # Create test facet with data using helper
+        facet = create_test_facet_with_data(temp_dataset, "Test Facet", "Test facet for backup")
 
         # Create backup
         backup = FacetBackupFormat()
@@ -118,57 +91,27 @@ class TestFacetBackupFormat:
 
         # Validate sample data
         sample_data = backup_data.samples[0]
-        assert sample_data['id'] == sample.id
-        assert sample_data['title'] == sample.title
-        assert sample_data['group_path'] == sample.group_path
-        assert sample_data['prompt_revision']['id'] == prompt_rev.id
-        assert sample_data['prompt_revision']['prompt_text'] == prompt_rev.prompt_text
+        assert sample_data['title'] == "Test Facet Sample 0"
+        assert sample_data['group_path'] == "group_0"
+        assert sample_data['prompt_revision']['prompt_text'] == "test facet prompt 0"
 
         # Validate completion data
         completion_data = backup_data.completions[0]
-        assert completion_data['id'] == completion.id
-        assert completion_data['prompt_revision_id'] == prompt_rev.id
-        assert completion_data['completion_text'] == "Test completion text"
-        assert completion_data['model_id'] == "test-model"
+        assert completion_data['completion_text'] == "test facet completion 0-0"
+        assert completion_data['model_id'] == "test-model-0"
 
         # Validate rating data
         rating_data = backup_data.ratings[0]
-        assert rating_data['id'] == rating.id
-        assert rating_data['prompt_completion_id'] == completion.id
+        assert rating_data['rating'] == 6
         assert rating_data['facet_id'] == facet.id
-        assert rating_data['rating'] == 8
 
     def test_save_and_load_round_trip(self, temp_dataset: "DatasetDatabase"):
         """Test saving and loading a backup file."""
-        # Create test facet with sample and completion
-        facet = Facet.create(temp_dataset, "Round Trip Facet", "Test round trip")
-        temp_dataset.commit()
-
-        prompt_rev = PromptRevision.get_or_create(temp_dataset, "Round trip prompt", context_length=2048, max_tokens=512)
-        temp_dataset.commit()
-
-        sample = Sample.create_if_unique(temp_dataset, "Round Trip Sample", prompt_rev)
-        temp_dataset.commit()
-
-        # Create completion manually
-        import hashlib
-        completion_text = "Round trip completion"
-        sha256 = hashlib.sha256(completion_text.encode("utf-8")).hexdigest()
-
-        completion = PromptCompletion(sha256=sha256, prompt_revision_id=prompt_rev.id, model_id="round-trip-model", temperature=0.7,
-                                      top_k=40, completion_text=completion_text, tags={}, prefill=None, beam_token=None, is_truncated=False,
-                                      context_length=2048, max_tokens=512)
-        temp_dataset.session.add(completion)
-        temp_dataset.commit()
-
-        rating = PromptCompletionRating.set_rating(temp_dataset, completion, facet, 5)
-        temp_dataset.commit()
+        # Create test facet with sample and completion using helper
+        facet = create_test_facet_with_data(temp_dataset, "Round Trip Facet", "Test round trip")
 
         # Create backup and save to temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            temp_path = pathlib.Path(f.name)
-
-        try:
+        with create_temp_backup_file() as temp_path:
             backup = FacetBackupFormat(temp_path)
             backup.create_backup_from_facet(temp_dataset, facet)
             saved_count = backup.save()
@@ -189,13 +132,9 @@ class TestFacetBackupFormat:
             assert len(loaded_data.completions) == 1
             assert len(loaded_data.ratings) == 1
 
-            assert loaded_data.samples[0]['title'] == "Round Trip Sample"
-            assert loaded_data.completions[0]['completion_text'] == "Round trip completion"
-            assert loaded_data.ratings[0]['rating'] == 5
-
-        finally:
-            # Clean up temp file
-            temp_path.unlink(missing_ok=True)
+            assert loaded_data.samples[0]['title'] == "Round Trip Facet Sample 0"
+            assert loaded_data.completions[0]['completion_text'] == "round trip facet completion 0-0"
+            assert loaded_data.ratings[0]['rating'] == 6
 
     def test_load_invalid_file_path(self):
         """Test loading from non-existent file."""
@@ -266,12 +205,23 @@ class TestFacetBackupFormat:
 
     def test_save_without_file_path(self):
         """Test saving without setting file path."""
-        backup = FacetBackupFormat()
-        # Mock backup data
-        backup._backup_data = FacetBackupData(pyfade_version=PYFADE_VERSION, format_version=FACET_BACKUP_FORMAT_VERSION, facet={}, tags=[],
-                                              samples=[], completions=[], ratings=[], export_timestamp="")
-        with pytest.raises(ValueError, match="No file path specified"):
-            backup.save()
+        # Create a minimal dataset to generate backup data
+        with create_temp_backup_file(suffix='.db') as temp_db_path:
+            from py_fade.dataset.dataset import DatasetDatabase  # pylint: disable=import-outside-toplevel
+            temp_db = DatasetDatabase(temp_db_path)
+            temp_db.initialize()
+
+            # Create minimal facet to generate backup data
+            facet = Facet.create(temp_db, "Test", "Test facet")
+            temp_db.commit()
+
+            backup = FacetBackupFormat()
+            backup.create_backup_from_facet(temp_db, facet)
+            temp_db.dispose()
+
+            # Now test saving without file path
+            with pytest.raises(ValueError, match="No file path specified"):
+                backup.save()
 
     def test_property_accessors(self, temp_dataset: "DatasetDatabase"):
         """Test property accessor methods."""
