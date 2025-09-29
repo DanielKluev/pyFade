@@ -23,11 +23,9 @@ from py_fade.controllers.export_controller import ExportController
 from py_fade.data_formats.facet_backup import FacetBackupFormat
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.sample import Sample
-from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_rating import PromptCompletionRating
-from tests.helpers.facet_backup_helpers import (create_temp_database, create_temp_backup_file, create_test_facet_with_data,
-                                                export_facet_to_backup, import_facet_from_backup)
+from tests.helpers.facet_backup_helpers import create_test_facet_with_data, create_temp_database
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -57,14 +55,7 @@ class TestFacetBackupFullCycle:
             assert backup_path.exists()
 
             # Step 3: Import backup into fresh database
-            with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as db_file:
-                target_db_path = pathlib.Path(db_file.name)
-
-            try:
-                from py_fade.dataset.dataset import DatasetDatabase
-                target_dataset = DatasetDatabase(target_db_path)
-                target_dataset.initialize()
-
+            with create_temp_database() as target_dataset:
                 import_controller = ImportController(app_with_dataset, target_dataset)
                 import_controller.add_source(backup_path)
                 import_count = import_controller.import_facet_backup_to_dataset()
@@ -75,11 +66,6 @@ class TestFacetBackupFullCycle:
 
                 # Step 5: Test round-trip consistency
                 self._test_round_trip_consistency(app_with_dataset, target_dataset, source_facet.name)
-
-                target_dataset.dispose()
-
-            finally:
-                target_db_path.unlink(missing_ok=True)
 
         finally:
             backup_path.unlink(missing_ok=True)
@@ -103,14 +89,7 @@ class TestFacetBackupFullCycle:
             assert export_count == 1
 
             # Step 3: Import backup into fresh database
-            with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as db_file:
-                target_db_path = pathlib.Path(db_file.name)
-
-            try:
-                from py_fade.dataset.dataset import DatasetDatabase
-                target_dataset = DatasetDatabase(target_db_path)
-                target_dataset.initialize()
-
+            with create_temp_database() as target_dataset:
                 import_controller = ImportController(app_with_dataset, target_dataset)
                 import_controller.add_source(backup_path)
                 import_count = import_controller.import_facet_backup_to_dataset()
@@ -123,11 +102,6 @@ class TestFacetBackupFullCycle:
 
                 # Step 5: Test round-trip consistency
                 self._test_round_trip_consistency(app_with_dataset, target_dataset, source_facet.name)
-
-                target_dataset.dispose()
-
-            finally:
-                target_db_path.unlink(missing_ok=True)
 
         finally:
             backup_path.unlink(missing_ok=True)
@@ -148,18 +122,11 @@ class TestFacetBackupFullCycle:
             export_controller.export_facet_backup(source_facet.id)
 
             # Create target database
-            with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as db_file:
-                target_db_path = pathlib.Path(db_file.name)
-
-            try:
-                from py_fade.dataset.dataset import DatasetDatabase
-                target_dataset = DatasetDatabase(target_db_path)
-                target_dataset.initialize()
-
+            with create_temp_database() as target_dataset:
                 # First import
                 import_controller1 = ImportController(app_with_dataset, target_dataset)
                 import_controller1.add_source(backup_path)
-                first_count = import_controller1.import_facet_backup_to_dataset()
+                import_controller1.import_facet_backup_to_dataset()
 
                 # Get initial counts
                 initial_facet_count = len(Facet.get_all(target_dataset))
@@ -179,11 +146,6 @@ class TestFacetBackupFullCycle:
                 assert len(target_dataset.session.query(PromptCompletion).all()) == initial_completion_count
                 assert len(target_dataset.session.query(PromptCompletionRating).all()) == initial_rating_count
 
-                target_dataset.dispose()
-
-            finally:
-                target_db_path.unlink(missing_ok=True)
-
         finally:
             backup_path.unlink(missing_ok=True)
 
@@ -195,24 +157,6 @@ class TestFacetBackupFullCycle:
         """Create complex test data: 1 facet, 3 samples, 6 completions, 6 ratings."""
         create_test_facet_with_data(dataset, "Complex Cycle Test Facet", "Complex facet for full cycle testing", sample_count=3,
                                     completions_per_sample=2)
-
-        for i in range(3):
-            prompt_rev = PromptRevision.get_or_create(dataset, f"Complex cycle prompt {i}", 2048, 512)
-
-            sample = Sample.create_if_unique(dataset, f"Complex Cycle Sample {i}", prompt_rev, f"complex_cycle_{i}")
-
-            # Create 2 completions per sample
-            for j in range(2):
-                import hashlib
-                completion_text = f"Complex cycle completion {i}-{j}"
-                sha256 = hashlib.sha256(completion_text.encode("utf-8")).hexdigest()
-
-                completion = PromptCompletion(sha256=sha256, prompt_revision_id=prompt_rev.id, model_id=f"complex-cycle-model-{j}",
-                                              temperature=0.6 + j * 0.1, top_k=35 + j * 5, completion_text=completion_text, tags={
-                                                  "complex": True,
-                                                  "index": i
-                                              }, prefill=None, beam_token=None, is_truncated=False, context_length=2048, max_tokens=512)
-                dataset.session.add(completion)
 
     def _validate_semantic_equivalency_basic(self, source_dataset: "DatasetDatabase", target_dataset: "DatasetDatabase") -> None:
         """Validate that basic data was imported with semantic equivalency."""
