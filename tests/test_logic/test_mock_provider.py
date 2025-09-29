@@ -10,7 +10,7 @@ from py_fade.providers.mock_provider import (
     _VOCAB_TOKEN_STRINGS,
 )
 
-from py_fade.providers.flat_prefix_template import apply_flat_prefix_template
+from py_fade.providers.flat_prefix_template import apply_flat_prefix_template, parse_flat_prefix_string
 from py_fade.data_formats.base_data_classes import CommonConversation
 
 
@@ -130,11 +130,12 @@ def test_mock_provider_generate_accepts_prefill_and_flat_prefix_prompt():
         },
     ]
     prompt = apply_flat_prefix_template(messages)
+    conversation = parse_flat_prefix_string(prompt)
     prefill = "Sure, here's a quick overview: "
 
     response = provider.generate(
         model_id="mock-echo-model",
-        prompt=prompt,
+        prompt=conversation,
         prefill=prefill,
         max_tokens=6,
     )

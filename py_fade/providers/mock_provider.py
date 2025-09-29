@@ -430,23 +430,15 @@ class MockLLMProvider(BasePrefillAwareProvider):
             default_max_tokens,
         )
 
-    def generate(self, model_id: str, prompt: CommonConversation | str, prefill: str | None = None, **kwargs) -> LLMResponse:
+    def generate(self, model_id: str, prompt: CommonConversation, prefill: str | None = None, **kwargs) -> LLMResponse:
         temperature = kwargs.get("temperature", self.default_temperature)
         top_k = kwargs.get("top_k", self.default_top_k)
         context_length = kwargs.get("context_length", self.default_context_length)
         max_tokens = kwargs.get("max_tokens", self.default_max_tokens)
         top_logprobs = kwargs.get("top_logprobs", 0)
 
-        # Handle both CommonConversation and flat prefix template string
-        if isinstance(prompt, str):
-            messages = self.flat_prefix_template_to_messages(prompt, prefill).as_list()
-            conversation = self.flat_prefix_template_to_messages(prompt, None)  # For response metadata, don't include prefill
-        else:
-            messages = prompt.as_list()
-            conversation = prompt
-
         generator = MockResponseGenerator(
-            messages=messages,
+            messages=prompt.as_list(),
             prefill=prefill or "",
             max_length=max_tokens,
             top_logprobs=top_logprobs,
@@ -464,7 +456,7 @@ class MockLLMProvider(BasePrefillAwareProvider):
 
         return LLMResponse(
             model_id=model_id,
-            prompt_conversation=conversation,
+            prompt_conversation=prompt,
             completion_text=full_response_text,
             generated_part_text=response_text,
             temperature=temperature,
@@ -480,17 +472,10 @@ class MockLLMProvider(BasePrefillAwareProvider):
             beam_token=kwargs.get("beam_token", None),
         )
 
-    def evaluate_completion(self, model_id: str, prompt: CommonConversation | str, completion: str, **kwargs) -> LLMResponseLogprobs:
+    def evaluate_completion(self, model_id: str, prompt: CommonConversation, completion: str, **kwargs) -> LLMResponseLogprobs:
         top_logprobs = kwargs.get("top_logprobs", 20)
-
-        # Handle both CommonConversation and flat prefix template string
-        if isinstance(prompt, str):
-            messages = self.flat_prefix_template_to_messages(prompt, None).as_list()
-        else:
-            messages = prompt.as_list()
-
         generator = MockResponseGenerator(
-            messages=messages,
+            messages=prompt.as_list(),
             prefill="",
             max_length=0,
             top_logprobs=top_logprobs,
