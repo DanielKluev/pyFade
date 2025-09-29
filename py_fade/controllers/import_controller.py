@@ -345,7 +345,7 @@ class ImportController:
         if existing_facet:
             if merge_strategy == "error_on_conflict":
                 raise ValueError(f"Facet '{facet_data['name']}' already exists")
-            elif merge_strategy == "skip_duplicates":
+            if merge_strategy == "skip_duplicates":
                 self.log.info("Facet '%s' already exists, skipping", facet_data['name'])
                 target_facet = existing_facet
             else:  # merge

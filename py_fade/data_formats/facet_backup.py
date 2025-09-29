@@ -112,10 +112,10 @@ class FacetBackupFormat(BaseDataFormat):
         }
 
         # Get all samples that have ratings for this facet
-        from py_fade.dataset.sample import Sample
-        from py_fade.dataset.completion_rating import PromptCompletionRating
-        from py_fade.dataset.completion import PromptCompletion
-        from py_fade.dataset.tag import Tag
+        # Import statements inside function to avoid circular dependencies
+        from py_fade.dataset.sample import Sample  # pylint: disable=import-outside-toplevel
+        from py_fade.dataset.completion_rating import PromptCompletionRating  # pylint: disable=import-outside-toplevel
+        from py_fade.dataset.completion import PromptCompletion  # pylint: disable=import-outside-toplevel
 
         # Find samples through completion ratings for this facet
         samples_query = (dataset.session.query(Sample).join(Sample.prompt_revision).join(
@@ -197,7 +197,7 @@ class FacetBackupFormat(BaseDataFormat):
             ratings_data.append(rating_data)
 
         # For now, export empty tags list - we'll implement tag association later
-        # TODO: Implement proper tag collection based on sample/completion associations
+        # when tag functionality is fully defined in the system
         tags_data = []
 
         # Create the backup data structure
