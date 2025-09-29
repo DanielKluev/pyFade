@@ -21,6 +21,13 @@ class CommonMessage:
         """
         return {"role": self.role, "content": self.content}
 
+    def __eq__(self, value: object) -> bool:
+        if isinstance(value, CommonMessage):
+            return self.role == value.role and self.content == value.content
+        elif isinstance(value, dict):
+            return self.role == value.get("role") and self.content == value.get("content")
+        return False
+
 
 @dataclass(frozen=True, slots=True)
 class CommonConversation:
@@ -28,6 +35,13 @@ class CommonConversation:
     Message API conversation format.
     """
     messages: list[CommonMessage]
+
+    @classmethod
+    def from_single_user(cls, user_message: str) -> "CommonConversation":
+        """
+        Create CommonConversation from a single user message string.
+        """
+        return cls(messages=[CommonMessage(role="user", content=user_message)])
 
     def append(self, message: CommonMessage | dict) -> None:
         """
@@ -75,6 +89,13 @@ class CommonConversation:
         Return conversation as list of dicts with 'role' and 'content'.
         """
         return [msg.as_dict() for msg in self.messages]
+
+    def __eq__(self, value: object) -> bool:
+        if isinstance(value, CommonConversation):
+            return self.messages == value.messages
+        elif isinstance(value, list):
+            return self.as_list() == value
+        return False
 
 
 @dataclass(slots=True)

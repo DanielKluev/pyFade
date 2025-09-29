@@ -20,6 +20,12 @@ Key behaviours implemented here:
     are ignored deliberately so tests can focus on deterministic echoes.
 * Generated completions open with common natural language openers such as
     ``"Sure,"`` or ``"Okay,"`` to better resemble real completions.
+
+TODO:
+    - GPT2_ENCODING._mergeable_ranks - use actual vocabulary to create unique top_logprobs to at least depth of 200 tokens.
+    - Inside top_logprobs, ensure no two tokens are identical.
+    - For first position, fill top logprobs with common sentence starters, but ensure they are fit to tokenizer vocabulary.
+    - If prefill is present, skip length of generated text that overlaps with prefill.
 """
 
 from __future__ import annotations

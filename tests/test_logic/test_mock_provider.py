@@ -8,7 +8,11 @@ from py_fade.providers.mock_provider import (
     MockResponseGenerator,
     _COMMON_OPENERS,
 )
+
 from py_fade.providers.flat_prefix_template import apply_flat_prefix_template
+from py_fade.providers.providers_manager import MappedModel, InferenceProvidersManager
+from py_fade.controllers.text_generation_controller import TextGenerationController
+from py_fade.data_formats.base_data_classes import CommonConversation
 
 
 def _logprob_signature(sequence):
@@ -77,13 +81,16 @@ def test_mock_provider_generate_returns_top_logprobs():
 
     Verifies that the mock provider properly generates logprob data
     matching the requested top_logprobs parameter.
+
+    Checks that top logprobs are unique and correctly ordered.
     """
     provider = MockLLMProvider()
-
+    conversation = CommonConversation.from_single_user("please describe asynchronous IO interplay with event loops.")
+    token_candidates = 200
     response = provider.generate(
         model_id="mock-echo-model",
-        prompt="please describe asynchronous IO interplay with event loops.",
-        top_logprobs=4,
+        prompt=conversation,
+        top_logprobs=token_candidates,
         max_tokens=40,
     )
 
@@ -93,11 +100,13 @@ def test_mock_provider_generate_returns_top_logprobs():
 
     inspected = 0
     for entry in response.logprobs:
-        if entry.top_logprobs:
-            assert entry.top_logprobs[0][0] == entry.token
-            assert entry.top_logprobs[0][1] == pytest.approx(entry.logprob)
-            assert len(entry.top_logprobs) <= 4
-            inspected += 1
+        assert entry.top_logprobs is not None
+        assert entry.top_logprobs[0][0] == entry.token
+        assert entry.top_logprobs[0][1] == pytest.approx(entry.logprob)
+        tokens = [t[0] for t in entry.top_logprobs]
+        assert len(entry.top_logprobs) == token_candidates
+        assert len(tokens) == len(set(tokens))  # all token candidates **MUST** be unique
+        inspected += 1
         if inspected >= 3:
             break
     assert inspected >= 1
