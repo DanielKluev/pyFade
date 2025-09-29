@@ -46,6 +46,12 @@ from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMRespo
 from py_fade.data_formats.base_data_classes import CommonConversation
 
 _GPT2_ENCODING = tiktoken.get_encoding("gpt2")
+
+# Get actual vocabulary tokens for more realistic top_logprobs
+# pylint: disable=protected-access
+_VOCAB_TOKENS = list(_GPT2_ENCODING._mergeable_ranks.keys())  # Get all vocabulary tokens as bytes
+_VOCAB_TOKEN_STRINGS = [_GPT2_ENCODING.decode([tid]) for tid in range(min(500, _GPT2_ENCODING.n_vocab))]  # Convert first 500 to strings
+
 _COMMON_OPENERS: Sequence[str] = (
     "Sure,",
     "Okay,",
@@ -151,7 +157,7 @@ class MockResponseGenerator(Iterator[SinglePositionTokenLogprobs]):
 
         self.generated_text = (forced_response_text if forced_response_text is not None else self._build_preferred_response(self.messages))
         if not self.generated_text:
-            self.generated_text = ("Here's a placeholder completion from the deterministic mock provider.")
+            self.generated_text = "Here's a placeholder completion from the deterministic mock provider."
 
         self.full_text = self.prefill + self.generated_text
         self._true_tokens = self._compute_true_tokens()
@@ -276,7 +282,9 @@ class MockResponseGenerator(Iterator[SinglePositionTokenLogprobs]):
             pieces = self._split_token(generated_text, forced_split)
             for piece_index, piece in enumerate(pieces):
                 logprob = token.logprob - (0.04 * piece_index)
-                top = self._build_top_logprobs(piece, logprob)
+                # Pass the current position info for first-position logic
+                is_first_position = (index == 0 and piece_index == 0)
+                top = self._build_top_logprobs(piece, logprob, is_first_position)
                 specs.append(_StreamingTokenSpec(
                     text=piece,
                     logprob=logprob,
@@ -309,36 +317,88 @@ class MockResponseGenerator(Iterator[SinglePositionTokenLogprobs]):
             last_pos = cut
         return segments
 
-    def _build_top_logprobs(self, token: str, base_logprob: float) -> list[tuple[str, float]] | None:
+    def _build_top_logprobs(self, token: str, base_logprob: float, is_first_position: bool = False) -> list[tuple[str, float]] | None:
         if self.top_logprobs <= 0:
             return None
+
         entries: list[tuple[str, float]] = [(token, base_logprob)]
         seen = {token}
-        for rank in range(1, self.top_logprobs):
+
+        # For the first position, use common sentence starters that are in the vocabulary
+        if is_first_position:
+            # Use common openers fitted to tokenizer vocabulary
+            vocab_openers = []
+            for opener in _COMMON_OPENERS:
+                # Check if opener exists in vocabulary by trying to encode/decode it
+                try:
+                    encoded = _GPT2_ENCODING.encode(opener)
+                    if encoded and _GPT2_ENCODING.decode(encoded) == opener:
+                        vocab_openers.append(opener)
+                except (ValueError, RuntimeError):  # More specific exception handling
+                    continue
+
+            # Add vocabulary-fitted openers
+            for opener in vocab_openers:
+                if len(entries) >= self.top_logprobs:
+                    break
+                if opener not in seen:
+                    seen.add(opener)
+                    logprob_penalty = 0.2 * len(entries)
+                    entries.append((opener, base_logprob - logprob_penalty))
+
+        # Fill remaining slots with unique vocabulary tokens
+        vocab_candidates = list(_VOCAB_TOKEN_STRINGS)
+        self._rng.shuffle(vocab_candidates)  # Randomize order but keep deterministic
+
+        for candidate in vocab_candidates:
+            if len(entries) >= self.top_logprobs:
+                break
+            if candidate not in seen and candidate:  # Skip empty strings
+                seen.add(candidate)
+                logprob_penalty = 0.2 * len(entries)
+                entries.append((candidate, base_logprob - logprob_penalty))
+
+        # If we still need more entries, generate unique mutations
+        attempts = 0
+        while len(entries) < self.top_logprobs and attempts < 100:
+            attempts += 1
             candidate = self._choose_alternative_token(token, seen)
-            seen.add(candidate)
-            entries.append((candidate, base_logprob - 0.2 * rank))
+            if candidate not in seen:
+                seen.add(candidate)
+                logprob_penalty = 0.2 * len(entries)
+                entries.append((candidate, base_logprob - logprob_penalty))
+
         return entries
 
     def _choose_alternative_token(self, token: str, seen: set[str]) -> str:
         attempts = 0
-        while attempts < 12:
+        while attempts < 50:
             attempts += 1
-            if token:
+
+            # Try vocabulary tokens first
+            if attempts <= 20:
+                vocab_idx = (self._rng.randint(0, len(_VOCAB_TOKEN_STRINGS) - 1) + attempts) % len(_VOCAB_TOKEN_STRINGS)
+                candidate = _VOCAB_TOKEN_STRINGS[vocab_idx]
+                if candidate and candidate not in seen:
+                    return candidate
+
+            # Try character mutations
+            if token and attempts <= 35:
                 index = self._rng.randrange(len(token))
                 delta = 1 + (attempts % 3)
                 candidate = list(token)
                 candidate[index] = chr(((ord(candidate[index]) - 32 + delta) % 95) + 32)
                 mutated = "".join(candidate)
-            else:
-                mutated = self._rng.choice(_ALTERNATIVE_TOKENS)
-            mutated = mutated or self._rng.choice(_ALTERNATIVE_TOKENS)
-            if mutated not in seen:
-                return mutated
-        for alternative in _ALTERNATIVE_TOKENS:
-            if alternative not in seen:
+                if mutated and mutated not in seen:
+                    return mutated
+
+            # Try alternative tokens
+            alternative = self._rng.choice(_ALTERNATIVE_TOKENS)
+            if alternative and alternative not in seen:
                 return alternative
-        fallback = token + "-alt"
+
+        # Final fallback with attempt number to ensure uniqueness
+        fallback = f"{token or 'alt'}-{attempts}"
         return fallback
 
     def _sample_true_logprob(self, index: int) -> float:
@@ -370,15 +430,23 @@ class MockLLMProvider(BasePrefillAwareProvider):
             default_max_tokens,
         )
 
-    def generate(self, model_id: str, prompt: CommonConversation, prefill: str | None = None, **kwargs) -> LLMResponse:
+    def generate(self, model_id: str, prompt: CommonConversation | str, prefill: str | None = None, **kwargs) -> LLMResponse:
         temperature = kwargs.get("temperature", self.default_temperature)
         top_k = kwargs.get("top_k", self.default_top_k)
         context_length = kwargs.get("context_length", self.default_context_length)
         max_tokens = kwargs.get("max_tokens", self.default_max_tokens)
         top_logprobs = kwargs.get("top_logprobs", 0)
 
+        # Handle both CommonConversation and flat prefix template string
+        if isinstance(prompt, str):
+            messages = self.flat_prefix_template_to_messages(prompt, prefill).as_list()
+            conversation = self.flat_prefix_template_to_messages(prompt, None)  # For response metadata, don't include prefill
+        else:
+            messages = prompt.as_list()
+            conversation = prompt
+
         generator = MockResponseGenerator(
-            messages=prompt.as_list(),
+            messages=messages,
             prefill=prefill or "",
             max_length=max_tokens,
             top_logprobs=top_logprobs,
@@ -396,7 +464,7 @@ class MockLLMProvider(BasePrefillAwareProvider):
 
         return LLMResponse(
             model_id=model_id,
-            prompt_conversation=prompt,
+            prompt_conversation=conversation,
             completion_text=full_response_text,
             generated_part_text=response_text,
             temperature=temperature,
@@ -412,10 +480,17 @@ class MockLLMProvider(BasePrefillAwareProvider):
             beam_token=kwargs.get("beam_token", None),
         )
 
-    def evaluate_completion(self, model_id: str, prompt: CommonConversation, completion: str, **kwargs) -> LLMResponseLogprobs:
+    def evaluate_completion(self, model_id: str, prompt: CommonConversation | str, completion: str, **kwargs) -> LLMResponseLogprobs:
         top_logprobs = kwargs.get("top_logprobs", 20)
+
+        # Handle both CommonConversation and flat prefix template string
+        if isinstance(prompt, str):
+            messages = self.flat_prefix_template_to_messages(prompt, None).as_list()
+        else:
+            messages = prompt.as_list()
+
         generator = MockResponseGenerator(
-            messages=prompt.as_list(),
+            messages=messages,
             prefill="",
             max_length=0,
             top_logprobs=top_logprobs,
