@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from py_fade.data_formats.base_data_classes import (CommonCompletionProtocol, CommonCompletionLogprobsProtocol, 
+from py_fade.data_formats.base_data_classes import (CommonCompletionProtocol, CommonCompletionLogprobsProtocol,
                                                      CommonConversation, SinglePositionTokenLogprobs)
 
 if TYPE_CHECKING:
@@ -22,8 +22,9 @@ class LLMResponseLogprobs(CommonCompletionLogprobsProtocol):
     avg_logprob: float | None = None  # average(logprobs), average logprob of all tokens in response
 
     @classmethod
-    def from_sequence(cls, logprobs_model_id: str,
-                      *sequence: "list[SinglePositionTokenLogprobs] | SinglePositionTokenLogprobs | CommonCompletionLogprobsProtocol | LLMResponseLogprobs | None") -> "LLMResponseLogprobs":
+    def from_sequence(cls, logprobs_model_id: str, *sequence: "list[SinglePositionTokenLogprobs] | "
+                                                              "SinglePositionTokenLogprobs | CommonCompletionLogprobsProtocol | "
+                                                              "LLMResponseLogprobs | None") -> "LLMResponseLogprobs":
         """
         Create LLMResponseLogprobs from a sequence of logprobs, supporting mixing different input types.
         """
