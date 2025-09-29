@@ -276,9 +276,14 @@ class ImportController:
     def _find_model_id_for_record(self, record: "LMEvalSample") -> str:
         """
         Find the model ID for a specific record by checking which source it belongs to.
+        
+        This checks for the exact record object, not just matching prompt_hash,
+        to handle paired scenarios where both sources have records with the same hash.
         """
         for source in self.sources:
-            if record.prompt_hash in source.samples_by_hash:
+            # Check if this exact record object is in the source
+            source_record = source.samples_by_hash.get(record.prompt_hash)
+            if source_record is record:
                 return source.model_id or "unknown"
         return "unknown"
 

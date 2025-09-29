@@ -20,10 +20,7 @@ class TestImportController:
 
         # Create temporary test file with lm_eval structure
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            json.dump({
-                "results": {"gsm8k": {"exact_match": 0.75}},
-                "configs": {"gsm8k": {"task": "gsm8k"}}
-            }, f)
+            json.dump({"results": {"gsm8k": {"exact_match": 0.75}}, "configs": {"gsm8k": {"task": "gsm8k"}}}, f)
             f.flush()
 
             result = controller.detect_format(pathlib.Path(f.name))
@@ -62,10 +59,7 @@ class TestImportController:
 
         # Create temporary test file with proper results_ naming
         with tempfile.NamedTemporaryFile(mode='w', prefix='results_', suffix='.json', delete=False) as f:
-            json.dump({
-                "results": {"gsm8k": {"exact_match": 0.75}},
-                "configs": {"gsm8k": {"task": "gsm8k"}}
-            }, f)
+            json.dump({"results": {"gsm8k": {"exact_match": 0.75}}, "configs": {"gsm8k": {"task": "gsm8k"}}}, f)
             f.flush()
 
             # Create matching samples file following the expected pattern
@@ -142,3 +136,31 @@ class TestImportController:
         controller = ImportController(MagicMock(), MagicMock())
         # No sources, should use default
         assert controller._get_group_path() == "import"
+
+    def test_find_model_id_for_record_object_identity(self):
+        """Test that _find_model_id_for_record uses object identity, not just prompt_hash matching."""
+        controller = ImportController(MagicMock(), MagicMock())
+
+        # Create mock sources with different model IDs
+        source1 = MagicMock()
+        source1.model_id = "model_a"
+        record_a = MagicMock()
+        record_a.prompt_hash = "hash123"
+        source1.samples_by_hash = {"hash123": record_a}
+
+        source2 = MagicMock()
+        source2.model_id = "model_b"
+        record_b = MagicMock()
+        record_b.prompt_hash = "hash123"  # Same hash as record_a
+        source2.samples_by_hash = {"hash123": record_b}
+
+        controller.sources = [source1, source2]
+
+        # Even though both records have the same hash, the method should use object identity
+        assert controller._find_model_id_for_record(record_a) == "model_a"
+        assert controller._find_model_id_for_record(record_b) == "model_b"
+
+        # Test with a record that exists in neither source
+        record_c = MagicMock()
+        record_c.prompt_hash = "hash123"  # Same hash, different object
+        assert controller._find_model_id_for_record(record_c) == "unknown"
