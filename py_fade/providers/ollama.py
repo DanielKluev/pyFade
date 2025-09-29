@@ -8,7 +8,7 @@ import pathlib
 from ollama import ChatResponse, chat
 
 from py_fade.providers.base_provider import LOGPROB_LEVEL_NONE, BasePrefillAwareProvider
-from py_fade.providers.llm_response import LLMPTokenLogProbs, LLMResponse
+from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMResponse
 
 
 class OllamaRegistry:
@@ -26,20 +26,14 @@ class OllamaRegistry:
         self.ollama_models_dir = pathlib.Path(ollama_models_dir)
         if not self.ollama_models_dir.exists():
             self.log.error("Ollama models directory does not exist: %s", self.ollama_models_dir)
-            raise FileNotFoundError(
-                f"Ollama models directory does not exist: {self.ollama_models_dir}"
-            )
+            raise FileNotFoundError(f"Ollama models directory does not exist: {self.ollama_models_dir}")
 
         # Directory should have `blobs` and `manifests` subdirs
         self.blobs_dir = self.ollama_models_dir / "blobs"
         self.manifests_dir = self.ollama_models_dir / "manifests"
         if not self.blobs_dir.exists() or not self.manifests_dir.exists():
-            self.log.error(
-                "Ollama models directory structure is invalid: %s", self.ollama_models_dir
-            )
-            raise FileNotFoundError(
-                f"Ollama models directory structure is invalid: {self.ollama_models_dir}"
-            )
+            self.log.error("Ollama models directory structure is invalid: %s", self.ollama_models_dir)
+            raise FileNotFoundError(f"Ollama models directory structure is invalid: {self.ollama_models_dir}")
 
     def _find_layer(self, manifest: dict, media_type: str) -> dict:
         """
@@ -66,13 +60,7 @@ class OllamaRegistry:
         if ":" in model_id:
             family, subtype = model_id.split(":", 1)
 
-        manifest_file = (
-            self.manifests_dir
-            / "registry.ollama.ai"
-            / namespace
-            / family
-            / f"{subtype or 'latest'}"
-        )
+        manifest_file = (self.manifests_dir / "registry.ollama.ai" / namespace / family / f"{subtype or 'latest'}")
         if not manifest_file.exists():
             self.log.error("Model manifest file does not exist: %s", manifest_file)
             raise FileNotFoundError(f"Model manifest file does not exist: {manifest_file}")
@@ -82,9 +70,7 @@ class OllamaRegistry:
         weights_dict = self._find_layer(manifest, "application/vnd.ollama.image.model")
         if not weights_dict:
             self.log.error("Model manifest does not contain weights information: %s", manifest_file)
-            raise ValueError(
-                f"Model manifest does not contain weights information: {manifest_file}"
-            )
+            raise ValueError(f"Model manifest does not contain weights information: {manifest_file}")
         template_dict = self._find_layer(manifest, "application/vnd.ollama.image.template")
         result = {
             "model_id": full_model_id,
@@ -92,11 +78,7 @@ class OllamaRegistry:
             "namespace": namespace,
             "subtype": subtype,
             "weights_file": self.blobs_dir / weights_dict.get("digest", "").replace(":", "-"),
-            "template_file": (
-                (self.blobs_dir / template_dict.get("digest", "").replace(":", "-"))
-                if template_dict
-                else None
-            ),
+            "template_file": ((self.blobs_dir / template_dict.get("digest", "").replace(":", "-")) if template_dict else None),
         }
         return result
 
@@ -116,13 +98,9 @@ class PrefillAwareOllama(BasePrefillAwareProvider):
         default_max_tokens: int = 128,
     ):
         self.log = logging.getLogger("PrefillAwareOllama")
-        super().__init__(
-            default_temperature, default_top_k, default_context_length, default_max_tokens
-        )
+        super().__init__(default_temperature, default_top_k, default_context_length, default_max_tokens)
 
-    def generate(
-        self, model_id: str, prompt: str, prefill: str | None = None, **kwargs
-    ) -> LLMResponse:
+    def generate(self, model_id: str, prompt: str, prefill: str | None = None, **kwargs) -> LLMResponse:
         """
         We generate a completion using the Ollama API, optionally with a prefill.
         If prefill is provided, we insert it as a start of assistant response.
@@ -167,17 +145,15 @@ class PrefillAwareOllama(BasePrefillAwareProvider):
 
         response_content = response.message.content
         if not isinstance(response_content, str):
-            self.log.error(
-                "Unexpected response content type: %s. Expected str.", type(response_content)
-            )
+            self.log.error("Unexpected response content type: %s. Expected str.", type(response_content))
             raise TypeError(f"Expected response content to be str, got {type(response_content)}")
 
         full_response_text = (prefill or "") + response_content if prefill else response_content
         return LLMResponse(
             model_id=model_id,
             full_history=history,
-            full_response_text=full_response_text,
-            response_text=response_content,
+            completion_text=full_response_text,
+            generated_part_text=response_content,
             temperature=temperature,
             top_k=top_k,
             prefill=prefill,
@@ -185,9 +161,7 @@ class PrefillAwareOllama(BasePrefillAwareProvider):
             max_tokens=max_tokens,
         )
 
-    def evaluate_completion(
-        self, model_id: str, prompt: str, completion: str, **kwargs
-    ) -> list[LLMPTokenLogProbs]:
+    def evaluate_completion(self, model_id: str, prompt: str, completion: str, **kwargs) -> list[SinglePositionTokenLogprobs]:
         """
         Ollama does not provide token-level log probabilities, so we raise an exception.
         """

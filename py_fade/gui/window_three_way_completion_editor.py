@@ -212,9 +212,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
             return
 
         self.original_completion = completion
-        prompt_text = (
-            completion.prompt_revision.prompt_text if completion.prompt_revision is not None else ""
-        )
+        prompt_text = (completion.prompt_revision.prompt_text if completion.prompt_revision is not None else "")
         self._original_completion_text = completion.completion_text
 
         if self.prompt_edit:
@@ -238,15 +236,11 @@ class ThreeWayCompletionEditorWindow(QDialog):
         if facet is None:
             self.pairwise_checkbox.setChecked(False)
             self.pairwise_checkbox.setEnabled(False)
-            self.pairwise_checkbox.setToolTip(
-                "Select a facet in the parent view to tag pairwise preference."
-            )
+            self.pairwise_checkbox.setToolTip("Select a facet in the parent view to tag pairwise preference.")
         else:
             self.pairwise_checkbox.setEnabled(True)
             self.pairwise_checkbox.setChecked(True)
-            self.pairwise_checkbox.setToolTip(
-                f"Saving will prefer the new completion for facet '{facet.name}'."
-            )
+            self.pairwise_checkbox.setToolTip(f"Saving will prefer the new completion for facet '{facet.name}'.")
 
     def _build_column(
         self,
@@ -322,12 +316,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
     def _on_generate_clicked(self) -> None:
         """Ask the provider to continue the original completion."""
 
-        if (
-            not self.original_completion
-            or not self.prompt_edit
-            or not self.original_edit
-            or not self.new_edit
-        ):
+        if (not self.original_completion or not self.prompt_edit or not self.original_edit or not self.new_edit):
             return
 
         mapped_model = self._resolve_mapped_model()
@@ -335,10 +324,8 @@ class ThreeWayCompletionEditorWindow(QDialog):
             QMessageBox.warning(
                 self,
                 "Provider unavailable",
-                (
-                    "Cannot continue generation because the original provider "
-                    "configuration is unavailable. Switch to manual editing instead."
-                ),
+                ("Cannot continue generation because the original provider "
+                 "configuration is unavailable. Switch to manual editing instead."),
             )
             self.log.warning(
                 "Generation skipped: missing provider for model %s",
@@ -363,9 +350,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
             self._set_status(f"Generation failed: {exc}", error=True)
             return
 
-        combined_text = response.full_response_text or (
-            (response.prefill or "") + response.response_text
-        )
+        combined_text = response.completion_text or ((response.prefill or "") + response.generated_part_text)
         self.generated_response = response
         self._generated_text_cache = combined_text
         self.new_edit.setPlainText(combined_text)
@@ -403,9 +388,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
         top_k = response.top_k if response else self.original_completion.top_k
         prefill = response.prefill if response else None
         beam_token = response.beam_token if response else None
-        context_length = (
-            response.context_length if response else self.original_completion.context_length
-        )
+        context_length = (response.context_length if response else self.original_completion.context_length)
         max_tokens = response.max_tokens if response else self.original_completion.max_tokens
         is_truncated = bool(response.is_truncated) if response else False
 

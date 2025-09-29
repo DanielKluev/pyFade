@@ -5,7 +5,7 @@ import logging
 from tiktoken import get_encoding
 
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
-from py_fade.providers.llm_response import LLMPTokenLogProbs, LLMResponse
+from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMResponse
 
 LOGGER = logging.getLogger("BasePrefillAwareProvider")
 
@@ -46,9 +46,7 @@ class BasePrefillAwareProvider:
         self.default_context_length = default_context_length
         self.default_max_tokens = default_max_tokens
 
-    def flat_prefix_template_to_messages(
-        self, prompt: str, prefill: str | None = None
-    ) -> list[dict]:
+    def flat_prefix_template_to_messages(self, prompt: str, prefill: str | None = None) -> list[dict]:
         """
         Convert flat prefix template string to Messages API format.
         If prefill is provided, it is inserted as the start of the assistant message.
@@ -59,22 +57,18 @@ class BasePrefillAwareProvider:
             messages.append({"role": "assistant", "content": prefill})
         return messages
 
-    def generate(
-        self, model_id: str, prompt: str, prefill: str | None = None, **kwargs
-    ) -> LLMResponse:
+    def generate(self, model_id: str, prompt: str, prefill: str | None = None, **kwargs) -> LLMResponse:
         """Generate completion for the given prompt using the specified model."""
         raise NotImplementedError("Subclasses must implement the generate method.")
 
-    def evaluate_completion(
-        self, model_id: str, prompt: str, completion: str, **kwargs
-    ) -> list[LLMPTokenLogProbs]:
+    def evaluate_completion(self, model_id: str, prompt: str, completion: str, **kwargs) -> list[SinglePositionTokenLogprobs]:
         """
         Evaluate a given completion for given prompt by bound model.
         Returns list of LLMPTokenLogProbs for each token in completion.
         """
         raise NotImplementedError("Subclasses must implement the evaluate_completion method.")
 
-    def count_tokens(self, text: str, model_id: str | None = None) -> int: # pylint: disable=unused-argument
+    def count_tokens(self, text: str, model_id: str | None = None) -> int:  # pylint: disable=unused-argument
         """
         Count the number of tokens in the given text using tiktoken.
         """

@@ -5,7 +5,7 @@ import pathlib
 
 from py_fade.providers.base_provider import BasePrefillAwareProvider
 from py_fade.providers.llama_cpp import PrefillAwareLlamaCppInternal, IS_LLAMA_CPP_AVAILABLE
-from py_fade.providers.llm_response import LLMPTokenLogProbs, LLMResponse
+from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMResponse
 from py_fade.providers.llm_templates import get_template_function
 from py_fade.providers.mock_provider import MockLLMProvider
 from py_fade.providers.ollama import OllamaRegistry, PrefillAwareOllama
@@ -40,7 +40,7 @@ class MappedModel:
         merged_kwargs = {**self.provider_params, **kwargs}
         return self.provider.generate(self.model_id, prompt, prefill, **merged_kwargs)
 
-    def evaluate_completion(self, prompt: str, completion: str, **kwargs) -> list[LLMPTokenLogProbs]:
+    def evaluate_completion(self, prompt: str, completion: str, **kwargs) -> list[SinglePositionTokenLogprobs]:
         """
         Evaluate a given completion for given prompt by bound model.
         Returns list of LLMPTokenLogProbs for each token in completion.

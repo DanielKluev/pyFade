@@ -31,12 +31,10 @@ def test_mock_generator_is_deterministic():
     Verifies that the MockResponseGenerator produces identical outputs when
     given the same input parameters, ensuring test reproducibility.
     """
-    messages = [
-        {
-            "role": "user",
-            "content": "Please summarise the data pipeline. Also outline edge cases.",
-        }
-    ]
+    messages = [{
+        "role": "user",
+        "content": "Please summarise the data pipeline. Also outline edge cases.",
+    }]
     generator_a = MockResponseGenerator(messages, prefill="", max_length=32, top_logprobs=4)
     generator_b = MockResponseGenerator(messages, prefill="", max_length=32, top_logprobs=4)
 
@@ -54,7 +52,10 @@ def test_mock_generator_prefill_boundary_split():
     properly splits the token boundary for streaming behavior.
     """
     generator = MockResponseGenerator(
-        messages=[{"role": "user", "content": "continue the word"}],
+        messages=[{
+            "role": "user",
+            "content": "continue the word"
+        }],
         prefill="Hel",
         max_length=0,
         top_logprobs=0,
@@ -86,8 +87,8 @@ def test_mock_provider_generate_returns_top_logprobs():
         max_tokens=40,
     )
 
-    assert response.response_text
-    assert any(response.response_text.startswith(opener) for opener in _COMMON_OPENERS)
+    assert response.generated_part_text
+    assert any(response.generated_part_text.startswith(opener) for opener in _COMMON_OPENERS)
     assert response.logprobs
 
     inspected = 0
@@ -111,8 +112,14 @@ def test_mock_provider_generate_accepts_prefill_and_flat_prefix_prompt():
     """
     provider = MockLLMProvider()
     messages = [
-        {"role": "system", "content": "You are a concise assistant."},
-        {"role": "user", "content": "Continue the explanation about event loops."},
+        {
+            "role": "system",
+            "content": "You are a concise assistant."
+        },
+        {
+            "role": "user",
+            "content": "Continue the explanation about event loops."
+        },
     ]
     prompt = apply_flat_prefix_template(messages)
     prefill = "Sure, here's a quick overview: "
@@ -126,10 +133,10 @@ def test_mock_provider_generate_accepts_prefill_and_flat_prefix_prompt():
 
     assert response.prefill == prefill
     assert response.full_history == messages
-    assert response.full_response_text.startswith(prefill)
-    assert response.response_text
-    assert response.response_text != prefill
-    assert response.full_response_text == prefill + response.response_text
+    assert response.completion_text.startswith(prefill)
+    assert response.generated_part_text
+    assert response.generated_part_text != prefill
+    assert response.completion_text == prefill + response.generated_part_text
 
 
 def test_mock_provider_evaluate_completion_matches_completion():

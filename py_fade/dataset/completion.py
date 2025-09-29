@@ -3,11 +3,14 @@ Single sampled completion of single specific prompt under specific parameters.
 """
 
 import hashlib
+import logging
 from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
+
+from py_fade.data_formats.base_data_classes import CommonCompletionProtocol, CommonCompletionLogprobsProtocol
 
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.dataset.completion_rating import PromptCompletionRating
@@ -23,26 +26,20 @@ if TYPE_CHECKING:
 class PromptCompletion(dataset_base):
     """
     Represents a single sampled completion of a specific prompt under specific parameters.
+
+    Implements `CommonCompletionProtocol` for interoperability with LLMResponse and logprobs handling.
     """
 
     __tablename__ = "prompt_completions"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    prompt_revision_id: Mapped[int] = mapped_column(
-        ForeignKey("prompt_revisions.id"), nullable=False
-    )
-    prompt_revision: Mapped["PromptRevision"] = relationship(
-        "PromptRevision", back_populates="completions"
-    )
-    parent_completion_id: Mapped[int | None] = mapped_column(
-        ForeignKey("prompt_completions.id"), nullable=True
-    )
-    parent_completion: Mapped["PromptCompletion | None"] = relationship(
-        "PromptCompletion", remote_side=[id], back_populates="child_completions", lazy="select"
-    )
-    child_completions: Mapped[list["PromptCompletion"]] = relationship(
-        "PromptCompletion", back_populates="parent_completion", lazy="select"
-    )
+    prompt_revision_id: Mapped[int] = mapped_column(ForeignKey("prompt_revisions.id"), nullable=False)
+    prompt_revision: Mapped["PromptRevision"] = relationship("PromptRevision", back_populates="completions")
+    parent_completion_id: Mapped[int | None] = mapped_column(ForeignKey("prompt_completions.id"), nullable=True)
+    parent_completion: Mapped["PromptCompletion | None"] = relationship("PromptCompletion", remote_side=[id],
+                                                                        back_populates="child_completions", lazy="select")
+    child_completions: Mapped[list["PromptCompletion"]] = relationship("PromptCompletion", back_populates="parent_completion",
+                                                                       lazy="select")
 
     logprobs: Mapped[list["PromptCompletionLogprobs"]] = relationship(
         "PromptCompletionLogprobs",
@@ -56,9 +53,7 @@ class PromptCompletion(dataset_base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
-    sha256: Mapped[str] = mapped_column(
-        String(64), nullable=False
-    )  # SHA256 hash of completion_text for deduplication.
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)  # SHA256 hash of completion_text for deduplication.
     # Allow different (prompt_revision_id, sha256) pairs.
     model_id: Mapped[str] = mapped_column(nullable=False)
     temperature: Mapped[float] = mapped_column(nullable=False)
@@ -74,22 +69,15 @@ class PromptCompletion(dataset_base):
     is_archived: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     @classmethod
-    def get_or_create_from_llm_response(
-        cls, dataset: "DatasetDatabase", prompt_revision: "PromptRevision", response: "LLMResponse"
-    ) -> "PromptCompletion":
+    def get_or_create_from_llm_response(cls, dataset: "DatasetDatabase", prompt_revision: "PromptRevision",
+                                        response: "LLMResponse") -> "PromptCompletion":
         """
         Get or create a PromptCompletion from LLMResponse.
         """
         if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
-        sha256 = hashlib.sha256(response.full_response_text.encode("utf-8")).hexdigest()
-        instance = (
-            dataset.session.query(cls)
-            .filter_by(prompt_revision_id=prompt_revision.id, sha256=sha256)
-            .first()
-        )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+        sha256 = hashlib.sha256(response.completion_text.encode("utf-8")).hexdigest()
+        instance = (dataset.session.query(cls).filter_by(prompt_revision_id=prompt_revision.id, sha256=sha256).first())
         if not instance:
             instance = cls(
                 sha256=sha256,
@@ -97,7 +85,7 @@ class PromptCompletion(dataset_base):
                 model_id=response.model_id,
                 temperature=response.temperature,
                 top_k=response.top_k,
-                completion_text=response.full_response_text,
+                completion_text=response.completion_text,
                 tags=[],
                 prefill=response.prefill,
                 beam_token=response.beam_token,
@@ -109,19 +97,11 @@ class PromptCompletion(dataset_base):
             dataset.session.commit()
 
         # Also create associated logprobs entry if logprobs are present
-        if (
-            response.logprobs
-            and len(response.logprobs) > 0
-            and response.check_full_response_logprobs()
-        ):
-            # Create associated logprobs entry if logprobs are present. The helper
-            # handles persistence and returns the instance if needed; we don't use
-            # the return value here.
+        if (response.logprobs and response.check_full_response_logprobs()):
             PromptCompletionLogprobs.get_or_create_from_llm_response(dataset, instance, response)
         else:
-            print(
-                "LLMResponse does not contain valid logprobs for PromptCompletionLogprobs creation."
-            )
+            logging.getLogger("PromptCompletion").warning(
+                "LLMResponse does not contain valid logprobs for PromptCompletionLogprobs creation.")
         return instance
 
     def rating_for_facet(self, facet: "Facet | None") -> "PromptCompletionRating | None":
@@ -135,3 +115,15 @@ class PromptCompletion(dataset_base):
     def _compute_sha256(text: str) -> str:
         """Compute SHA256 hash of text."""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def get_logprobs_for_model_id(self, model_id: str) -> CommonCompletionLogprobsProtocol | None:
+        """
+        Get logprobs for the given model ID, if available.
+        Returns `CommonCompletionLogprobsProtocol` compatible result or None if logprobs for the target model_id are not available.
+        """
+        if not self.logprobs:
+            return None
+        for lp in self.logprobs:
+            if lp.logprobs_model_id == model_id:
+                return lp
+        return None

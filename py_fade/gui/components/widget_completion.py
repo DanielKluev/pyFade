@@ -25,6 +25,8 @@ from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
 from py_fade.gui.components.widget_completion_rating import CompletionRatingWidget
 from py_fade.gui.components.widget_label_with_icon import QLabelWithIcon, QLabelWithIconAndText
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
+from py_fade.gui.components.widget_completion_text_editor import CompletionTextEdit
+from py_fade.data_formats.base_data_classes import CommonCompletionProtocol, CommonCompletionLogprobsProtocol
 from py_fade.providers.providers_manager import MappedModel
 
 if TYPE_CHECKING:
@@ -35,68 +37,6 @@ if TYPE_CHECKING:
 
 PREFILL_COLOR = QColor("#FFF9C4")
 BEAM_TOKEN_COLOR = QColor("#C5E1A5")
-
-
-class HeatmapTextEdit(QTextEdit):
-    """Custom QTextEdit that shows tooltips for logprobs in heatmap mode."""
-
-    def __init__(self, completion_frame: 'CompletionFrame', parent: QWidget | None = None):
-        super().__init__(parent)
-        self.completion_frame = completion_frame
-        self._logprobs_data_cache: list = []
-        self._token_positions_cache: list = []  # List of (start_pos, end_pos, logprob)
-
-    def update_heatmap_cache(self, logprobs_data: list, text: str) -> None:
-        """Update cached token positions for tooltip lookups."""
-        self._logprobs_data_cache = logprobs_data
-        self._token_positions_cache = []
-
-        text_pos = 0
-        for token_data in logprobs_data:
-            token = token_data.get("token", "")
-            logprob = token_data.get("logprob")
-
-            if not token or logprob is None:
-                continue
-
-            # Find token position in text
-            token_len = len(token)
-            if text_pos + token_len > len(text):
-                break
-
-            if text[text_pos:text_pos + token_len] == token:
-                self._token_positions_cache.append((text_pos, text_pos + token_len, logprob))
-                text_pos += token_len
-            else:
-                # Try to find token starting from current position
-                found_pos = text.find(token, text_pos)
-                if found_pos != -1 and found_pos <= text_pos + 10:  # Don't search too far ahead
-                    self._token_positions_cache.append((found_pos, found_pos + token_len, logprob))
-                    text_pos = found_pos + token_len
-                else:
-                    text_pos += 1  # Skip character if token not found nearby
-
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # pylint: disable=invalid-name
-        """Handle mouse move events to show tooltips in heatmap mode."""
-        super().mouseMoveEvent(event)
-
-        if not self.completion_frame.is_heatmap_mode or not self._token_positions_cache:
-            return
-
-        # Get cursor position at mouse location
-        cursor = self.cursorForPosition(event.pos())
-        cursor_pos = cursor.position()
-
-        # Find which token contains this position
-        for start_pos, end_pos, logprob in self._token_positions_cache:
-            if start_pos <= cursor_pos < end_pos:
-                # Show tooltip with logprob value
-                tooltip_text = f"logprob: {logprob:.4f}"
-                QToolTip.showText(event.globalPosition().toPoint(), tooltip_text, self)
-                return
-
-        # Hide tooltip if not over a token
-        QToolTip.hideText()
 
 
 class CompletionFrame(QFrame):
@@ -178,7 +118,7 @@ class CompletionFrame(QFrame):
         self.main_layout.addLayout(self.status_layout)
 
         # Text display
-        self.text_edit = HeatmapTextEdit(self, self)
+        self.text_edit = CompletionTextEdit(self, self)
         self.text_edit.setReadOnly(True)
         self.text_edit.setMouseTracking(True)  # Enable mouse tracking for tooltips
         policy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -203,6 +143,8 @@ class CompletionFrame(QFrame):
 
     def _setup_action_buttons(self) -> None:
         """Setup action buttons based on display mode."""
+        if not self.actions_layout:
+            raise RuntimeError("Actions layout not initialized.")
 
         # Common buttons
         self.discard_button = QPushButtonWithIcon("delete", parent=self, icon_size=self.actions_icon_size, button_size=40)
@@ -299,7 +241,7 @@ class CompletionFrame(QFrame):
     def _log_rating_saved(self, rating: int) -> None:
         """Log rating persistence for debugging purposes."""
 
-        self.log.debug("Saved rating %s for completion %s", rating, self.completion.id)
+        self.log.debug("Saved rating %s for completion %s", rating, self.completion)
 
     def set_completion(self, completion: "PromptCompletion | LLMResponse") -> None:
         """Populate the frame with *completion* details."""
@@ -314,15 +256,15 @@ class CompletionFrame(QFrame):
         self._update_temperature_label(completion)
 
         # Hide header widgets in beam mode unless it's a saved completion
-        is_saved_beam = (self.display_mode == "beam" and hasattr(completion, "id") and completion.id is not None)
+        is_saved_beam = (self.display_mode == "beam" and isinstance(completion, PromptCompletion) and completion.id is not None)
         header_visible = self.display_mode == "sample" or is_saved_beam
 
         self.model_label.setVisible(header_visible)
         if self.temperature_label:
             self.temperature_label.setVisible(header_visible)
 
-        self._populate_status_icons(completion)
-        self._update_text_display(completion)
+        self._update_status_icons()
+        self.text_edit.set_completion(completion)
 
         # Update rating widget for sample mode
         if self.display_mode == "sample" and hasattr(self, "rating_widget"):
@@ -342,6 +284,7 @@ class CompletionFrame(QFrame):
         """Set the active evaluation model for logprob checks."""
         self.target_model = mapped_model
         self._update_action_buttons()
+        self._update_status_icons()
 
     def _update_action_buttons(self) -> None:
         """Update button visibility and states based on completion and mode."""
@@ -429,18 +372,9 @@ class CompletionFrame(QFrame):
         if not self.target_model:
             return False
 
-        # Only applies to PromptCompletion objects in sample mode
-        if not hasattr(self.completion, "logprobs"):
+        if self.completion.get_logprobs_for_model_id(self.target_model.model_id):
             return False
-
-        if not self.completion.logprobs:
-            return True
-
-        target_model_id = self.target_model.model_id
-        has_target_logprobs = any(
-            logprob.logprobs_model_id == target_model_id for logprob in self.completion.logprobs
-        )
-        return not has_target_logprobs
+        return True
 
     def _on_archive_clicked(self) -> None:
         """Handle archive button click."""
@@ -512,7 +446,7 @@ class CompletionFrame(QFrame):
     def _on_heatmap_toggled(self, enabled: bool) -> None:
         """Handle heatmap button toggle."""
         self.is_heatmap_mode = enabled
-        self._update_text_display(self.completion)
+        self.text_edit.set_heatmap_mode(enabled)
 
     def _update_temperature_label(self, completion: "PromptCompletion | LLMResponse") -> None:
         """Update temperature label based on completion parameters."""
@@ -549,9 +483,10 @@ class CompletionFrame(QFrame):
         """Build tooltip text describing sampling parameters."""
         return f"Temperature: {completion.temperature}, top_k: {completion.top_k}"
 
-    def _populate_status_icons(self, completion: "PromptCompletion | LLMResponse") -> None:
+    def _update_status_icons(self) -> None:
         """Populate status icons based on completion properties."""
         self._clear_layout(self.status_layout)
+        completion: CommonCompletionProtocol = self.completion
 
         # Check for is_truncated
         is_truncated = getattr(completion, "is_truncated", None)
@@ -586,18 +521,18 @@ class CompletionFrame(QFrame):
         tooltip = "No logprobs available."
         color = "gray"
 
-        if hasattr(completion, "logprobs") and completion.logprobs:
-            if hasattr(completion, "id"):  # PromptCompletion
-                if completion.logprobs and completion.logprobs[0].min_logprob is not None:
-                    logprob = completion.logprobs[0].min_logprob
-                    tooltip = (f"Logprobs min: {logprob:.3f}, "
-                               f"avg: {completion.logprobs[0].avg_logprob:.3f}")
-                    color = logprob_to_qcolor(logprob).name()
-            else:  # LLMResponse
-                if hasattr(completion, "min_logprob") and completion.min_logprob is not None:
-                    logprob = completion.min_logprob
-                    tooltip = f"Logprobs min: {logprob:.3f}"
-                    color = logprob_to_qcolor(logprob).name()
+        if self.target_model:
+            logprobs_for_model = completion.get_logprobs_for_model_id(self.target_model.model_id)
+            self.log.debug("Checking logprobs for model '%s': %s", self.target_model.model_id, logprobs_for_model)
+        else:
+            self.log.debug("No target model set for logprob evaluation.")
+            logprobs_for_model = None
+
+        if logprobs_for_model:
+            if logprobs_for_model.min_logprob is not None:
+                tooltip = (f"Logprobs min: {logprobs_for_model.min_logprob:.3f}, "
+                           f"avg: {logprobs_for_model.avg_logprob:.3f}")
+                color = logprob_to_qcolor(logprobs_for_model.min_logprob).name()
 
         # Always add metrics icon with appropriate color/tooltip
         self.status_layout.addWidget(QLabelWithIcon(
@@ -609,175 +544,18 @@ class CompletionFrame(QFrame):
 
         self.status_layout.addStretch()
 
-    def _update_text_display(self, completion: "PromptCompletion | LLMResponse") -> None:
-        """Update text display based on completion content."""
-        # Get text content - different attribute names for different types
-        if hasattr(completion, "completion_text"):  # PromptCompletion
-            text = completion.completion_text or ""
-        elif hasattr(completion, "full_response_text"):  # LLMResponse
-            text = completion.full_response_text or ""
-        else:
-            text = ""
-
-        self.text_edit.blockSignals(True)
-        self.text_edit.setPlainText(text)
-        self._clear_highlights()
-
-        if text:
-            if self.is_heatmap_mode and self._can_show_heatmap(completion):
-                self._highlight_logprob_heatmap(text, completion)
-            else:
-                self._highlight_prefill_and_beam(text, completion)
-        self.text_edit.blockSignals(False)
-
-    def _clear_highlights(self) -> None:
-        cursor = self.text_edit.textCursor()
-        cursor.beginEditBlock()
-        cursor.select(QTextCursor.SelectionType.Document)
-        cursor.setCharFormat(QTextCharFormat())
-        cursor.endEditBlock()
-
-    def _highlight_prefill_and_beam(self, text: str, completion: "PromptCompletion | LLMResponse") -> None:
-        """Highlight prefill and beam token sections in the text."""
-        document_cursor = self.text_edit.textCursor()
-
-        def apply_highlight(start: int, end: int, color: QColor) -> None:
-            highlight_format = QTextCharFormat()
-            highlight_format.setBackground(color)
-            cursor = QTextCursor(document_cursor)
-            cursor.setPosition(start)
-            cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
-            cursor.mergeCharFormat(highlight_format)
-
-        prefill = getattr(completion, "prefill", None)
-        beam_token = getattr(completion, "beam_token", None)
-
-        if prefill:
-            start = text.find(prefill)
-            if start >= 0:
-                end = start + len(prefill)
-                apply_highlight(start, end, PREFILL_COLOR)
-                if beam_token:
-                    beam_start = text.find(beam_token, start)
-                    if beam_start >= 0:
-                        beam_end = beam_start + len(beam_token)
-                        apply_highlight(beam_start, beam_end, BEAM_TOKEN_COLOR)
-                    else:
-                        self.log.debug("Beam token '%s' not found within completion text.", beam_token)
-            else:
-                self.log.debug("Prefill '%s' not found in completion text.", prefill)
-        elif beam_token:
-            beam_start = text.find(beam_token)
-            if beam_start >= 0:
-                apply_highlight(beam_start, beam_start + len(beam_token), BEAM_TOKEN_COLOR)
-
-    def _can_show_heatmap(self, completion: "PromptCompletion | LLMResponse") -> bool:
-        """Check if heatmap can be shown for this completion."""
-        self.log.info("Checking if heatmap can be shown for completion %s, target model is '%s'", completion, self.target_model)
-        # For LLMResponse, check if logprobs cover full response
-        if hasattr(completion, "logprobs") and completion.logprobs:
-            self.log.info("Completion has logprobs data.")
-            if hasattr(completion, "check_full_response_logprobs"):
-                return completion.check_full_response_logprobs()
-
-            # For PromptCompletion, check if target model logprobs are available and valid
-            if hasattr(completion, "id") and self.target_model:
-                target_logprobs = None
-                for logprob in completion.logprobs:
-                    self.log.info("Examining logprobs for model '%s', target is '%s'.", logprob.logprobs_model_id,
-                                  self.target_model.model_id)
-                    if logprob.logprobs_model_id == self.target_model.model_id:
-                        target_logprobs = logprob.logprobs
-                        break
-
-                if target_logprobs:
-                    self.log.info("Found logprobs for target model '%s'.", self.target_model.model_id)
-                    # Check if tokens cover full text
-                    return self._check_logprobs_cover_text(completion.completion_text or "", target_logprobs)
-
-        return False
-
-    def _check_logprobs_cover_text(self, text: str, logprobs: list) -> bool:
-        """Check if logprobs tokens cover the full text."""
-        if not logprobs or not text:
+    def _can_show_heatmap(self, completion: CommonCompletionProtocol) -> bool:
+        """
+        Check if heatmap can be shown for this completion.
+        """
+        if not self.target_model:
+            return False  # No target model set for logprob evaluation
+        has_full_logprob = CommonCompletionProtocol.check_full_response_logprobs(completion, self.target_model.model_id)
+        if not has_full_logprob:
             return False
-
-        text_pos = 0
-        for logprob_entry in logprobs:
-            token = logprob_entry.get("token", "")
-            if not token:
-                return False
-
-            # Check if token matches the text at current position
-            if text_pos + len(token) > len(text):
-                return False
-            if text[text_pos:text_pos + len(token)] != token:
-                return False
-
-            text_pos += len(token)
-
-        return text_pos == len(text)
-
-    def _highlight_logprob_heatmap(self, text: str, completion: "PromptCompletion | LLMResponse") -> None:
-        """Apply logprob-based color highlighting to tokens."""
-        logprobs_data = self._get_logprobs_for_heatmap(completion)
-        if not logprobs_data:
-            return
-
-        # Update the text edit cache for tooltips
-        self.text_edit.update_heatmap_cache(logprobs_data, text)
-
-        document_cursor = self.text_edit.textCursor()
-        text_pos = 0
-
-        for token_data in logprobs_data:
-            token = token_data.get("token", "")
-            logprob = token_data.get("logprob")
-
-            if not token or logprob is None:
-                continue
-
-            # Find token position in text
-            token_len = len(token)
-            if text_pos + token_len > len(text):
-                break
-            if text[text_pos:text_pos + token_len] != token:
-                # Try to find token starting from current position
-                found_pos = text.find(token, text_pos)
-                if found_pos == -1 or found_pos > text_pos + 10:  # Don't search too far ahead
-                    text_pos += 1  # Skip character if token not found nearby
-                    continue
-                text_pos = found_pos
-
-            # Apply color based on logprob
-            color = logprob_to_qcolor(logprob)
-
-            # Create highlight format
-            highlight_format = QTextCharFormat()
-            highlight_format.setBackground(color)
-
-            # Apply highlight
-            cursor = QTextCursor(document_cursor)
-            cursor.setPosition(text_pos)
-            cursor.setPosition(text_pos + token_len, QTextCursor.MoveMode.KeepAnchor)
-            cursor.mergeCharFormat(highlight_format)
-
-            text_pos += token_len
-
-    def _get_logprobs_for_heatmap(self, completion: "PromptCompletion | LLMResponse") -> list:
-        """Get logprobs data for heatmap display."""
-        if hasattr(completion, "logprobs") and completion.logprobs:
-            # For LLMResponse
-            if hasattr(completion.logprobs[0], "token"):
-                return [{"token": lp.token, "logprob": lp.logprob} for lp in completion.logprobs if lp.logprob is not None]
-
-            # For PromptCompletion with target model
-            if hasattr(completion, "id") and self.target_model:
-                for logprob in completion.logprobs:
-                    if logprob.logprobs_model_id == self.target_model.model_id:
-                        return logprob.logprobs
-
-        return []
+        logprobs = completion.get_logprobs_for_model_id(self.target_model.model_id)
+        self.text_edit.set_logprobs(logprobs)
+        return True
 
     @staticmethod
     def _clear_layout(layout: QHBoxLayout) -> None:

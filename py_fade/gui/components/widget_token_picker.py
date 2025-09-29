@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
 )
 
 from py_fade.gui.auxillary.aux_logprobs_to_color import logprob_to_qcolor
-from py_fade.providers.llm_response import LLMPTokenLogProbs
+from py_fade.providers.llm_response import SinglePositionTokenLogprobs
 
 
 class WidgetTokenPicker(QWidget):
@@ -36,7 +36,7 @@ class WidgetTokenPicker(QWidget):
     def __init__(
         self,
         parent: QWidget | None,
-        tokens: list[LLMPTokenLogProbs | tuple[str, float]],
+        tokens: list[SinglePositionTokenLogprobs | tuple[str, float]],
         multi_select: bool = False,
     ):
         super().__init__(parent)
@@ -45,12 +45,10 @@ class WidgetTokenPicker(QWidget):
         self.selected_tokens: set[tuple[str, float]] = set()
         if tokens and isinstance(tokens[0], tuple):
             self.tokens = list(tokens)  # type: ignore # list of (str, float) tuples
-        elif tokens and isinstance(tokens[0], LLMPTokenLogProbs):
-            self.tokens = LLMPTokenLogProbs.to_list_of_tuples(tokens)  # type: ignore # already LLMPTokenLogProbs
+        elif tokens and isinstance(tokens[0], SinglePositionTokenLogprobs):
+            self.tokens = SinglePositionTokenLogprobs.to_list_of_tuples(tokens)  # type: ignore # already LLMPTokenLogProbs
         else:
-            raise ValueError(
-                "tokens must be a list of LLMPTokenLogProbs or list of (str, float) tuples"
-            )
+            raise ValueError("tokens must be a list of LLMPTokenLogProbs or list of (str, float) tuples")
         self.tokens.sort(key=lambda x: x[1], reverse=True)  # sort by logprob descending
         self.log.info("[ > ] Token picker with tokens:\n\t%s", self.tokens)
         self.tokens_map = {t[0]: t for t in self.tokens}
@@ -122,8 +120,7 @@ class WidgetTokenPicker(QWidget):
 
         # Set color based on logprob
         color = logprob_to_qcolor(logprob)
-        button.setStyleSheet(
-            f"""
+        button.setStyleSheet(f"""
             QPushButton {{
                 background-color: {color.name()};
                 border: 2px solid #333;
@@ -142,8 +139,7 @@ class WidgetTokenPicker(QWidget):
             QPushButton:hover {{
                 border: 2px solid #666;
             }}
-        """
-        )
+        """)
 
         button.clicked.connect(lambda checked, t=token: self._on_single_select(t, checked))
         return button
@@ -154,8 +150,7 @@ class WidgetTokenPicker(QWidget):
 
         # Set color based on logprob
         color = logprob_to_qcolor(logprob)
-        checkbox.setStyleSheet(
-            f"""
+        checkbox.setStyleSheet(f"""
             QCheckBox {{
                 background-color: {color.name()};
                 border: 2px solid #333;
@@ -174,12 +169,9 @@ class WidgetTokenPicker(QWidget):
             QCheckBox:hover {{
                 border: 2px solid #666;
             }}
-        """
-        )
+        """)
 
-        checkbox.stateChanged.connect(
-            lambda state, t=token: self._on_multi_select(t, state == Qt.CheckState.Checked.value)
-        )
+        checkbox.stateChanged.connect(lambda state, t=token: self._on_multi_select(t, state == Qt.CheckState.Checked.value))
         return checkbox
 
     def _on_single_select(self, token: str, checked: bool):

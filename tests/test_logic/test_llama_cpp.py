@@ -10,7 +10,7 @@ import pytest
 
 import py_fade.providers.llama_cpp as llama_module
 from py_fade.providers.llama_cpp import PrefillAwareLlamaCppInternal
-from py_fade.providers.llm_response import LLMPTokenLogProbs
+from py_fade.providers.llm_response import SinglePositionTokenLogprobs
 
 
 def _make_provider() -> PrefillAwareLlamaCppInternal:
@@ -38,14 +38,23 @@ def test_convert_chat_completion_logprobs_extracts_top_tokens():
                 "token": "Hello",
                 "logprob": -0.1,
                 "top_logprobs": [
-                    {"token": "Hello", "logprob": -0.1},
-                    {"token": "Hi", "logprob": -1.5},
+                    {
+                        "token": "Hello",
+                        "logprob": -0.1
+                    },
+                    {
+                        "token": "Hi",
+                        "logprob": -1.5
+                    },
                 ],
             },
             {
                 "token": "!",
                 "logprob": -0.05,
-                "top_logprobs": [{"token": "!", "logprob": -0.05}],
+                "top_logprobs": [{
+                    "token": "!",
+                    "logprob": -0.05
+                }],
             },
         ]
     }
@@ -62,7 +71,9 @@ def test_convert_simple_completion_logprobs_handles_missing_top_entries():
     raw = {
         "tokens": ["token", "trail"],
         "token_logprobs": [-0.3, -1.2],
-        "top_logprobs": [{"token": -0.3}],
+        "top_logprobs": [{
+            "token": -0.3
+        }],
     }
 
     converted = provider._convert_simple_completion_logprobs(raw)
@@ -76,10 +87,10 @@ def test_mask_logprobs_matches_completion_suffix():
     """Test that logprobs masking correctly matches completion text suffixes."""
     provider = _make_provider()
     logprobs = [
-        LLMPTokenLogProbs(token="Sure", logprob=-0.1),
-        LLMPTokenLogProbs(token=" ", logprob=-0.2),
-        LLMPTokenLogProbs(token="thing", logprob=-0.3),
-        LLMPTokenLogProbs(token="!", logprob=-0.4),
+        SinglePositionTokenLogprobs(token="Sure", logprob=-0.1),
+        SinglePositionTokenLogprobs(token=" ", logprob=-0.2),
+        SinglePositionTokenLogprobs(token="thing", logprob=-0.3),
+        SinglePositionTokenLogprobs(token="!", logprob=-0.4),
     ]
 
     matched = provider.mask_logprobs_by_str(logprobs, "Sure thing!", max_skip=1)

@@ -14,7 +14,7 @@ from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
-from py_fade.providers.llm_response import LLMResponse, LLMPTokenLogProbs
+from py_fade.providers.llm_response import LLMResponse, SinglePositionTokenLogprobs
 from py_fade.providers.providers_manager import MappedModel
 from py_fade.providers.mock_provider import MockLLMProvider
 from tests.helpers.data_helpers import create_test_completion
@@ -529,7 +529,9 @@ class TestCompletionFrameStatusIcons:
     ) -> None:
         """LLMResponse with logprobs shows metrics icon with proper color."""
         _ = ensure_google_icon_font
-        beam = _create_test_llm_response(min_logprob=-1.2, logprobs=[LLMPTokenLogProbs("test", -1.2), LLMPTokenLogProbs("token", -0.8)])
+        beam = _create_test_llm_response(min_logprob=-1.2,
+                                         logprobs=[SinglePositionTokenLogprobs("test", -1.2),
+                                                   SinglePositionTokenLogprobs("token", -0.8)])
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
         frame.show()
@@ -864,8 +866,8 @@ class TestCompletionFrameHeatmapMode:
 
         # Create LLMResponse with full logprobs
         beam = _create_test_llm_response(full_response_text="Hello world",
-                                         logprobs=[LLMPTokenLogProbs("Hello", -0.1),
-                                                   LLMPTokenLogProbs(" world", -0.8)])
+                                         logprobs=[SinglePositionTokenLogprobs("Hello", -0.1),
+                                                   SinglePositionTokenLogprobs(" world", -0.8)])
         beam.is_full_response_logprobs = True
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
@@ -888,8 +890,8 @@ class TestCompletionFrameHeatmapMode:
 
         # Create LLMResponse with full logprobs
         beam = _create_test_llm_response(full_response_text="Test token",
-                                         logprobs=[LLMPTokenLogProbs("Test", -0.5),
-                                                   LLMPTokenLogProbs(" token", -1.2)])
+                                         logprobs=[SinglePositionTokenLogprobs("Test", -0.5),
+                                                   SinglePositionTokenLogprobs(" token", -1.2)])
         beam.is_full_response_logprobs = True
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
@@ -924,9 +926,10 @@ class TestCompletionFrameHeatmapMode:
         _ = ensure_google_icon_font
 
         # Create LLMResponse with full logprobs and prefill
-        beam = _create_test_llm_response(full_response_text="Prefill content", prefill="Prefill",
-                                         logprobs=[LLMPTokenLogProbs("Prefill", -0.3),
-                                                   LLMPTokenLogProbs(" content", -0.9)])
+        beam = _create_test_llm_response(
+            full_response_text="Prefill content", prefill="Prefill",
+            logprobs=[SinglePositionTokenLogprobs("Prefill", -0.3),
+                      SinglePositionTokenLogprobs(" content", -0.9)])
         beam.is_full_response_logprobs = True
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
@@ -953,7 +956,7 @@ class TestCompletionFrameHeatmapMode:
         _ = ensure_google_icon_font
 
         # Create LLMResponse with partial logprobs
-        beam_partial = _create_test_llm_response(logprobs=[LLMPTokenLogProbs("test", -1.0)])
+        beam_partial = _create_test_llm_response(logprobs=[SinglePositionTokenLogprobs("test", -1.0)])
         beam_partial.is_full_response_logprobs = False
 
         frame = CompletionFrame(temp_dataset, beam_partial, display_mode="beam")
@@ -962,7 +965,7 @@ class TestCompletionFrameHeatmapMode:
         assert not frame._can_show_heatmap(beam_partial)
 
         # Create LLMResponse with full logprobs
-        beam_full = _create_test_llm_response(logprobs=[LLMPTokenLogProbs("test", -1.0)])
+        beam_full = _create_test_llm_response(logprobs=[SinglePositionTokenLogprobs("test", -1.0)])
         beam_full.is_full_response_logprobs = True
 
         # Should show heatmap for full logprobs
@@ -1008,7 +1011,7 @@ class TestCompletionFrameHeatmapMode:
         _ = ensure_google_icon_font
 
         # Create LLMResponse with logprobs
-        beam = _create_test_llm_response(logprobs=[LLMPTokenLogProbs("test", -1.0), LLMPTokenLogProbs(" token", -0.5)])
+        beam = _create_test_llm_response(logprobs=[SinglePositionTokenLogprobs("test", -1.0), SinglePositionTokenLogprobs(" token", -0.5)])
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
 

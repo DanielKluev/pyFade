@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 
 from py_fade.dataset.prompt import PromptRevision
-from py_fade.providers.llm_response import LLMPTokenLogProbs, LLMResponse
+from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMResponse
 
 if TYPE_CHECKING:
     from py_fade.app import PyFadeApp
@@ -19,20 +19,18 @@ class CompletionPrefix:
 
     prefix_text: str
     prefix_token_size: int
-    logprobs: list[LLMPTokenLogProbs]  # Logprobs for each token in the prefix
+    logprobs: list[SinglePositionTokenLogprobs]  # Logprobs for each token in the prefix
     next_token_logprobs: list[tuple[str, float]] | None = (
         None  # top N token logprobs for next token after prefix, if available
     )
 
     @classmethod
-    def try_get_from_response(
-        cls, prefix_text: str, response: LLMResponse
-    ) -> "CompletionPrefix|None":
+    def try_get_from_response(cls, prefix_text: str, response: LLMResponse) -> "CompletionPrefix|None":
         """
         Try to extract CompletionPrefix from LLMResponse if possible.
         Response must contain logprobs for all tokens in the prefix.
         """
-        if not response.full_response_text.startswith(prefix_text):
+        if not response.completion_text.startswith(prefix_text):
             return None  # Prefix does not match
 
         if not response.check_full_response_logprobs() or not response.logprobs:
@@ -41,7 +39,7 @@ class CompletionPrefix:
         prefix_tokens_count = 0
         current_pos = 0
         for lp in response.logprobs:
-            if lp.token != prefix_text[current_pos : current_pos + len(lp.token)]:
+            if lp.token != prefix_text[current_pos:current_pos + len(lp.token)]:
                 return None  # Token does not match prefix at this position
             current_pos += len(lp.token)
             prefix_tokens_count += 1
@@ -64,9 +62,7 @@ class CompletionPrefix:
         )
 
     @classmethod
-    def create_from_eval(
-        cls, prefix_text: str, eval_logprobs: list[LLMPTokenLogProbs]
-    ) -> "CompletionPrefix":
+    def create_from_eval(cls, prefix_text: str, eval_logprobs: list[SinglePositionTokenLogprobs]) -> "CompletionPrefix":
         """
         Create CompletionPrefix from evaluated logprobs for given prefix text.
         """
@@ -90,8 +86,7 @@ class TextGenerationController:
     all_completions: list[LLMResponse]
     cached_prefixes: dict[str, CompletionPrefix]
 
-    def __init__(self, app: "PyFadeApp", mapped_model: "MappedModel", dataset: "DatasetDatabase",
-                 prompt_revision: PromptRevision) -> None:
+    def __init__(self, app: "PyFadeApp", mapped_model: "MappedModel", dataset: "DatasetDatabase", prompt_revision: PromptRevision) -> None:
         """
         Bind the controller to the owning app, dataset, and selected model.
         """
@@ -119,13 +114,9 @@ class TextGenerationController:
             self.prompt_revision.id,
         )
         if not self.dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
         # Populate with cached beams
-        completions = self.dataset.get_beams_for_prompt_and_model(
-            self.prompt_revision, self.mapped_model.model_id
-        )
+        completions = self.dataset.get_beams_for_prompt_and_model(self.prompt_revision, self.mapped_model.model_id)
         for completion in completions:
             if completion.model_id != self.model_id:
                 continue
@@ -169,9 +160,7 @@ class TextGenerationController:
         # 3. Go through each possible token for next position, create new beam for each.
         level_beams: list[LLMResponse] = []
         for token, logprob in beam_tokens[:width]:
-            beam_token_prob = LLMPTokenLogProbs(
-                token=token, logprob=logprob, top_logprobs=beam_tokens
-            )
+            beam_token_prob = SinglePositionTokenLogprobs(token=token, logprob=logprob, top_logprobs=beam_tokens)
             # 4. For each new beam, continue generating up to ``length`` tokens or until
             #    stopping criteria are met.
             beam = self._expand_beam(beam_prefix, beam_token_prob, length)
@@ -192,9 +181,7 @@ class TextGenerationController:
         """
         # Handle empty prefix case
         if not prefix:
-            return CompletionPrefix(
-                prefix_text="", prefix_token_size=0, logprobs=[], next_token_logprobs=None
-            )
+            return CompletionPrefix(prefix_text="", prefix_token_size=0, logprobs=[], next_token_logprobs=None)
 
         # Check cache first
         if prefix in self.cached_prefixes:
@@ -208,16 +195,12 @@ class TextGenerationController:
                 return beam_prefix
 
         # Not found, need to generate it
-        eval_logprobs = self.mapped_model.evaluate_completion(
-            prompt=self.prompt_revision.prompt_text, completion=prefix
-        )
+        eval_logprobs = self.mapped_model.evaluate_completion(prompt=self.prompt_revision.prompt_text, completion=prefix)
         beam_prefix = CompletionPrefix.create_from_eval(prefix, eval_logprobs)
         self.cached_prefixes[prefix] = beam_prefix
         return beam_prefix
 
-    def fetch_next_token_logprobs_for_prefix(
-        self, beam_prefix: CompletionPrefix | str, width: int
-    ) -> list[tuple[str, float]]:
+    def fetch_next_token_logprobs_for_prefix(self, beam_prefix: CompletionPrefix | str, width: int) -> list[tuple[str, float]]:
         """
         Fetch logprobs for next token after given prefix, up to `width` top_k tokens.
         If not known, generate them using the provider.
@@ -246,14 +229,10 @@ class TextGenerationController:
         if not response.logprobs or len(response.logprobs) == 0:
             raise ValueError("Provider did not return token logprobs as expected.")
 
-        next_token_logprobs = (
-            response.logprobs[0].top_logprobs if response.logprobs[0].top_logprobs else []
-        )
+        next_token_logprobs = (response.logprobs[0].top_logprobs if response.logprobs[0].top_logprobs else [])
         return next_token_logprobs
 
-    def _expand_beam(
-        self, beam_prefix: CompletionPrefix, beam_token_prob: LLMPTokenLogProbs, length: int
-    ) -> LLMResponse | None:
+    def _expand_beam(self, beam_prefix: CompletionPrefix, beam_token_prob: SinglePositionTokenLogprobs, length: int) -> LLMResponse | None:
         """
         Expand a single beam from its prefix, generating up to `length` tokens or until stopping criteria.
         Returns a LLMResponse if completed, or None if not.
@@ -272,11 +251,7 @@ class TextGenerationController:
         response = self.mapped_model.generate(**generation_kwargs)
 
         # Insert the beam token prob at the start of response logprobs
-        logprobs = (
-            beam_prefix.logprobs
-            + [beam_token_prob]
-            + (response.logprobs if response.logprobs else [])
-        )
+        logprobs = (beam_prefix.logprobs + [beam_token_prob] + (response.logprobs if response.logprobs else []))
         response.logprobs = logprobs
         if logprobs and len(logprobs) > 0:
             logprob_values = [lp.logprob for lp in logprobs if lp.logprob is not None]

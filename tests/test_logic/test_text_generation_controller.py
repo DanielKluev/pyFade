@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 from py_fade.controllers.text_generation_controller import CompletionPrefix
-from py_fade.providers.llm_response import LLMResponse, LLMPTokenLogProbs
+from py_fade.providers.llm_response import LLMResponse, SinglePositionTokenLogprobs
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -20,15 +20,11 @@ def test_completion_prefix_creation():
     prefix_text = "Hello world"
     prefix_token_size = 2
     logprobs = [
-        LLMPTokenLogProbs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1), ("Hi", -1.2)]),
-        LLMPTokenLogProbs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5), (" there", -2.1)])
+        SinglePositionTokenLogprobs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1), ("Hi", -1.2)]),
+        SinglePositionTokenLogprobs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5), (" there", -2.1)])
     ]
 
-    prefix = CompletionPrefix(
-        prefix_text=prefix_text,
-        prefix_token_size=prefix_token_size,
-        logprobs=logprobs
-    )
+    prefix = CompletionPrefix(prefix_text=prefix_text, prefix_token_size=prefix_token_size, logprobs=logprobs)
 
     assert prefix.prefix_text == prefix_text
     assert prefix.prefix_token_size == prefix_token_size
@@ -45,10 +41,10 @@ def test_completion_prefix_from_response():
     response.full_response_text = "Hello world and more"
     response.check_full_response_logprobs.return_value = True
     response.logprobs = [
-        LLMPTokenLogProbs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1)]),
-        LLMPTokenLogProbs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5)]),
-        LLMPTokenLogProbs(token=" and", logprob=-0.8, top_logprobs=[(" and", -0.8)]),
-        LLMPTokenLogProbs(token=" more", logprob=-1.2, top_logprobs=[(" more", -1.2)])
+        SinglePositionTokenLogprobs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1)]),
+        SinglePositionTokenLogprobs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5)]),
+        SinglePositionTokenLogprobs(token=" and", logprob=-0.8, top_logprobs=[(" and", -0.8)]),
+        SinglePositionTokenLogprobs(token=" more", logprob=-1.2, top_logprobs=[(" more", -1.2)])
     ]
 
     # Try to extract prefix "Hello world"
@@ -67,8 +63,8 @@ def test_completion_prefix_from_response_mismatch():
     response.full_response_text = "Hello world"
     response.check_full_response_logprobs.return_value = True
     response.logprobs = [
-        LLMPTokenLogProbs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1)]),
-        LLMPTokenLogProbs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5)])
+        SinglePositionTokenLogprobs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1)]),
+        SinglePositionTokenLogprobs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5)])
     ]
 
     # Try to extract a prefix that doesn't match

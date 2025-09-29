@@ -36,7 +36,7 @@ from py_fade.providers.base_provider import (
     LOGPROB_LEVEL_TOP_LOGPROBS,
     BasePrefillAwareProvider,
 )
-from py_fade.providers.llm_response import LLMPTokenLogProbs, LLMResponse
+from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMResponse
 
 _GPT2_ENCODING = tiktoken.get_encoding("gpt2")
 _COMMON_OPENERS: Sequence[str] = (
@@ -113,7 +113,7 @@ def _canonicalize_messages(messages: Sequence[dict[str, str]]) -> str:
     return "\n".join(parts)
 
 
-class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
+class MockResponseGenerator(Iterator[SinglePositionTokenLogprobs]):
     """Deterministic mock response generator used by :class:`MockLLMProvider`.
 
     The generator precomputes a greedy tokenization of the combined
@@ -132,30 +132,19 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
         top_logprobs: int,
         forced_response_text: str | None = None,
     ) -> None:
-        self.messages = [
-            {
-                "role": message.get("role", "user"),
-                "content": message.get("content", ""),
-            }
-            for message in messages
-        ]
+        self.messages = [{
+            "role": message.get("role", "user"),
+            "content": message.get("content", ""),
+        } for message in messages]
         self._prompt_signature = _canonicalize_messages(self.messages)
         self.prefill = prefill or ""
         self._forced_response_text = forced_response_text
         self.top_logprobs = max(0, int(top_logprobs))
-        self._rng = random.Random(
-            _compute_seed(self._prompt_signature, self.prefill, forced_response_text)
-        )
+        self._rng = random.Random(_compute_seed(self._prompt_signature, self.prefill, forced_response_text))
 
-        self.generated_text = (
-            forced_response_text
-            if forced_response_text is not None
-            else self._build_preferred_response(self.messages)
-        )
+        self.generated_text = (forced_response_text if forced_response_text is not None else self._build_preferred_response(self.messages))
         if not self.generated_text:
-            self.generated_text = (
-                "Here's a placeholder completion from the deterministic mock provider."
-            )
+            self.generated_text = ("Here's a placeholder completion from the deterministic mock provider.")
 
         self.full_text = self.prefill + self.generated_text
         self._true_tokens = self._compute_true_tokens()
@@ -176,7 +165,7 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
     def __iter__(self) -> "MockResponseGenerator":
         return self
 
-    def __next__(self) -> LLMPTokenLogProbs:
+    def __next__(self) -> SinglePositionTokenLogprobs:
         if self.limit is not None and self._position >= self.limit:
             if self._position < len(self._streaming_specs):
                 self.was_truncated = True
@@ -187,7 +176,7 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
         spec = self._streaming_specs[self._position]
         self._position += 1
         top_logprobs = list(spec.top_logprobs) if spec.top_logprobs is not None else None
-        return LLMPTokenLogProbs(token=spec.text, logprob=spec.logprob, top_logprobs=top_logprobs)
+        return SinglePositionTokenLogprobs(token=spec.text, logprob=spec.logprob, top_logprobs=top_logprobs)
 
     @property
     def streaming_token_texts(self) -> list[str]:
@@ -199,7 +188,7 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
         """Get list of true token texts."""
         tokens = []
         for token in self._true_tokens:
-            generated_text = token.text[token.generated_prefix :]
+            generated_text = token.text[token.generated_prefix:]
             if generated_text:
                 tokens.append(generated_text)
         return tokens
@@ -212,7 +201,7 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
     def full_generated_text(self, produced_only: bool = False) -> str:
         """Get the full generated text from tokens."""
         if produced_only:
-            return "".join(self.streaming_token_texts[: self._position])
+            return "".join(self.streaming_token_texts[:self._position])
         return "".join(self.streaming_token_texts)
 
     def _build_preferred_response(self, messages: Sequence[dict[str, str]]) -> str:
@@ -225,10 +214,8 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
         summary = " ".join(user_turn.split())
         if len(summary) > 220:
             summary = summary[:217].rstrip() + "..."
-        body = (
-            f"you mentioned {summary}. "
-            "Here's a quick deterministic walkthrough that mirrors llama.cpp token streaming."
-        )
+        body = (f"you mentioned {summary}. "
+                "Here's a quick deterministic walkthrough that mirrors llama.cpp token streaming.")
         return f"{opener} {body}".strip()
 
     @staticmethod
@@ -263,21 +250,19 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
             if start < prefill_len:
                 generated_prefix = prefill_len - start
             logprob = self._sample_true_logprob(len(tokens))
-            tokens.append(
-                _TrueToken(
-                    text=token_text,
-                    start=start,
-                    end=end,
-                    logprob=logprob,
-                    generated_prefix=generated_prefix,
-                )
-            )
+            tokens.append(_TrueToken(
+                text=token_text,
+                start=start,
+                end=end,
+                logprob=logprob,
+                generated_prefix=generated_prefix,
+            ))
         return tokens
 
     def _build_streaming_specs(self) -> list[_StreamingTokenSpec]:
         specs: list[_StreamingTokenSpec] = []
         for index, token in enumerate(self._true_tokens):
-            generated_text = token.text[token.generated_prefix :]
+            generated_text = token.text[token.generated_prefix:]
             if not generated_text:
                 continue
             forced_split = token.generated_prefix > 0
@@ -285,14 +270,12 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
             for piece_index, piece in enumerate(pieces):
                 logprob = token.logprob - (0.04 * piece_index)
                 top = self._build_top_logprobs(piece, logprob)
-                specs.append(
-                    _StreamingTokenSpec(
-                        text=piece,
-                        logprob=logprob,
-                        top_logprobs=top,
-                        true_index=index,
-                    )
-                )
+                specs.append(_StreamingTokenSpec(
+                    text=piece,
+                    logprob=logprob,
+                    top_logprobs=top,
+                    true_index=index,
+                ))
         return specs
 
     def _split_token(self, token_text: str, forced_split: bool) -> list[str]:
@@ -319,9 +302,7 @@ class MockResponseGenerator(Iterator[LLMPTokenLogProbs]):
             last_pos = cut
         return segments
 
-    def _build_top_logprobs(
-        self, token: str, base_logprob: float
-    ) -> list[tuple[str, float]] | None:
+    def _build_top_logprobs(self, token: str, base_logprob: float) -> list[tuple[str, float]] | None:
         if self.top_logprobs <= 0:
             return None
         entries: list[tuple[str, float]] = [(token, base_logprob)]
@@ -405,12 +386,7 @@ class MockLLMProvider(BasePrefillAwareProvider):
         for index, message in enumerate(parsed_messages):
             role = message.get("role", "user")
             content = message.get("content", "")
-            if (
-                prefill
-                and index == len(parsed_messages) - 1
-                and role == "assistant"
-                and content == prefill
-            ):
+            if (prefill and index == len(parsed_messages) - 1 and role == "assistant" and content == prefill):
                 continue
             history_messages.append({"role": role, "content": content})
 
@@ -422,7 +398,7 @@ class MockLLMProvider(BasePrefillAwareProvider):
         )
 
         response_tokens: list[str] = []
-        logprobs: list[LLMPTokenLogProbs] = []
+        logprobs: list[SinglePositionTokenLogprobs] = []
         for token_info in generator:
             response_tokens.append(token_info.token)
             logprobs.append(token_info)
@@ -434,8 +410,8 @@ class MockLLMProvider(BasePrefillAwareProvider):
         return LLMResponse(
             model_id=model_id,
             full_history=history_messages,
-            full_response_text=full_response_text,
-            response_text=response_text,
+            completion_text=full_response_text,
+            generated_part_text=response_text,
             temperature=temperature,
             top_k=top_k,
             prefill=prefill,
@@ -452,13 +428,10 @@ class MockLLMProvider(BasePrefillAwareProvider):
         prompt: str,
         completion: str,
         **kwargs,
-    ) -> list[LLMPTokenLogProbs]:
+    ) -> list[SinglePositionTokenLogprobs]:
         top_logprobs = kwargs.get("top_logprobs", 20)
         parsed_messages = self.flat_prefix_template_to_messages(prompt)
-        history_messages = [
-            {"role": message.get("role", "user"), "content": message.get("content", "")}
-            for message in parsed_messages
-        ]
+        history_messages = [{"role": message.get("role", "user"), "content": message.get("content", "")} for message in parsed_messages]
         generator = MockResponseGenerator(
             messages=history_messages,
             prefill="",

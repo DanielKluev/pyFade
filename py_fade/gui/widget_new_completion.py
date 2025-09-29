@@ -206,7 +206,7 @@ class NewCompletionFrame(QFrame):
 
         # Regular completion text
         normal_format = QTextCharFormat()
-        cursor.insertText(self.generated_completion.response_text, normal_format)
+        cursor.insertText(self.generated_completion.generated_part_text, normal_format)
 
         # Update UI state
         self.generate_btn.setEnabled(True)
