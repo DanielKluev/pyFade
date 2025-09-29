@@ -17,6 +17,7 @@ from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.facet import Facet
 from py_fade.data_formats.lm_eval_results import LMEvalResult
+from py_fade.data_formats.facet_backup import FacetBackupFormat
 
 if TYPE_CHECKING:
     from py_fade.app import PyFadeApp
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
 
 SUPPORTED_FORMATS = {
     "lm_eval_results": LMEvalResult,
+    "facet_backup": FacetBackupFormat,
 }
 
 
@@ -57,11 +59,11 @@ class ImportController:
         self.import_summary = ImportSummary()
         self.group_path = None  # Custom group path for samples
 
-    def add_source(self, source_path: pathlib.Path | str, data_format: str | None = None) -> LMEvalResult:
+    def add_source(self, source_path: pathlib.Path | str, data_format: str | None = None) -> LMEvalResult | FacetBackupFormat:
         """
         Add a new data source to the controller.
         Detects format if not provided, binds appropriate parser.
-        Returns the parser instance so caller can inspect properties like model_id.
+        Returns the parser instance so caller can inspect properties.
         """
         source_path = pathlib.Path(source_path)
         if not source_path or not source_path.exists():
@@ -84,14 +86,21 @@ class ImportController:
     def detect_format(self, source_path: pathlib.Path) -> str | None:
         """
         Detect the format of the data source based on file extension or content.
-        Currently supports detection for lm_eval_results format.
+        Currently supports detection for lm_eval_results and facet_backup formats.
         """
         if source_path.suffix in {".json", ".jsonl"}:
-            # Parse JSON to check for lm_eval_results structure
+            # Parse JSON to check for known data structures
             try:
                 with open(source_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     if isinstance(data, dict):
+                        # Check for facet_backup structure: must have all required fields
+                        facet_backup_fields = {"pyfade_version", "format_version", "facet", "tags", "samples", "completions", "ratings"}
+                        if facet_backup_fields.issubset(data.keys()):
+                            # Additional validation: check that facet is a dict with expected fields
+                            if isinstance(data.get("facet"), dict) and "name" in data["facet"]:
+                                return "facet_backup"
+
                         # Check for lm_eval_results structure: "results" and "configs" keys
                         if "results" in data and "configs" in data:
                             return "lm_eval_results"
@@ -291,3 +300,155 @@ class ImportController:
     def _compute_sha256(text: str) -> str:
         """Compute SHA256 hash of text."""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def import_facet_backup_to_dataset(self, merge_strategy: str = "skip_duplicates") -> int:
+        """
+        Import a complete facet backup into the dataset.
+        
+        This method handles the special case of importing a complete facet with all
+        its associated data (samples, completions, ratings) from a facet backup file.
+        
+        Args:
+            merge_strategy: How to handle conflicts:
+                - "skip_duplicates": Skip items that already exist (default)
+                - "merge": Update existing items with backup data
+                - "error_on_conflict": Raise error if conflicts detected
+        
+        Returns:
+            Number of items imported (facets + samples + completions + ratings)
+        """
+        # Find facet backup sources
+        facet_backup_sources = [s for s in self.sources if isinstance(s, FacetBackupFormat)]
+
+        if not facet_backup_sources:
+            raise ValueError("No facet backup sources found. Add a facet backup file first.")
+
+        if len(facet_backup_sources) > 1:
+            raise ValueError("Multiple facet backup sources not supported. Import one at a time.")
+
+        backup_source = facet_backup_sources[0]
+
+        # Load the backup data
+        backup_source.load()
+        if not backup_source.backup_data:
+            raise ValueError("Failed to load backup data from source")
+
+        backup_data = backup_source.backup_data
+        imported_count = 0
+
+        self.log.info("Starting facet backup import: %s", backup_data.facet.get('name', 'Unknown'))
+
+        # Import facet
+        facet_data = backup_data.facet
+        existing_facet = Facet.get_by_name(self.dataset, facet_data['name'])
+
+        if existing_facet:
+            if merge_strategy == "error_on_conflict":
+                raise ValueError(f"Facet '{facet_data['name']}' already exists")
+            elif merge_strategy == "skip_duplicates":
+                self.log.info("Facet '%s' already exists, skipping", facet_data['name'])
+                target_facet = existing_facet
+            else:  # merge
+                self.log.info("Updating existing facet '%s'", facet_data['name'])
+                existing_facet.update(self.dataset, description=facet_data['description'])
+                target_facet = existing_facet
+                imported_count += 1
+        else:
+            self.log.info("Creating new facet '%s'", facet_data['name'])
+            target_facet = Facet.create(self.dataset, facet_data['name'], facet_data['description'])
+            imported_count += 1
+
+        self.dataset.commit()
+
+        # Import samples and prompt revisions
+        prompt_revision_map = {}  # old_id -> new_prompt_revision
+        sample_map = {}  # old_id -> new_sample
+
+        for sample_data in backup_data.samples:
+            if sample_data.get('prompt_revision'):
+                prompt_rev_data = sample_data['prompt_revision']
+
+                # Create or get prompt revision
+                prompt_revision = PromptRevision.get_or_create(self.dataset, prompt_rev_data['prompt_text'],
+                                                               context_length=prompt_rev_data.get('context_length', 2048),
+                                                               max_tokens=prompt_rev_data.get('max_tokens', 512))
+                prompt_revision_map[prompt_rev_data['id']] = prompt_revision
+
+                # Create sample if it doesn't exist
+                existing_sample = self.dataset.session.query(Sample).filter_by(prompt_revision=prompt_revision).first()
+
+                if not existing_sample:
+                    new_sample = Sample.create_if_unique(self.dataset, sample_data['title'], prompt_revision, sample_data.get('group_path'))
+                    if new_sample:
+                        sample_map[sample_data['id']] = new_sample
+                        imported_count += 1
+                        self.log.debug("Created sample: %s", sample_data['title'])
+                else:
+                    sample_map[sample_data['id']] = existing_sample
+                    self.log.debug("Using existing sample: %s", sample_data['title'])
+
+        self.dataset.commit()
+
+        # Import completions
+        completion_map = {}  # old_id -> new_completion
+
+        for completion_data in backup_data.completions:
+            prompt_revision_id = completion_data['prompt_revision_id']
+            if prompt_revision_id in prompt_revision_map:
+                prompt_revision = prompt_revision_map[prompt_revision_id]
+
+                # Check if completion already exists (by content hash)
+                existing_completion = self.dataset.session.query(PromptCompletion).filter_by(prompt_revision_id=prompt_revision.id,
+                                                                                             sha256=completion_data['sha256']).first()
+
+                if not existing_completion:
+                    new_completion = PromptCompletion(
+                        sha256=completion_data['sha256'],
+                        prompt_revision_id=prompt_revision.id,
+                        model_id=completion_data['model_id'],
+                        temperature=completion_data['temperature'],
+                        top_k=completion_data['top_k'],
+                        completion_text=completion_data['completion_text'],
+                        tags=completion_data.get('tags', {}),
+                        prefill=completion_data.get('prefill'),
+                        beam_token=completion_data.get('beam_token'),
+                        is_truncated=completion_data.get('is_truncated', False),
+                        context_length=completion_data['context_length'],
+                        max_tokens=completion_data['max_tokens'],
+                        is_archived=completion_data.get('is_archived', False),
+                        parent_completion_id=None  # Will handle parent relationships later if needed
+                    )
+                    self.dataset.session.add(new_completion)
+                    completion_map[completion_data['id']] = new_completion
+                    imported_count += 1
+                    self.log.debug("Created completion for model: %s", completion_data['model_id'])
+                else:
+                    completion_map[completion_data['id']] = existing_completion
+                    self.log.debug("Using existing completion for model: %s", completion_data['model_id'])
+
+        self.dataset.commit()
+
+        # Import ratings
+        for rating_data in backup_data.ratings:
+            completion_id = rating_data['prompt_completion_id']
+            if completion_id in completion_map:
+                completion = completion_map[completion_id]
+
+                # Set or update the rating
+                existing_rating = PromptCompletionRating.get(self.dataset, completion, target_facet)
+                if not existing_rating:
+                    PromptCompletionRating.set_rating(self.dataset, completion, target_facet, rating_data['rating'])
+                    imported_count += 1
+                    self.log.debug("Created rating: %d for facet %s", rating_data['rating'], target_facet.name)
+                elif merge_strategy == "merge":
+                    PromptCompletionRating.set_rating(self.dataset, completion, target_facet, rating_data['rating'])
+                    self.log.debug("Updated rating: %d for facet %s", rating_data['rating'], target_facet.name)
+
+        self.dataset.commit()
+
+        # Update import summary
+        self.import_summary.imported_samples = len(sample_map)
+        self.import_summary.imported_completions = len(completion_map)
+
+        self.log.info("Facet backup import completed: %d items imported", imported_count)
+        return imported_count
