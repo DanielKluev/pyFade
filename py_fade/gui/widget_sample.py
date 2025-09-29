@@ -32,7 +32,7 @@ from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from py_fade.gui.widget_new_completion import NewCompletionFrame
 from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow
-
+from py_fade.providers.providers_manager import MappedModel
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
     from py_fade.dataset.completion import PromptCompletion
@@ -58,7 +58,7 @@ class WidgetSample(QWidget):
     dataset: "DatasetDatabase"
     last_prompt_revision: "PromptRevision | None" = None
     active_facet: Facet | None = None
-    active_model_name: str | None = None
+    active_model: MappedModel | None = None
 
     sample_saved = pyqtSignal(object)  # Signal emitted when sample is saved
     sample_copied = pyqtSignal(object)  # Signal emitted when sample is copied
@@ -311,7 +311,7 @@ class WidgetSample(QWidget):
         frame = CompletionFrame(self.dataset, completion, parent=self.output_container)
         frame.setFixedWidth(360)
         frame.set_facet(self.active_facet)
-        frame.set_target_model(self.active_model_name)
+        frame.set_target_model(self.active_model)
 
         # Connect existing signals
         frame.archive_toggled.connect(self._on_completion_archive_toggled)
@@ -488,15 +488,19 @@ class WidgetSample(QWidget):
         )
         self.beam_search_widget.show()
 
-    def set_active_context(self, facet: Facet | None, model_name: str | None) -> None:
+    def set_active_context(self, facet: Facet | None, model_path: str | None) -> None:
         """Update widget state to reflect currently selected facet and model."""
         self.active_facet = facet
-        self.active_model_name = model_name
+        if model_path:
+            mapped_model = self.app.providers_manager.get_mapped_model(model_path)
+        else:
+            mapped_model = None
+        self.active_model = mapped_model
         if hasattr(self, "new_completion_frame"):
-            self.new_completion_frame.set_selected_model(model_name)
+            self.new_completion_frame.set_selected_model(self.active_model)
         for index in range(self.output_layout.count()):
             item = self.output_layout.itemAt(index)
             widget = item.widget() if item is not None else None
             if isinstance(widget, CompletionFrame):
                 widget.set_facet(self.active_facet)
-                widget.set_target_model(self.active_model_name)
+                widget.set_target_model(self.active_model)

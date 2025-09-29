@@ -25,6 +25,7 @@ from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
 from py_fade.gui.components.widget_completion_rating import CompletionRatingWidget
 from py_fade.gui.components.widget_label_with_icon import QLabelWithIcon, QLabelWithIconAndText
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
+from py_fade.providers.providers_manager import MappedModel
 
 if TYPE_CHECKING:
     from py_fade.dataset.completion import PromptCompletion
@@ -131,7 +132,7 @@ class CompletionFrame(QFrame):
         self.display_mode = display_mode
         self.current_facet: "Facet | None" = None
         self.temperature_label: QWidget | None = None
-        self.target_model: str | None = None
+        self.target_model: MappedModel | None = None
 
         # Track pin state for beam mode (transient, not persisted)
         self.is_pinned = False
@@ -337,10 +338,10 @@ class CompletionFrame(QFrame):
             self.rating_widget.set_context(self.completion, facet)
         self._update_action_buttons()
 
-    def set_target_model(self, model_name: str | None) -> None:
+    def set_target_model(self, mapped_model: MappedModel | None) -> None:
         """Set the active evaluation model for logprob checks."""
 
-        self.target_model = model_name
+        self.target_model = mapped_model
         self._update_action_buttons()
 
     def _update_action_buttons(self) -> None:
@@ -669,8 +670,10 @@ class CompletionFrame(QFrame):
 
     def _can_show_heatmap(self, completion: "PromptCompletion | LLMResponse") -> bool:
         """Check if heatmap can be shown for this completion."""
+        self.log.info("Checking if heatmap can be shown for completion %s, target model is '%s'", completion, self.target_model)
         # For LLMResponse, check if logprobs cover full response
         if hasattr(completion, "logprobs") and completion.logprobs:
+            self.log.info("Completion has logprobs data.")
             if hasattr(completion, "check_full_response_logprobs"):
                 return completion.check_full_response_logprobs()
 
@@ -678,11 +681,14 @@ class CompletionFrame(QFrame):
             if hasattr(completion, "id") and self.target_model:
                 target_logprobs = None
                 for logprob in completion.logprobs:
-                    if logprob.logprobs_model_id == self.target_model:
+                    self.log.info("Examining logprobs for model '%s', target is '%s'.", logprob.logprobs_model_id,
+                                  self.target_model.model_id)
+                    if logprob.logprobs_model_id == self.target_model.model_id:
                         target_logprobs = logprob.logprobs
                         break
 
                 if target_logprobs:
+                    self.log.info("Found logprobs for target model '%s'.", self.target_model.model_id)
                     # Check if tokens cover full text
                     return self._check_logprobs_cover_text(completion.completion_text or "", target_logprobs)
 
@@ -765,7 +771,7 @@ class CompletionFrame(QFrame):
             # For PromptCompletion with target model
             if hasattr(completion, "id") and self.target_model:
                 for logprob in completion.logprobs:
-                    if logprob.logprobs_model_id == self.target_model:
+                    if logprob.logprobs_model_id == self.target_model.model_id:
                         return logprob.logprobs
 
         return []

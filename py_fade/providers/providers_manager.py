@@ -16,6 +16,7 @@ providers_map = {
     "ollama": PrefillAwareOllama,
 }
 
+
 class MappedModel:
     """Represents a model mapped to a specific provider with associated parameters."""
 
@@ -23,9 +24,7 @@ class MappedModel:
     provider: BasePrefillAwareProvider
     provider_params: dict
 
-    def __init__(
-        self, model_id: str, provider: BasePrefillAwareProvider, provider_params: dict | None = None
-    ):
+    def __init__(self, model_id: str, provider: BasePrefillAwareProvider, provider_params: dict | None = None):
         self.model_id = model_id
         self.provider = provider
         self.provider_params = provider_params or {}
@@ -41,15 +40,16 @@ class MappedModel:
         merged_kwargs = {**self.provider_params, **kwargs}
         return self.provider.generate(self.model_id, prompt, prefill, **merged_kwargs)
 
-    def evaluate_completion(
-        self, prompt: str, completion: str, **kwargs
-    ) -> list[LLMPTokenLogProbs]:
+    def evaluate_completion(self, prompt: str, completion: str, **kwargs) -> list[LLMPTokenLogProbs]:
         """
         Evaluate a given completion for given prompt by bound model.
         Returns list of LLMPTokenLogProbs for each token in completion.
         """
         merged_kwargs = {**self.provider_params, **kwargs}
         return self.provider.evaluate_completion(self.model_id, prompt, completion, **merged_kwargs)
+
+    def __repr__(self) -> str:
+        return f"MappedModel(model_id={self.model_id}, provider={self.provider})"
 
 
 class InferenceProvidersManager:
@@ -61,9 +61,7 @@ class InferenceProvidersManager:
     models: dict[str, dict]
     providers: dict[str, BasePrefillAwareProvider]
     model_provider_map: dict[str, MappedModel]
-    current_local_model: (
-        MappedModel | None
-    )  # Track currently used local model from local providers (llama_cpp, ollama)
+    current_local_model: (MappedModel | None)  # Track currently used local model from local providers (llama_cpp, ollama)
 
     def __init__(
         self,
@@ -105,9 +103,7 @@ class InferenceProvidersManager:
                 if ollama_id == "MAIN_ID":
                     ollama_id = model_id
                 # Add ollama provider for this model
-                self.add_model(
-                    model_id, "ollama", {"ollama_id": ollama_id, "template_func": template_func}
-                )
+                self.add_model(model_id, "ollama", {"ollama_id": ollama_id, "template_func": template_func})
 
             if "gguf" in model_params:
                 gguf_path = model_params["gguf"]
@@ -154,9 +150,7 @@ class InferenceProvidersManager:
             )
             return
         if provider_key not in self.providers:
-            provider_instance = providers_map[provider_key](
-                default_temperature=self.default_temperature, default_top_k=self.default_top_k
-            )
+            provider_instance = providers_map[provider_key](default_temperature=self.default_temperature, default_top_k=self.default_top_k)
             self.providers[provider_key] = provider_instance
         else:
             provider_instance = self.providers[provider_key]
