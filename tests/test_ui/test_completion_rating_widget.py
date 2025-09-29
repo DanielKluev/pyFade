@@ -23,6 +23,7 @@ from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_dataset_top import WidgetDatasetTop
 from py_fade.gui.widget_sample import WidgetSample
+from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow
 from tests.helpers.data_helpers import create_test_completion
 from tests.helpers.ui_helpers import setup_test_app_with_fake_home
 
@@ -199,7 +200,6 @@ def test_rating_is_scoped_per_facet(
     assert rating_widget.current_rating == 0
     assert all(not button.isEnabled() for button in rating_widget.star_buttons)
 
-
     widget.deleteLater()
     qt_app.processEvents()
 
@@ -266,9 +266,7 @@ def test_default_facet_restored_on_dataset_reload(
         qt_app.processEvents()
 
         sample_widgets = [
-            info["widget"]
-            for info in widget_reopened.tabs.values()
-            if info["type"] == "sample" and info["id"] == sample_reloaded.id
+            info["widget"] for info in widget_reopened.tabs.values() if info["type"] == "sample" and info["id"] == sample_reloaded.id
         ]
         assert sample_widgets, "Expected sample tab with persisted completion"
         reloaded_sample_widget = sample_widgets[0]
@@ -303,9 +301,7 @@ def test_archive_button_hides_completion_until_toggle_enabled(
     qt_app.processEvents()
 
     archive_events: list[tuple[PromptCompletion, bool]] = []
-    widget.completion_archive_toggled.connect(
-        lambda completion_obj, archived: archive_events.append((completion_obj, archived))
-    )
+    widget.completion_archive_toggled.connect(lambda completion_obj, archived: archive_events.append((completion_obj, archived)))
 
     frame = _first_completion_frame(widget)
     assert frame.archive_button is not None
@@ -349,6 +345,7 @@ def test_resume_button_emits_signal_for_truncated_completion(
     temp_dataset: "DatasetDatabase",
     qt_app: "QApplication",
     ensure_google_icon_font: None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Truncated completions surface a resume action that emits through WidgetSample."""
 
@@ -358,6 +355,9 @@ def test_resume_button_emits_signal_for_truncated_completion(
 
     widget = WidgetSample(None, app_with_dataset, sample)
     qt_app.processEvents()
+
+    # Mock exec to avoid actual dialog showing
+    monkeypatch.setattr(ThreeWayCompletionEditorWindow, "exec", lambda self: 0)
 
     resume_events: list[PromptCompletion] = []
     widget.completion_resume_requested.connect(resume_events.append)
@@ -370,6 +370,50 @@ def test_resume_button_emits_signal_for_truncated_completion(
     qt_app.processEvents()
 
     assert resume_events and resume_events[0].id == completion.id
+
+    widget.deleteLater()
+    qt_app.processEvents()
+
+
+def test_resume_button_should_open_three_way_editor(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+    ensure_google_icon_font: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Resume button should open ThreeWayCompletionEditorWindow like edit button does."""
+
+    _ = ensure_google_icon_font
+
+    sample, _ = _build_sample_with_completion(temp_dataset, is_truncated=True)
+
+    widget = WidgetSample(None, app_with_dataset, sample)
+    qt_app.processEvents()
+
+    # Track if ThreeWayCompletionEditorWindow is created
+    editor_instances: list[ThreeWayCompletionEditorWindow] = []
+    original_init = ThreeWayCompletionEditorWindow.__init__
+
+    def mock_init(self, *args, **kwargs):
+        editor_instances.append(self)
+        original_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(ThreeWayCompletionEditorWindow, "__init__", mock_init)
+
+    # Mock exec to avoid actual dialog showing
+    monkeypatch.setattr(ThreeWayCompletionEditorWindow, "exec", lambda self: 0)
+
+    frame = _first_completion_frame(widget)
+    assert frame.resume_button is not None
+    assert not frame.resume_button.isHidden()
+
+    # Click resume button - this should open ThreeWayCompletionEditorWindow
+    frame.resume_button.click()
+    qt_app.processEvents()
+
+    # Verify that ThreeWayCompletionEditorWindow was created
+    assert len(editor_instances) == 1, "ThreeWayCompletionEditorWindow should be created when resume is clicked"
 
     widget.deleteLater()
     qt_app.processEvents()
@@ -394,9 +438,7 @@ def test_evaluate_button_respects_logprob_availability(
     qt_app.processEvents()
 
     evaluate_events: list[tuple[PromptCompletion, str]] = []
-    widget.completion_evaluate_requested.connect(
-        lambda completion_obj, model_name: evaluate_events.append((completion_obj, model_name))
-    )
+    widget.completion_evaluate_requested.connect(lambda completion_obj, model_name: evaluate_events.append((completion_obj, model_name)))
 
     frame = _first_completion_frame(widget)
     assert frame.evaluate_button is not None
@@ -414,11 +456,14 @@ def test_evaluate_button_respects_logprob_availability(
         PromptCompletionLogprobs(
             prompt_completion_id=completion.id,
             logprobs_model_id="target-model",
-            logprobs=[{"token": "a", "logprob": -1.0, "top_logprobs": []}],
+            logprobs=[{
+                "token": "a",
+                "logprob": -1.0,
+                "top_logprobs": []
+            }],
             min_logprob=-1.0,
             avg_logprob=-1.0,
-        )
-    )
+        ))
     session.commit()
     session.refresh(completion)
 
