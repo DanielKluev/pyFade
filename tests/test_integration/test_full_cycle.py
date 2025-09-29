@@ -24,13 +24,13 @@ from py_fade.dataset.export_template import ExportTemplate
 from py_fade.controllers.import_controller import ImportController
 from py_fade.controllers.export_controller import ExportController
 
-
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
 
 TEST_DATA_DIR = pathlib.Path(__file__).parent.parent / "data"
 LM_EVAL_TEST_RESULT_1 = TEST_DATA_DIR / "results_2025-09-09T13-31-53.431753.json"
 LM_EVAL_TEST_RESULT_2 = TEST_DATA_DIR / "results_2025-09-09T13-42-42.857006.json"
+
 
 def test_full_cycle_lm_eval(app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase") -> None:
     """
@@ -62,13 +62,15 @@ def test_full_cycle_lm_eval(app_with_dataset: "pyFadeApp", temp_dataset: "Datase
 
     # Run data loading
     import_controller.load_sources()
-    assert import_controller.total_active_records() == 6 # 3 samples in each file
+    assert import_controller.total_active_records() == 6  # 3 samples in each file
     assert source1.model_id == "gemma3:12b-u1"
 
     # Set up regression filtering, assuming first source is tuned, second is base
-    import_controller.add_filter("paired_comparison", {
-        "filter_type": "new_failure",
-        "set_facet_pairwise_ranking": True, # Treat paired benchmarks as DPO signal, auto choose correct over wrong
+    import_controller.add_filter(
+        "paired_comparison",
+        {
+            "filter_type": "new_failure",
+            "set_facet_pairwise_ranking": True,  # Treat paired benchmarks as DPO signal, auto choose correct over wrong
         })
     import_controller.apply_filters()
     assert import_controller.total_active_records() == 2  # Only one new failure in tuned, correct and wrong completions
@@ -77,31 +79,25 @@ def test_full_cycle_lm_eval(app_with_dataset: "pyFadeApp", temp_dataset: "Datase
     import_controller.set_facet(facet_math)
     import_controller.set_ratings(correct=8, incorrect=2, chosen=8, rejected=2)
     assert import_controller.import_to_dataset() == 2  # Two records imported
-    assert import_controller.import_summary.imported_samples == 1 # One unique prompt
-    assert import_controller.import_summary.imported_completions == 2 # Two completions total
+    assert import_controller.import_summary.imported_samples == 1  # One unique prompt
+    assert import_controller.import_summary.imported_completions == 2  # Two completions total
 
     # Verify dataset contents
     samples = temp_dataset.session.query(Sample).all()
     assert len(samples) == 1
     completions = samples[0].completions
     assert len(completions) == 2
-    
+
     # IMPORTANT: Check that completions have different model_ids
     completion_model_ids = [completion.model_id for completion in completions]
-    print(f"DEBUG: Completion model_ids: {completion_model_ids}")
-    
+
     # Expected: one completion from tuned model (gemma3:12b-u1) and one from base model (gemma3:12b-it-q4_K_M)
     expected_models = {"gemma3:12b-u1", "gemma3:12b-it-q4_K_M"}
     actual_models = set(completion_model_ids)
     assert actual_models == expected_models, f"Expected models {expected_models}, got {actual_models}"
 
     # Create export template for math facet, SFT style
-    facet_config = {
-        "facet_id": facet_math.id,
-        "limit_type": "count",
-        "limit_value": 100,
-        "order": "random"
-        }
+    facet_config = {"facet_id": facet_math.id, "limit_type": "count", "limit_value": 100, "order": "random"}
     template_sft = ExportTemplate.create(
         dataset=temp_dataset,
         name="Math SFT Export",
