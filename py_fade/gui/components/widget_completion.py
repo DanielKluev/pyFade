@@ -92,7 +92,7 @@ class HeatmapTextEdit(QTextEdit):
             if start_pos <= cursor_pos < end_pos:
                 # Show tooltip with logprob value
                 tooltip_text = f"logprob: {logprob:.4f}"
-                QToolTip.showText(event.globalPos(), tooltip_text, self)
+                QToolTip.showText(event.globalPosition().toPoint(), tooltip_text, self)
                 return
 
         # Hide tooltip if not over a token
