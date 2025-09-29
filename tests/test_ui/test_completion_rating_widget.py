@@ -434,7 +434,7 @@ def test_evaluate_button_respects_logprob_availability(
     widget = WidgetSample(None, app_with_dataset, sample)
     qt_app.processEvents()
 
-    widget.set_active_context(None, "target-model")
+    widget.set_active_context(None, "mock-echo-model (mock)")
     qt_app.processEvents()
 
     evaluate_events: list[tuple[PromptCompletion, str]] = []
@@ -448,14 +448,14 @@ def test_evaluate_button_respects_logprob_availability(
     qt_app.processEvents()
 
     assert evaluate_events and evaluate_events[0][0].id == completion.id
-    assert evaluate_events[0][1] == "target-model"
+    assert evaluate_events[0][1] == "mock-echo-model"
 
     session = temp_dataset.session
     assert session is not None
     session.add(
         PromptCompletionLogprobs(
             prompt_completion_id=completion.id,
-            logprobs_model_id="target-model",
+            logprobs_model_id="mock-echo-model",
             logprobs=[{
                 "token": "a",
                 "logprob": -1.0,

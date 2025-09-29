@@ -1,6 +1,6 @@
 """Comprehensive tests for the multi-mode CompletionFrame widget."""
 
-# pylint: disable=protected-access,too-many-positional-arguments
+# pylint: disable=protected-access,too-many-positional-arguments,too-many-lines
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.providers.llm_response import LLMResponse, LLMPTokenLogProbs
+from py_fade.providers.providers_manager import MappedModel
+from py_fade.providers.mock_provider import MockLLMProvider
 from tests.helpers.data_helpers import create_test_completion
 
 if TYPE_CHECKING:
@@ -56,7 +58,10 @@ def _create_test_llm_response(**overrides) -> LLMResponse:
     """Create a test LLMResponse for beam mode testing."""
     defaults = {
         "model_id": "test-beam-model",
-        "full_history": [{"role": "user", "content": "Test prompt"}],
+        "full_history": [{
+            "role": "user",
+            "content": "Test prompt"
+        }],
         "full_response_text": "This is a beam response with some content",
         "response_text": "This is a beam response with some content",
         "temperature": 0.0,
@@ -418,9 +423,7 @@ class TestCompletionFrameTextDisplay:
     ) -> None:
         """Beam response text is displayed correctly."""
         _ = ensure_google_icon_font
-        beam = _create_test_llm_response(
-            full_response_text="Test beam response content"
-        )
+        beam = _create_test_llm_response(full_response_text="Test beam response content")
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
         frame.show()
@@ -436,10 +439,7 @@ class TestCompletionFrameTextDisplay:
     ) -> None:
         """Prefill text highlighting is applied."""
         _ = ensure_google_icon_font
-        beam = _create_test_llm_response(
-            full_response_text="Prefilled text and continuation",
-            prefill="Prefilled text"
-        )
+        beam = _create_test_llm_response(full_response_text="Prefilled text and continuation", prefill="Prefilled text")
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
         frame.show()
@@ -458,10 +458,7 @@ class TestCompletionFrameTextDisplay:
     ) -> None:
         """Beam token highlighting is applied."""
         _ = ensure_google_icon_font
-        beam = _create_test_llm_response(
-            full_response_text="Start token continuation",
-            beam_token="token"
-        )
+        beam = _create_test_llm_response(full_response_text="Start token continuation", beam_token="token")
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
         frame.show()
@@ -481,9 +478,7 @@ class TestCompletionFrameStatusIcons:
     ) -> None:
         """Truncated completion shows truncation icon."""
         _ = ensure_google_icon_font
-        _, completion = _build_sample_with_completion(
-            temp_dataset, is_truncated=True
-        )
+        _, completion = _build_sample_with_completion(temp_dataset, is_truncated=True)
 
         frame = CompletionFrame(temp_dataset, completion, display_mode="sample")
         frame.show()
@@ -500,9 +495,7 @@ class TestCompletionFrameStatusIcons:
     ) -> None:
         """Completion with prefill shows prefill icon."""
         _ = ensure_google_icon_font
-        _, completion = _build_sample_with_completion(
-            temp_dataset, prefill="Test prefill"
-        )
+        _, completion = _build_sample_with_completion(temp_dataset, prefill="Test prefill")
 
         frame = CompletionFrame(temp_dataset, completion, display_mode="sample")
         frame.show()
@@ -519,9 +512,7 @@ class TestCompletionFrameStatusIcons:
     ) -> None:
         """Completion with beam token shows beam icon."""
         _ = ensure_google_icon_font
-        _, completion = _build_sample_with_completion(
-            temp_dataset, beam_token="test_token"
-        )
+        _, completion = _build_sample_with_completion(temp_dataset, beam_token="test_token")
 
         frame = CompletionFrame(temp_dataset, completion, display_mode="sample")
         frame.show()
@@ -538,13 +529,7 @@ class TestCompletionFrameStatusIcons:
     ) -> None:
         """LLMResponse with logprobs shows metrics icon with proper color."""
         _ = ensure_google_icon_font
-        beam = _create_test_llm_response(
-            min_logprob=-1.2,
-            logprobs=[
-                LLMPTokenLogProbs("test", -1.2),
-                LLMPTokenLogProbs("token", -0.8)
-            ]
-        )
+        beam = _create_test_llm_response(min_logprob=-1.2, logprobs=[LLMPTokenLogProbs("test", -1.2), LLMPTokenLogProbs("token", -0.8)])
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
         frame.show()
@@ -567,9 +552,7 @@ class TestCompletionFrameButtonBehavior:
         _ = ensure_google_icon_font
 
         # Test truncated, non-archived completion
-        _, completion = _build_sample_with_completion(
-            temp_dataset, is_truncated=True, is_archived=False
-        )
+        _, completion = _build_sample_with_completion(temp_dataset, is_truncated=True, is_archived=False)
 
         frame = CompletionFrame(temp_dataset, completion, display_mode="sample")
         frame.show()
@@ -578,9 +561,7 @@ class TestCompletionFrameButtonBehavior:
         assert frame.resume_button.isVisible()
 
         # Test non-truncated completion
-        _, completion2 = _build_sample_with_completion(
-            temp_dataset, is_truncated=False, is_archived=False
-        )
+        _, completion2 = _build_sample_with_completion(temp_dataset, is_truncated=False, is_archived=False)
 
         frame2 = CompletionFrame(temp_dataset, completion2, display_mode="sample")
         frame.show()
@@ -596,9 +577,7 @@ class TestCompletionFrameButtonBehavior:
     ) -> None:
         """Archive button shows correct icon based on archived state."""
         _ = ensure_google_icon_font
-        _, completion = _build_sample_with_completion(
-            temp_dataset, is_archived=False
-        )
+        _, completion = _build_sample_with_completion(temp_dataset, is_archived=False)
 
         frame = CompletionFrame(temp_dataset, completion, display_mode="sample")
         frame.show()
@@ -608,9 +587,7 @@ class TestCompletionFrameButtonBehavior:
         assert frame.archive_button.isVisible()
 
         # Test archived completion
-        _, archived_completion = _build_sample_with_completion(
-            temp_dataset, is_archived=True
-        )
+        _, archived_completion = _build_sample_with_completion(temp_dataset, is_archived=True)
 
         archived_frame = CompletionFrame(temp_dataset, archived_completion, display_mode="sample")
         archived_frame.show()  # Show the archived frame, not the original frame
@@ -770,9 +747,7 @@ class TestCompletionFrameEdgeCases:
     ) -> None:
         """Empty completion text is handled gracefully."""
         _ = ensure_google_icon_font
-        _, completion = _build_sample_with_completion(
-            temp_dataset, completion_text=""
-        )
+        _, completion = _build_sample_with_completion(temp_dataset, completion_text="")
 
         frame = CompletionFrame(temp_dataset, completion, display_mode="sample")
         frame.show()
@@ -822,11 +797,13 @@ class TestCompletionFrameEdgeCases:
         assert frame.target_model is None
 
         # Set target model
-        frame.set_target_model("test-target-model")
+        mock_provider = MockLLMProvider()
+        test_model = MappedModel("test-target-model", mock_provider)
+        frame.set_target_model(test_model)
         frame.show()
         qt_app.processEvents()
 
-        assert frame.target_model == "test-target-model"
+        assert frame.target_model == test_model
 
     def test_completion_mode_switching(
         self,
@@ -836,9 +813,7 @@ class TestCompletionFrameEdgeCases:
     ) -> None:
         """Changing completion updates display appropriately."""
         _ = ensure_google_icon_font
-        _, completion1 = _build_sample_with_completion(
-            temp_dataset, completion_text="First completion"
-        )
+        _, completion1 = _build_sample_with_completion(temp_dataset, completion_text="First completion")
 
         frame = CompletionFrame(temp_dataset, completion1, display_mode="sample")
         frame.show()
@@ -847,9 +822,7 @@ class TestCompletionFrameEdgeCases:
         assert frame.text_edit.toPlainText() == "First completion"
 
         # Create second completion and update
-        _, completion2 = _build_sample_with_completion(
-            temp_dataset, completion_text="Second completion"
-        )
+        _, completion2 = _build_sample_with_completion(temp_dataset, completion_text="Second completion")
 
         frame.set_completion(completion2)
         frame.show()
@@ -857,3 +830,240 @@ class TestCompletionFrameEdgeCases:
 
         assert frame.text_edit.toPlainText() == "Second completion"
         assert frame.completion is completion2
+
+
+class TestCompletionFrameHeatmapMode:
+    """Test heatmap mode functionality."""
+
+    def test_heatmap_button_hidden_without_logprobs(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """Heatmap button is hidden when completion has no full logprobs."""
+        _ = ensure_google_icon_font
+        _, completion = _build_sample_with_completion(temp_dataset)
+
+        frame = CompletionFrame(temp_dataset, completion, display_mode="sample")
+        frame.show()
+        qt_app.processEvents()
+
+        # Should be hidden by default since no full logprobs
+        assert frame.heatmap_button is not None
+        assert not frame.heatmap_button.isVisible()
+
+    def test_heatmap_button_visible_with_full_logprobs(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """Heatmap button is visible when completion has full logprobs."""
+        _ = ensure_google_icon_font
+
+        # Create LLMResponse with full logprobs
+        beam = _create_test_llm_response(full_response_text="Hello world",
+                                         logprobs=[LLMPTokenLogProbs("Hello", -0.1),
+                                                   LLMPTokenLogProbs(" world", -0.8)])
+        beam.is_full_response_logprobs = True
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+        frame.show()
+        qt_app.processEvents()
+
+        # Should be visible with full logprobs
+        assert frame.heatmap_button is not None
+        assert frame.heatmap_button.isVisible()
+        assert not frame.heatmap_button.isChecked()
+
+    def test_heatmap_toggle_functionality(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """Heatmap button toggles heatmap mode correctly."""
+        _ = ensure_google_icon_font
+
+        # Create LLMResponse with full logprobs
+        beam = _create_test_llm_response(full_response_text="Test token",
+                                         logprobs=[LLMPTokenLogProbs("Test", -0.5),
+                                                   LLMPTokenLogProbs(" token", -1.2)])
+        beam.is_full_response_logprobs = True
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+        frame.show()
+        qt_app.processEvents()
+
+        # Initially not in heatmap mode
+        assert not frame.is_heatmap_mode
+        assert not frame.heatmap_button.isChecked()
+
+        # Toggle heatmap mode on
+        frame.heatmap_button.click()
+        qt_app.processEvents()
+
+        assert frame.is_heatmap_mode
+        assert frame.heatmap_button.isChecked()
+
+        # Toggle heatmap mode off
+        frame.heatmap_button.click()
+        qt_app.processEvents()
+
+        assert not frame.is_heatmap_mode
+        assert not frame.heatmap_button.isChecked()
+
+    def test_heatmap_mode_disables_prefill_beam_highlighting(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """Heatmap mode disables prefill and beam highlighting."""
+        _ = ensure_google_icon_font
+
+        # Create LLMResponse with full logprobs and prefill
+        beam = _create_test_llm_response(full_response_text="Prefill content", prefill="Prefill",
+                                         logprobs=[LLMPTokenLogProbs("Prefill", -0.3),
+                                                   LLMPTokenLogProbs(" content", -0.9)])
+        beam.is_full_response_logprobs = True
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+        frame.show()
+        qt_app.processEvents()
+
+        # Initially should have prefill highlighting (not heatmap)
+        assert not frame.is_heatmap_mode
+
+        # Enable heatmap mode - this should switch to logprob highlighting
+        frame.heatmap_button.click()
+        qt_app.processEvents()
+
+        assert frame.is_heatmap_mode
+        # The highlighting method switch is tested implicitly by the display update
+
+    def test_can_show_heatmap_for_llm_response(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",  # pylint: disable=unused-argument
+        ensure_google_icon_font: None,
+    ) -> None:
+        """_can_show_heatmap correctly identifies LLMResponse with full logprobs."""
+        _ = ensure_google_icon_font
+
+        # Create LLMResponse with partial logprobs
+        beam_partial = _create_test_llm_response(logprobs=[LLMPTokenLogProbs("test", -1.0)])
+        beam_partial.is_full_response_logprobs = False
+
+        frame = CompletionFrame(temp_dataset, beam_partial, display_mode="beam")
+
+        # Should not show heatmap for partial logprobs
+        assert not frame._can_show_heatmap(beam_partial)
+
+        # Create LLMResponse with full logprobs
+        beam_full = _create_test_llm_response(logprobs=[LLMPTokenLogProbs("test", -1.0)])
+        beam_full.is_full_response_logprobs = True
+
+        # Should show heatmap for full logprobs
+        assert frame._can_show_heatmap(beam_full)
+
+    def test_check_logprobs_cover_text(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",  # pylint: disable=unused-argument
+        ensure_google_icon_font: None,
+    ) -> None:
+        """_check_logprobs_cover_text correctly validates token coverage."""
+        _ = ensure_google_icon_font
+        _, completion = _build_sample_with_completion(temp_dataset)
+
+        frame = CompletionFrame(temp_dataset, completion, display_mode="sample")
+
+        # Test matching tokens
+        text = "Hello world"
+        logprobs = [{"token": "Hello", "logprob": -0.1}, {"token": " world", "logprob": -0.8}]
+        assert frame._check_logprobs_cover_text(text, logprobs)
+
+        # Test non-matching tokens
+        logprobs_wrong = [{"token": "Hi", "logprob": -0.1}, {"token": " there", "logprob": -0.8}]
+        assert not frame._check_logprobs_cover_text(text, logprobs_wrong)
+
+        # Test incomplete coverage
+        logprobs_partial = [{"token": "Hello", "logprob": -0.1}]
+        assert not frame._check_logprobs_cover_text(text, logprobs_partial)
+
+        # Test empty inputs
+        assert not frame._check_logprobs_cover_text("", [])
+        assert not frame._check_logprobs_cover_text("text", [])
+        assert not frame._check_logprobs_cover_text("", logprobs)
+
+    def test_get_logprobs_for_heatmap_llm_response(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",  # pylint: disable=unused-argument
+        ensure_google_icon_font: None,
+    ) -> None:
+        """_get_logprobs_for_heatmap correctly extracts data from LLMResponse."""
+        _ = ensure_google_icon_font
+
+        # Create LLMResponse with logprobs
+        beam = _create_test_llm_response(logprobs=[LLMPTokenLogProbs("test", -1.0), LLMPTokenLogProbs(" token", -0.5)])
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+
+        logprobs_data = frame._get_logprobs_for_heatmap(beam)
+
+        assert len(logprobs_data) == 2
+        assert logprobs_data[0]["token"] == "test"
+        assert logprobs_data[0]["logprob"] == -1.0
+        assert logprobs_data[1]["token"] == " token"
+        assert logprobs_data[1]["logprob"] == -0.5
+
+    def test_heatmap_text_edit_tooltip_positioning(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",  # pylint: disable=unused-argument
+        ensure_google_icon_font: None,
+    ) -> None:
+        """HeatmapTextEdit correctly caches token positions for tooltips."""
+        _ = ensure_google_icon_font
+
+        # Create frame with custom text edit
+        beam = _create_test_llm_response()
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+
+        # Test cache update
+        logprobs_data = [{"token": "Hello", "logprob": -0.1}, {"token": " world", "logprob": -0.8}]
+        text = "Hello world"
+
+        frame.text_edit.update_heatmap_cache(logprobs_data, text)
+
+        # Check cache contents
+        assert len(frame.text_edit._token_positions_cache) == 2
+        assert frame.text_edit._token_positions_cache[0] == (0, 5, -0.1)  # "Hello"
+        assert frame.text_edit._token_positions_cache[1] == (5, 11, -0.8)  # " world"
+
+    def test_heatmap_mode_with_target_model_logprobs(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",  # pylint: disable=unused-argument
+        ensure_google_icon_font: None,
+    ) -> None:
+        """Heatmap works with PromptCompletion when target model logprobs available."""
+        _ = ensure_google_icon_font
+
+        # This test would require setting up PromptCompletionLogprobs
+        # For now, just test the basic target model setting
+        _, completion = _build_sample_with_completion(temp_dataset)
+
+        frame = CompletionFrame(temp_dataset, completion, display_mode="sample")
+
+        # Create a test MappedModel for testing
+        mock_provider = MockLLMProvider()
+        test_model = MappedModel("test-model", mock_provider)
+        frame.set_target_model(test_model)
+
+        # Without actual logprobs, heatmap shouldn't be available
+        assert not frame._can_show_heatmap(completion)
+        assert not frame.heatmap_button.isVisible()

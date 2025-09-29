@@ -19,6 +19,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from py_fade.providers.providers_manager import MappedModel
+
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
 
@@ -33,9 +35,7 @@ class NewCompletionFrame(QFrame):
     Should have a button to generate the completion
     """
 
-    completion_accepted = pyqtSignal(
-        object
-    )  # Signal emitted when completion is accepted and should be saved
+    completion_accepted = pyqtSignal(object)  # Signal emitted when completion is accepted and should be saved
     app: "pyFadeApp"
 
     def __init__(self, parent: QWidget, app: "pyFadeApp"):
@@ -113,9 +113,7 @@ class NewCompletionFrame(QFrame):
         buttons_layout.addWidget(self.generate_btn)
 
         self.step_by_step_btn = QPushButton("Step-by-step")
-        self.step_by_step_btn.setToolTip(
-            "Generate the completion token by token, allowing manual intervention at each token."
-        )
+        self.step_by_step_btn.setToolTip("Generate the completion token by token, allowing manual intervention at each token.")
         self.step_by_step_btn.clicked.connect(self.generate_token_by_token)
         # NOTE: Step-by-step generation currently routes to the same handler.
         buttons_layout.addWidget(self.step_by_step_btn)
@@ -134,11 +132,11 @@ class NewCompletionFrame(QFrame):
         # self.status_label.setStyleSheet("color: #666; font-size: 11px;")
         layout.addWidget(self.status_label)
 
-    def set_selected_model(self, model_name: str | None) -> None:
+    def set_selected_model(self, mapped_model: MappedModel | None) -> None:
         """Select the provided model in the combo box when available."""
-        if not model_name:
+        if not mapped_model:
             return
-        index = self.model_combo.findText(model_name)
+        index = self.model_combo.findText(mapped_model.model_id)
         if index < 0:
             return
         self.model_combo.blockSignals(True)
