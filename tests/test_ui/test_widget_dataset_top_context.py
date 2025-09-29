@@ -60,7 +60,7 @@ def test_context_selection_persisted_and_reloaded(
         sample_widget = sample_widgets[0]
         assert sample_widget.active_facet is not None
         assert sample_widget.active_facet.id == facet.id
-        assert sample_widget.active_model_name == widget.current_model_name
+        assert (sample_widget.active_model.path if sample_widget.active_model else None) == widget.current_model_name
     finally:
         widget.deleteLater()
         qt_app.processEvents()

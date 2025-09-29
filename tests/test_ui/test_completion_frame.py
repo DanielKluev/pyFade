@@ -15,6 +15,8 @@ from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.providers.llm_response import LLMResponse, LLMPTokenLogProbs
+from py_fade.providers.providers_manager import MappedModel
+from py_fade.providers.mock_provider import MockLLMProvider
 from tests.helpers.data_helpers import create_test_completion
 
 if TYPE_CHECKING:
@@ -795,11 +797,13 @@ class TestCompletionFrameEdgeCases:
         assert frame.target_model is None
 
         # Set target model
-        frame.set_target_model("test-target-model")
+        mock_provider = MockLLMProvider()
+        test_model = MappedModel("test-target-model", mock_provider)
+        frame.set_target_model(test_model)
         frame.show()
         qt_app.processEvents()
 
-        assert frame.target_model == "test-target-model"
+        assert frame.target_model == test_model
 
     def test_completion_mode_switching(
         self,
@@ -1054,7 +1058,11 @@ class TestCompletionFrameHeatmapMode:
         _, completion = _build_sample_with_completion(temp_dataset)
 
         frame = CompletionFrame(temp_dataset, completion, display_mode="sample")
-        frame.set_target_model("test-model")
+
+        # Create a test MappedModel for testing
+        mock_provider = MockLLMProvider()
+        test_model = MappedModel("test-model", mock_provider)
+        frame.set_target_model(test_model)
 
         # Without actual logprobs, heatmap shouldn't be available
         assert not frame._can_show_heatmap(completion)

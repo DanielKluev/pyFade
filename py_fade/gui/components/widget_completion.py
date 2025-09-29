@@ -340,7 +340,6 @@ class CompletionFrame(QFrame):
 
     def set_target_model(self, mapped_model: MappedModel | None) -> None:
         """Set the active evaluation model for logprob checks."""
-
         self.target_model = mapped_model
         self._update_action_buttons()
 
@@ -381,7 +380,7 @@ class CompletionFrame(QFrame):
             needs_evaluate = self._needs_evaluate_button()
             self.evaluate_button.setVisible(needs_evaluate)
             if needs_evaluate and self.target_model:
-                self.evaluate_button.setToolTip(f"Evaluate logprobs for '{self.target_model}'.")
+                self.evaluate_button.setToolTip(f"Evaluate logprobs for '{self.target_model.model_id}'.")
             elif needs_evaluate:
                 self.evaluate_button.setToolTip("Evaluate logprobs for the active model.")
             else:
@@ -437,7 +436,11 @@ class CompletionFrame(QFrame):
         if not self.completion.logprobs:
             return True
 
-        return not any(logprob.logprobs_model_id == self.target_model for logprob in self.completion.logprobs)
+        target_model_id = self.target_model.model_id
+        has_target_logprobs = any(
+            logprob.logprobs_model_id == target_model_id for logprob in self.completion.logprobs
+        )
+        return not has_target_logprobs
 
     def _on_archive_clicked(self) -> None:
         """Handle archive button click."""
@@ -464,7 +467,7 @@ class CompletionFrame(QFrame):
 
     def _on_evaluate_clicked(self) -> None:
         """Handle evaluate button click."""
-        target = self.target_model or self.completion.model_id
+        target = (self.target_model.model_id if self.target_model else None) or self.completion.model_id
         self.evaluate_requested.emit(self.completion, target)
 
     def _on_edit_clicked(self) -> None:
