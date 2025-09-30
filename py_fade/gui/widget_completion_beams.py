@@ -171,7 +171,7 @@ class WidgetCompletionBeams(QWidget):
         params_layout.addWidget(self.model_combo, 0, 3)
         # Freeze self.model_combo to the provided mapped_model
         if self.mapped_model:
-            index = self.model_combo.findText(self.mapped_model.model_id)
+            index = self.model_combo.findText(self.mapped_model.path)
             if index >= 0:
                 self.model_combo.setCurrentIndex(index)
             self.model_combo.setEnabled(False)  # Disable changing model in beam widget
