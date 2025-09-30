@@ -9,6 +9,8 @@ assignees: ''
 
 This is task to implement feature: X
 
+# Context
+
 # Feature Overview
 
 # Important Feature Details
@@ -30,7 +32,8 @@ This is task to implement feature: X
 - `.github/copilot-instructions.md` - instructions for Copilot
 
 # Acceptance goals
-1. All changed code must be extensively covered by `pytest` unit tests.
-2. `pytest` **MUST** return zero failed tests.
-3. `pylint py_fade` **MUST** return zero issues.
-4. `pylint tests` **MUST** return zero issues.
+1. Described feature is fully implemented as per the specifications.
+2. All changed code must be extensively covered by `pytest` unit tests.
+3. `pytest` **MUST** return zero failed tests.
+4. `pylint py_fade` **MUST** return zero issues.
+5. `pylint tests` **MUST** return zero issues.

@@ -1,13 +1,15 @@
 ---
-name: Code Quality Compliance
+name: Code Quality Compliance (Copilot)
 about: Run Code Quality Compliance task
-title: Code Quality Compliance iteration
+title: Code Quality Compliance iteration (Copilot)
 labels: quality
 assignees: ''
 
 ---
 
 This is task for managing code quality and technical debt.
+
+Some technical debt has been recently introduced in the codebase. This task is to iteratively improve the code quality till all acceptance goals are achieved.
 
 # Acceptance goals
 1. `pytest` **MUST** return zero failed tests.
