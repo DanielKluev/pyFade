@@ -34,18 +34,29 @@ def apply_template_gemma3(messages: CommonConversation) -> str:
     return prompt
 
 
-def apply_template_qwen3(messages: list[dict]) -> str:
+def apply_template_qwen3(messages: CommonConversation) -> str:
     """
     Apply the Qwen3 chat template to the given messages.
+
+    Roles: 'system', 'user', 'assistant'
+    Each turn looks like this:
+        <|im_start|>{role}\n{content}<|im_end|>\n
     """
     prompt = ""
-    # prompt = "<bos>\n"
-    user = messages.pop(0)
-    prompt += f"<|im_start|>user\n{user['content']}<|im_end|>\n"
-    prompt += "<|im_start|>assistant\n"
-    if messages:
-        assistant = messages.pop(0)
-        prompt += f"{assistant['content']}"
+    previous_role = None
+    for i, message in enumerate(messages.messages):
+        role = message.role
+        content = message.content
+        if role not in ("system", "user", "assistant"):
+            raise ValueError(f"Unsupported role '{role}' for Qwen3 template.")
+        if previous_role is not None and (previous_role == role or role == "system"):
+            raise ValueError("Consecutive messages with the same role or system role in between are not allowed.")
+        if i == len(messages.messages) - 1 and role == "assistant":  # Last message is assistant, no end tag
+            prompt += f"<|im_start|>{role}\n{content}"
+        else:
+            prompt += f"<|im_start|>{role}\n{content}<|im_end|>\n"
+    if messages.messages and messages.messages[-1].role == "user":  # If last message is user, start assistant turn
+        prompt += "<|im_start|>assistant\n"
 
     return prompt
 
