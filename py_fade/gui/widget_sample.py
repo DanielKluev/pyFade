@@ -46,11 +46,19 @@ class WidgetSample(QWidget):
     Completions are `NewCompletionFrame` pinned to the left,
     existing completions `CompletionFrame` to the right.
 
-    Sample controls are:
-    - Non-editable input field showing sample ID or "New Sample" if new
-    - Input field for sample title.
-    - Button to save sample, which disables prompt editing
-    - Button to copy sample, which creates a new sample with same prompt but no completions
+    Sample controls feature a compact layout with:
+    - Label and field pairs arranged horizontally on the same row
+    - Context Length and Max Tokens combined in a single row for space efficiency
+    - Icon-only action buttons (Save, Copy, Beam Search) with tooltips in a horizontal row
+    - Show archived completions checkbox integrated into the controls panel
+
+    Control fields:
+    - Non-editable Sample ID field
+    - Editable sample title field
+    - Editable group path combo box with autocomplete
+    - Context length and max tokens numeric inputs (combined row)
+    - Icon-only action buttons: Save (save icon), Copy (content_copy icon), Beam Search (search icon)
+    - Show archived completions checkbox for filtering completions display
     """
 
     app: "pyFadeApp"
