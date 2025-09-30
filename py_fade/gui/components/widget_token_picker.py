@@ -15,6 +15,12 @@ from PyQt6.QtWidgets import (
 from py_fade.gui.auxillary.aux_logprobs_to_color import logprob_to_qcolor
 from py_fade.providers.llm_response import SinglePositionTokenLogprobs
 
+SYMBOLS_MAP = {
+    " ": "␣",
+    "\n": "⏎",
+    "\t": "→",
+}
+
 
 class WidgetTokenPicker(QWidget):
     """
@@ -113,9 +119,16 @@ class WidgetTokenPicker(QWidget):
                 col = 0
                 row += 1
 
+    def _sanitize_token_display(self, token: str) -> str:
+        """Sanitize token for display, replacing special characters."""
+        for symbol, replacement in SYMBOLS_MAP.items():
+            token = token.replace(symbol, replacement)
+        return token
+
     def _create_button_token(self, token: str, logprob: float) -> QPushButton:
         """Create a button widget for single-select mode."""
-        button = QPushButton(f"{token}\n({logprob:.2f})")
+        token_str = self._sanitize_token_display(token)
+        button = QPushButton(f"{token_str} [{logprob:.2f}]")
         button.setCheckable(True)
 
         # Set color based on logprob
@@ -146,7 +159,8 @@ class WidgetTokenPicker(QWidget):
 
     def _create_checkbox_token(self, token: str, logprob: float) -> QWidget:
         """Create a checkbox widget for multi-select mode."""
-        checkbox = QCheckBox(f"{token} ({logprob:.2f})")
+        token_str = self._sanitize_token_display(token)
+        checkbox = QCheckBox(f"{token_str} [{logprob:.2f}]")
 
         # Set color based on logprob
         color = logprob_to_qcolor(logprob)
