@@ -4,81 +4,26 @@
 
 from __future__ import annotations
 
-import hashlib
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QMouseEvent
 
-from py_fade.data_formats.base_data_classes import CommonConversation, CommonMessage
-from py_fade.dataset.completion import PromptCompletion
-from py_fade.dataset.prompt import PromptRevision
-from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.components.widget_completion_text_editor import CompletionTextEdit
-from py_fade.providers.llm_response import LLMResponse, SinglePositionTokenLogprobs, LLMResponseLogprobs
+from py_fade.providers.llm_response import SinglePositionTokenLogprobs
 from py_fade.providers.providers_manager import MappedModel
 from py_fade.providers.mock_provider import MockLLMProvider
-from tests.helpers.data_helpers import create_test_completion
+from tests.helpers.data_helpers import build_sample_with_completion, create_test_llm_response, setup_beam_heatmap_test
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
 
 
-def _build_sample_with_completion(
-    dataset: "DatasetDatabase",
-    **completion_overrides,
-) -> Tuple[Sample, PromptCompletion]:
-    """Create a persisted sample with a single completion for tests."""
-    session = dataset.session
-    assert session is not None
-
-    prompt_revision = PromptRevision.get_or_create(dataset, "Test prompt", 2048, 128)
-    sample = Sample.create_if_unique(dataset, "Test sample", prompt_revision, None)
-    if sample is None:
-        sample = Sample.from_prompt_revision(dataset, prompt_revision)
-        session.add(sample)
-        session.commit()
-
-    completion_text = "This is a test completion response."
-    completion_overrides_local = {
-        "temperature": 0.7,
-        "top_k": 40,
-        "completion_text": completion_text,
-        "sha256": hashlib.sha256(completion_text.encode("utf-8")).hexdigest(),
-    }
-    completion_overrides_local.update(completion_overrides)
-
-    completion = create_test_completion(session, prompt_revision, completion_overrides_local)
-
-    return sample, completion
-
-
-def _create_test_llm_response(**overrides) -> LLMResponse:
-    """Create a test LLMResponse for beam mode testing."""
-    defaults = {
-        "model_id": "test-beam-model",
-        "prompt_conversation": CommonConversation([CommonMessage(role="user", content="Test prompt")]),
-        "completion_text": "This is a beam response with some content",
-        "generated_part_text": "This is a beam response with some content",
-        "temperature": 0.0,
-        "top_k": 1,
-        "context_length": 1024,
-        "max_tokens": 100,
-        "prefill": None,
-        "beam_token": None,
-        "is_truncated": False,
-    }
-
-    # Handle logprobs conversion from list to LLMResponseLogprobs
-    if "logprobs" in overrides and isinstance(overrides["logprobs"], list):
-        logprobs_list = overrides["logprobs"]
-        overrides["logprobs"] = LLMResponseLogprobs(logprobs_model_id=overrides.get("model_id", defaults["model_id"]),
-                                                    logprobs=logprobs_list)
-
-    defaults.update(overrides)
-    return LLMResponse(**defaults)
+# Use imported helper functions instead of local duplicates
+_build_sample_with_completion = build_sample_with_completion
+_create_test_llm_response = create_test_llm_response
 
 
 class TestCompletionTextEditBasicFunctionality:
@@ -105,7 +50,7 @@ class TestCompletionTextEditBasicFunctionality:
     def test_set_completion_basic(
         self,
         temp_dataset: "DatasetDatabase",
-        qt_app: "QApplication",
+        qt_app: "QApplication",  # pylint: disable=unused-argument
         ensure_google_icon_font: None,
     ) -> None:
         """set_completion method works correctly."""
@@ -122,7 +67,7 @@ class TestCompletionTextEditBasicFunctionality:
     def test_set_completion_with_different_text(
         self,
         temp_dataset: "DatasetDatabase",
-        qt_app: "QApplication",
+        qt_app: "QApplication",  # pylint: disable=unused-argument
         ensure_google_icon_font: None,
     ) -> None:
         """set_completion updates text when completion changes."""
@@ -205,7 +150,7 @@ class TestCompletionTextEditHeatmapMode:
     def test_heatmap_mode_basic_toggle(
         self,
         temp_dataset: "DatasetDatabase",
-        qt_app: "QApplication",
+        qt_app: "QApplication",  # pylint: disable=unused-argument
         ensure_google_icon_font: None,
     ) -> None:
         """Heatmap mode can be toggled on and off."""
@@ -231,7 +176,7 @@ class TestCompletionTextEditHeatmapMode:
     def test_heatmap_mode_requires_logprobs(
         self,
         temp_dataset: "DatasetDatabase",
-        qt_app: "QApplication",
+        qt_app: "QApplication",  # pylint: disable=unused-argument
         ensure_google_icon_font: None,
     ) -> None:
         """Heatmap mode cannot be enabled without logprobs."""
@@ -391,7 +336,7 @@ class TestCompletionTextEditEdgeCases:
     def test_empty_completion_text(
         self,
         temp_dataset: "DatasetDatabase",
-        qt_app: "QApplication",
+        qt_app: "QApplication",  # pylint: disable=unused-argument
         ensure_google_icon_font: None,
     ) -> None:
         """Empty completion text is handled correctly."""
@@ -407,7 +352,7 @@ class TestCompletionTextEditEdgeCases:
     def test_none_completion_handling(
         self,
         temp_dataset: "DatasetDatabase",
-        qt_app: "QApplication",
+        qt_app: "QApplication",  # pylint: disable=unused-argument
         ensure_google_icon_font: None,
     ) -> None:
         """CompletionTextEdit handles None completion gracefully."""
@@ -427,7 +372,7 @@ class TestCompletionTextEditEdgeCases:
     def test_logprobs_without_completion(
         self,
         temp_dataset: "DatasetDatabase",
-        qt_app: "QApplication",
+        qt_app: "QApplication",  # pylint: disable=unused-argument
         ensure_google_icon_font: None,
     ) -> None:
         """Setting logprobs without completion is handled."""
@@ -490,21 +435,7 @@ class TestCompletionTextEditIntegrationWithCompletionFrame:
     ) -> None:
         """CompletionFrame heatmap button controls CompletionTextEdit heatmap mode."""
         _ = ensure_google_icon_font
-        beam = _create_test_llm_response(completion_text="Hello world",
-                                         logprobs=[SinglePositionTokenLogprobs("Hello", -0.1),
-                                                   SinglePositionTokenLogprobs(" world", -0.8)])
-        beam.is_full_response_logprobs = True
-
-        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
-
-        # Set target model to enable heatmap
-        mock_provider = MockLLMProvider()
-        test_model = MappedModel("test-beam-model", mock_provider)
-        frame.set_target_model(test_model)
-
-        frame.show()
-        qt_app.processEvents()
-
+        frame, _ = setup_beam_heatmap_test(temp_dataset, qt_app)
         text_edit = frame.text_edit
 
         # Initially not in heatmap mode
