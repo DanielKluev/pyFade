@@ -31,7 +31,7 @@ from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.components.widget_plain_text_edit import PlainTextEdit
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from py_fade.gui.widget_new_completion import NewCompletionFrame
-from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow
+from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow, EditorMode
 from py_fade.providers.providers_manager import MappedModel
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -364,7 +364,12 @@ class WidgetSample(QWidget):
             return
 
         # Open the editor window in blocking mode
-        editor = ThreeWayCompletionEditorWindow(self.app, self.dataset, completion, facet=self.active_facet, parent=self)
+        editor = ThreeWayCompletionEditorWindow(self.app,
+                                               self.dataset,
+                                               completion,
+                                               EditorMode.CONTINUATION,
+                                               facet=self.active_facet,
+                                               parent=self)
 
         # Show as modal dialog
         result = editor.exec()
@@ -386,7 +391,12 @@ class WidgetSample(QWidget):
             return
 
         # Open the editor window in blocking mode
-        editor = ThreeWayCompletionEditorWindow(self.app, self.dataset, completion, facet=self.active_facet, parent=self)
+        editor = ThreeWayCompletionEditorWindow(self.app,
+                                               self.dataset,
+                                               completion,
+                                               EditorMode.MANUAL,
+                                               facet=self.active_facet,
+                                               parent=self)
 
         # Show as modal dialog
         result = editor.exec()
