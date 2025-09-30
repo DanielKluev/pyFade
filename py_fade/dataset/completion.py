@@ -10,7 +10,7 @@ from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
-from py_fade.data_formats.base_data_classes import CommonCompletionLogprobsProtocol, CommonConversation
+from py_fade.data_formats.base_data_classes import CommonCompletionLogprobsProtocol, CommonConversation, CommonCompletionProtocol
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.dataset.completion_rating import PromptCompletionRating
@@ -142,18 +142,4 @@ class PromptCompletion(dataset_base):
         Go through logprobs and match tokens to completion_text.
         True if all tokens match and cover full text, False otherwise.
         """
-        if not target_model_id:
-            target_model_id = self.model_id
-        logprobs_entry = self.get_logprobs_for_model_id(target_model_id)
-        if not logprobs_entry:
-            return False
-
-        resp_pos = 0
-        for lp in logprobs_entry:
-            if lp.logprob is None:
-                return False
-            # Check if token matches the response text at current position
-            if self.completion_text[resp_pos:resp_pos + len(lp.token)] != lp.token:
-                return False
-            resp_pos += len(lp.token)
-        return resp_pos == len(self.completion_text)
+        return CommonCompletionProtocol.check_full_response_logprobs(self, target_model_id)

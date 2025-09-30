@@ -4,7 +4,7 @@ import logging
 
 from tiktoken import get_encoding
 
-from py_fade.data_formats.base_data_classes import CommonConversation, CommonCompletionLogprobsProtocol
+from py_fade.data_formats.base_data_classes import CommonConversation, CommonCompletionLogprobsProtocol, CommonCompletionProtocol
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 from py_fade.providers.llm_response import LLMResponse
 
@@ -81,3 +81,20 @@ class BasePrefillAwareProvider:
             tokens = CL100K_BASE_ENCODING.encode(text)
             return len(tokens)
         return len(text) // avg_chars_per_token
+
+    def check_high_fidelity_continuation_possible(self, completion: CommonCompletionProtocol) -> bool:  # pylint: disable=unused-argument
+        """
+        Check if high-fidelity continuation is possible for this completion, based on provider capabilities and completion data.
+
+        Problem:
+        Originally model may produce sequence of tokens, but greedy re-tokenization may merge them. It completely changes logprobs.
+        So we need to work with tokens only, not decoded text.
+
+        Requirements:
+        - Provider must support running inference from tokens directly, not just text.
+        - Completion must include original tokenization data with logprobs, ideally token IDs rather than token text.
+
+        Returns True if high-fidelity continuation is possible, False otherwise.
+        """
+        # Providers should override if they support high-fidelity continuation
+        return False
