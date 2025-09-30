@@ -10,6 +10,11 @@
 
 ### Added
 - `PlainTextEdit` widget component for plain text only editing with rich text rejection
+- **Improved Logprob Coloring**: Enhanced visual distinction for token probability heatmaps with new Dark Green → Orange → Red → Purple spectrum
+  - 18 precisely specified color thresholds for better visual discrimination
+  - Clear distinction between high probabilities (p=0.95 vs p=0.9) and tail probabilities (-20 vs -25)
+  - Smooth linear interpolation between all threshold points
+  - Maintains full backwards compatibility with existing code
 
 ## Version 0.0.1 (to be released)
 
