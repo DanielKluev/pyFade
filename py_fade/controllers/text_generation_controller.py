@@ -57,7 +57,7 @@ class CompletionPrefix:
         return cls(
             prefix_text=prefix_text,
             prefix_token_size=prefix_tokens_count,
-            logprobs=response.logprobs[0:prefix_tokens_count],
+            logprobs=response.logprobs.logprobs[0:prefix_tokens_count],
             next_token_logprobs=next_token_logprobs,
         )
 

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 from py_fade.controllers.text_generation_controller import CompletionPrefix
-from py_fade.providers.llm_response import LLMResponse, SinglePositionTokenLogprobs
+from py_fade.providers.llm_response import LLMResponse, SinglePositionTokenLogprobs, LLMResponseLogprobs
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -40,12 +40,16 @@ def test_completion_prefix_from_response():
     response = MagicMock(spec=LLMResponse)
     response.completion_text = "Hello world and more"
     response.check_full_response_logprobs.return_value = True
-    response.logprobs = [
-        SinglePositionTokenLogprobs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1)]),
-        SinglePositionTokenLogprobs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5)]),
-        SinglePositionTokenLogprobs(token=" and", logprob=-0.8, top_logprobs=[(" and", -0.8)]),
-        SinglePositionTokenLogprobs(token=" more", logprob=-1.2, top_logprobs=[(" more", -1.2)])
-    ]
+    # Create proper LLMResponseLogprobs object instead of plain list
+    response.logprobs = LLMResponseLogprobs(
+        logprobs_model_id="test-model",
+        logprobs=[
+            SinglePositionTokenLogprobs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1)]),
+            SinglePositionTokenLogprobs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5)]),
+            SinglePositionTokenLogprobs(token=" and", logprob=-0.8, top_logprobs=[(" and", -0.8)]),
+            SinglePositionTokenLogprobs(token=" more", logprob=-1.2, top_logprobs=[(" more", -1.2)])
+        ]
+    )
 
     # Try to extract prefix "Hello world"
     prefix = CompletionPrefix.try_get_from_response("Hello world", response)
@@ -62,10 +66,14 @@ def test_completion_prefix_from_response_mismatch():
     response = MagicMock(spec=LLMResponse)
     response.completion_text = "Hello world"
     response.check_full_response_logprobs.return_value = True
-    response.logprobs = [
-        SinglePositionTokenLogprobs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1)]),
-        SinglePositionTokenLogprobs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5)])
-    ]
+    # Create proper LLMResponseLogprobs object instead of plain list
+    response.logprobs = LLMResponseLogprobs(
+        logprobs_model_id="test-model",
+        logprobs=[
+            SinglePositionTokenLogprobs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1)]),
+            SinglePositionTokenLogprobs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5)])
+        ]
+    )
 
     # Try to extract a prefix that doesn't match
     prefix = CompletionPrefix.try_get_from_response("Hi there", response)

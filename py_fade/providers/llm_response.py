@@ -67,6 +67,9 @@ class LLMResponseLogprobs(CommonCompletionLogprobsProtocol):
     def __iter__(self):
         return iter(self.logprobs)
 
+    def __len__(self):
+        return len(self.logprobs)
+
     def __getitem__(self, key) -> "LLMResponseLogprobs":
         if isinstance(key, slice):
             logprobs = self.logprobs.__getitem__(key)
