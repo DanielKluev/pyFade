@@ -16,6 +16,7 @@ from py_fade.providers.llm_response import SinglePositionTokenLogprobs
 def _make_provider() -> PrefillAwareLlamaCppInternal:
     provider = object.__new__(PrefillAwareLlamaCppInternal)
     provider.log = logging.getLogger("PrefillAwareLlamaCppInternalTest")
+    provider.current_model_id = None  # Initialize missing attribute
     return provider
 
 
@@ -62,7 +63,7 @@ def test_convert_chat_completion_logprobs_extracts_top_tokens():
     converted = provider._convert_chat_completion_logprobs(raw)
 
     assert [lp.token for lp in converted] == ["Hello", "!"]
-    assert converted[0].top_logprobs == [("Hello", -0.1), ("Hi", -1.5)]
+    assert list(converted)[0].top_logprobs == [("Hello", -0.1), ("Hi", -1.5)]
 
 
 def test_convert_simple_completion_logprobs_handles_missing_top_entries():
@@ -79,8 +80,9 @@ def test_convert_simple_completion_logprobs_handles_missing_top_entries():
     converted = provider._convert_simple_completion_logprobs(raw)
 
     assert [lp.token for lp in converted] == ["token", "trail"]
-    assert converted[0].top_logprobs == [("token", -0.3)]
-    assert converted[1].top_logprobs == []
+    logprobs_list = list(converted)
+    assert logprobs_list[0].top_logprobs == [("token", -0.3)]
+    assert logprobs_list[1].top_logprobs == []
 
 
 def test_mask_logprobs_matches_completion_suffix():

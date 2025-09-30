@@ -1,10 +1,10 @@
 """LLM response data structures and processing utilities."""
 
-import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from py_fade.data_formats.base_data_classes import CommonCompletionProtocol, CommonCompletionLogprobsProtocol, CommonConversation, SinglePositionTokenLogprobs
+from py_fade.data_formats.base_data_classes import (CommonCompletionProtocol, CommonCompletionLogprobsProtocol,
+                                                     CommonConversation, SinglePositionTokenLogprobs)
 
 if TYPE_CHECKING:
     from py_fade.dataset.completion import PromptCompletion
@@ -22,10 +22,9 @@ class LLMResponseLogprobs(CommonCompletionLogprobsProtocol):
     avg_logprob: float | None = None  # average(logprobs), average logprob of all tokens in response
 
     @classmethod
-    def from_sequence(
-        cls, logprobs_model_id: str, *sequence:
-        "list[SinglePositionTokenLogprobs] | SinglePositionTokenLogprobs | CommonCompletionLogprobsProtocol | LLMResponseLogprobs | None"
-    ) -> "LLMResponseLogprobs":
+    def from_sequence(cls, logprobs_model_id: str, *sequence: "list[SinglePositionTokenLogprobs] | "
+                                                              "SinglePositionTokenLogprobs | CommonCompletionLogprobsProtocol | "
+                                                              "LLMResponseLogprobs | None") -> "LLMResponseLogprobs":
         """
         Create LLMResponseLogprobs from a sequence of logprobs, supporting mixing different input types.
         """
@@ -39,7 +38,7 @@ class LLMResponseLogprobs(CommonCompletionLogprobsProtocol):
                 logprobs.append(item)
             else:
                 continue
-        return cls(logprobs_model_id="", logprobs=logprobs)
+        return cls(logprobs_model_id=logprobs_model_id, logprobs=logprobs)
 
     @property
     def first_token_top_logprobs(self) -> list[tuple[str, float]]:
@@ -67,6 +66,9 @@ class LLMResponseLogprobs(CommonCompletionLogprobsProtocol):
 
     def __iter__(self):
         return iter(self.logprobs)
+
+    def __len__(self):
+        return len(self.logprobs)
 
     def __getitem__(self, key) -> "LLMResponseLogprobs":
         if isinstance(key, slice):

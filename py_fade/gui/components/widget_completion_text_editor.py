@@ -1,28 +1,16 @@
+"""
+Widget for editing completion text with formatting and highlighting capabilities.
+"""
+
 from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
-
-from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor, QMouseEvent
-from PyQt6.QtWidgets import (
-    QFrame,
-    QHBoxLayout,
-    QMessageBox,
-    QSizePolicy,
-    QTextEdit,
-    QVBoxLayout,
-    QWidget,
-    QToolTip,
-)
+from PyQt6.QtWidgets import QTextEdit, QToolTip, QWidget
 
 from py_fade.gui.auxillary import logprob_to_qcolor
-from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
-from py_fade.gui.components.widget_completion_rating import CompletionRatingWidget
-from py_fade.gui.components.widget_label_with_icon import QLabelWithIcon, QLabelWithIconAndText
-from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.data_formats.base_data_classes import CommonCompletionProtocol, CommonCompletionLogprobsProtocol, SinglePositionTokenLogprobs
-from py_fade.providers.providers_manager import MappedModel
 
 if TYPE_CHECKING:
     from py_fade.gui.components.widget_completion import CompletionFrame

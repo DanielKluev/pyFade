@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from py_fade.data_formats.base_data_classes import CommonConversation, CommonMessage
+from py_fade.data_formats.base_data_classes import CommonConversation
 
 FLAT_PREFIX_SYSTEM = "<|system|>"
 FLAT_PREFIX_USER = "<|user|>"

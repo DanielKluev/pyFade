@@ -7,6 +7,7 @@ import pathlib
 
 from ollama import ChatResponse, chat
 
+from py_fade.data_formats.base_data_classes import CommonConversation, CommonMessage
 from py_fade.providers.base_provider import LOGPROB_LEVEL_NONE, BasePrefillAwareProvider
 from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMResponse
 
@@ -60,7 +61,7 @@ class OllamaRegistry:
         if ":" in model_id:
             family, subtype = model_id.split(":", 1)
 
-        manifest_file = (self.manifests_dir / "registry.ollama.ai" / namespace / family / f"{subtype or 'latest'}")
+        manifest_file = self.manifests_dir / "registry.ollama.ai" / namespace / family / f"{subtype or 'latest'}"
         if not manifest_file.exists():
             self.log.error("Model manifest file does not exist: %s", manifest_file)
             raise FileNotFoundError(f"Model manifest file does not exist: {manifest_file}")
@@ -151,7 +152,7 @@ class PrefillAwareOllama(BasePrefillAwareProvider):
         full_response_text = (prefill or "") + response_content if prefill else response_content
         return LLMResponse(
             model_id=model_id,
-            full_history=history,
+            prompt_conversation=CommonConversation([CommonMessage(role=msg["role"], content=msg["content"]) for msg in history]),
             completion_text=full_response_text,
             generated_part_text=response_content,
             temperature=temperature,

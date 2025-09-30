@@ -1,6 +1,6 @@
 """LLM chat template formatting functions for various model families."""
 
-from py_fade.data_formats.base_data_classes import CommonConversation, CommonMessage
+from py_fade.data_formats.base_data_classes import CommonConversation
 
 
 def apply_template_gemma3(messages: CommonConversation) -> str:
