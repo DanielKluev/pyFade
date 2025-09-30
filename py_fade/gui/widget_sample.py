@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
     QSpinBox,
@@ -29,6 +28,7 @@ from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.components.widget_plain_text_edit import PlainTextEdit
+from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from py_fade.gui.widget_new_completion import NewCompletionFrame
 from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow, EditorMode
@@ -110,19 +110,30 @@ class WidgetSample(QWidget):
         # Sample controls panel
         controls_frame = QFrame(self)
         controls_layout = QVBoxLayout(controls_frame)
+        controls_layout.setSpacing(4)  # Reduced spacing for compactness
 
-        # Sample ID (non-editable)
+        # Sample ID row (label and field on same line)
+        id_row_layout = QHBoxLayout()
         id_label = QLabel("Sample ID:", self)
+        id_label.setMinimumWidth(80)
         self.id_field = QLineEdit(self)
         self.id_field.setReadOnly(True)
+        id_row_layout.addWidget(id_label)
+        id_row_layout.addWidget(self.id_field)
 
-        # Sample title (editable)
+        # Sample title row (label and field on same line)
+        title_row_layout = QHBoxLayout()
         title_label = QLabel("Title:", self)
+        title_label.setMinimumWidth(80)
         self.title_field = QLineEdit(self)
         self.title_field.setPlaceholderText("Enter sample title...")
+        title_row_layout.addWidget(title_label)
+        title_row_layout.addWidget(self.title_field)
 
-        # Group path (editable combo box)
+        # Group path row (label and field on same line)
+        group_row_layout = QHBoxLayout()
         group_label = QLabel("Group Path:", self)
+        group_label.setMinimumWidth(80)
         self.group_field = QComboBox(self)
         self.group_field.setEditable(True)
         group_line_edit = self.group_field.lineEdit()
@@ -131,46 +142,61 @@ class WidgetSample(QWidget):
         # Populate with existing group paths
         group_paths = self.dataset.list_unique_group_paths()
         self.group_field.addItems([""] + group_paths)
+        group_row_layout.addWidget(group_label)
+        group_row_layout.addWidget(self.group_field)
 
-        # Context length (editable)
-        context_label = QLabel("Context Length:", self)
+        # Context length and max tokens on same row
+        tokens_row_layout = QHBoxLayout()
+        context_label = QLabel("Context:", self)
+        context_label.setMinimumWidth(50)
         self.context_length_field = QSpinBox(self)
         self.context_length_field.setRange(1, 1000000)
         self.context_length_field.setValue(self.app.config.default_context_length)
         self.context_length_field.valueChanged.connect(self.update_token_usage)
 
-        # Max tokens (editable)
-        max_tokens_label = QLabel("Max Tokens:", self)
+        max_tokens_label = QLabel("Max:", self)
+        max_tokens_label.setMinimumWidth(35)
         self.max_tokens_field = QSpinBox(self)
         self.max_tokens_field.setRange(1, 100000)
         self.max_tokens_field.setValue(self.app.config.default_max_tokens)
         self.max_tokens_field.valueChanged.connect(self.update_token_usage)
 
-        # Save button
-        self.save_button = QPushButton("Save Sample", self)
+        tokens_row_layout.addWidget(context_label)
+        tokens_row_layout.addWidget(self.context_length_field)
+        tokens_row_layout.addWidget(max_tokens_label)
+        tokens_row_layout.addWidget(self.max_tokens_field)
+
+        # Action buttons row (icon-only buttons with tooltips)
+        buttons_row_layout = QHBoxLayout()
+
+        self.save_button = QPushButtonWithIcon("save", "", parent=self, icon_size=20, button_size=32)
+        self.save_button.setToolTip("Save Sample")
         self.save_button.clicked.connect(self.save_sample)
 
-        # Copy button
-        self.copy_button = QPushButton("Copy Sample", self)
+        self.copy_button = QPushButtonWithIcon("content_copy", "", parent=self, icon_size=20, button_size=32)
+        self.copy_button.setToolTip("Copy Sample")
         self.copy_button.clicked.connect(self.copy_sample)
 
-        # Beam search button
-        self.beam_search_button = QPushButton("Beam Search", self)
+        self.beam_search_button = QPushButtonWithIcon("search", "", parent=self, icon_size=20, button_size=32)
+        self.beam_search_button.setToolTip("Beam Search")
         self.beam_search_button.clicked.connect(self.open_beam_search)
 
-        controls_layout.addWidget(id_label)
-        controls_layout.addWidget(self.id_field)
-        controls_layout.addWidget(title_label)
-        controls_layout.addWidget(self.title_field)
-        controls_layout.addWidget(group_label)
-        controls_layout.addWidget(self.group_field)
-        controls_layout.addWidget(context_label)
-        controls_layout.addWidget(self.context_length_field)
-        controls_layout.addWidget(max_tokens_label)
-        controls_layout.addWidget(self.max_tokens_field)
-        controls_layout.addWidget(self.save_button)
-        controls_layout.addWidget(self.copy_button)
-        controls_layout.addWidget(self.beam_search_button)
+        buttons_row_layout.addWidget(self.save_button)
+        buttons_row_layout.addWidget(self.copy_button)
+        buttons_row_layout.addWidget(self.beam_search_button)
+        buttons_row_layout.addStretch()  # Push buttons to the left
+
+        # Show archived checkbox (moved from completions panel)
+        self.show_archived_checkbox = QCheckBox("Show archived completions", self)
+        self.show_archived_checkbox.setChecked(False)
+
+        # Add all rows to the main layout
+        controls_layout.addLayout(id_row_layout)
+        controls_layout.addLayout(title_row_layout)
+        controls_layout.addLayout(group_row_layout)
+        controls_layout.addLayout(tokens_row_layout)
+        controls_layout.addLayout(buttons_row_layout)
+        controls_layout.addWidget(self.show_archived_checkbox)
         controls_layout.addStretch()
 
         # Add prompt and controls to horizontal splitter
@@ -188,14 +214,7 @@ class WidgetSample(QWidget):
         self.output_container_layout.setContentsMargins(8, 8, 8, 8)
         self.output_container_layout.setSpacing(8)
 
-        self.completion_controls_layout = QHBoxLayout()
-        self.completion_controls_layout.setContentsMargins(0, 0, 0, 0)
-        self.completion_controls_layout.setSpacing(6)
-        self.show_archived_checkbox = QCheckBox("Show archived completions", self.output_container)
-        self.show_archived_checkbox.setChecked(False)
-        self.completion_controls_layout.addWidget(self.show_archived_checkbox)
-        self.completion_controls_layout.addStretch()
-        self.output_container_layout.addLayout(self.completion_controls_layout)
+        # Remove the completion controls layout since show_archived_checkbox is now in controls panel
 
         # Use a horizontal layout so completion frames are laid out side-by-side
         self.output_layout = QHBoxLayout()
@@ -364,12 +383,8 @@ class WidgetSample(QWidget):
             return
 
         # Open the editor window in blocking mode
-        editor = ThreeWayCompletionEditorWindow(self.app,
-                                               self.dataset,
-                                               completion,
-                                               EditorMode.CONTINUATION,
-                                               facet=self.active_facet,
-                                               parent=self)
+        editor = ThreeWayCompletionEditorWindow(self.app, self.dataset, completion, EditorMode.CONTINUATION, facet=self.active_facet,
+                                                parent=self)
 
         # Show as modal dialog
         result = editor.exec()
@@ -391,12 +406,7 @@ class WidgetSample(QWidget):
             return
 
         # Open the editor window in blocking mode
-        editor = ThreeWayCompletionEditorWindow(self.app,
-                                               self.dataset,
-                                               completion,
-                                               EditorMode.MANUAL,
-                                               facet=self.active_facet,
-                                               parent=self)
+        editor = ThreeWayCompletionEditorWindow(self.app, self.dataset, completion, EditorMode.MANUAL, facet=self.active_facet, parent=self)
 
         # Show as modal dialog
         result = editor.exec()
