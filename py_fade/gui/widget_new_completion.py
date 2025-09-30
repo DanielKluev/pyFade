@@ -136,7 +136,7 @@ class NewCompletionFrame(QFrame):
         """Select the provided model in the combo box when available."""
         if not mapped_model:
             return
-        index = self.model_combo.findText(mapped_model.model_id)
+        index = self.model_combo.findText(mapped_model.path)
         if index < 0:
             return
         self.model_combo.blockSignals(True)
