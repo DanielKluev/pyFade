@@ -12,12 +12,12 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
-    QButtonGroup,
     QCheckBox,
     QDialog,
     QHBoxLayout,
@@ -25,7 +25,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
-    QRadioButton,
+    QSpinBox,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -43,6 +43,12 @@ if TYPE_CHECKING:  # pragma: no cover - import hints only
     from py_fade.providers.providers_manager import MappedModel
 
 
+class EditorMode(Enum):
+    """Enum for Three Way Editor modes."""
+    MANUAL = "manual"
+    CONTINUATION = "continuation"
+
+
 class ThreeWayCompletionEditorWindow(QDialog):
     """Modal dialog that offers manual and continued-edit flows for completions."""
 
@@ -53,6 +59,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
         app: "pyFadeApp",
         dataset: "DatasetDatabase",
         completion: PromptCompletion,
+        mode: EditorMode,
         *,
         facet: "Facet | None" = None,
         parent: QWidget | None = None,
@@ -61,24 +68,28 @@ class ThreeWayCompletionEditorWindow(QDialog):
         self.log = logging.getLogger(self.__class__.__name__)
         self.app = app
         self.dataset = dataset
+        self.mode = mode
         self.original_completion: PromptCompletion | None = None
         self.active_facet: "Facet | None" = facet
         self.generated_response: "LLMResponse | None" = None
         self._generated_text_cache: str | None = None
         self._original_completion_text: str = ""
+        self.mapped_model: "MappedModel | None" = None
 
         self.prompt_edit: QPlainTextEdit | None = None
         self.original_edit: QPlainTextEdit | None = None
         self.new_edit: QPlainTextEdit | None = None
-        self.manual_radio: QRadioButton | None = None
-        self.generate_radio: QRadioButton | None = None
         self.archive_checkbox: QCheckBox | None = None
         self.pairwise_checkbox: QCheckBox | None = None
         self.generate_button: QPushButton | None = None
         self.save_button: QPushButton | None = None
         self.status_label: QLabel | None = None
 
-        self.setWindowTitle("Three-way completion editor")
+        # Continuation mode specific controls
+        self.max_tokens_field: QSpinBox | None = None
+        self.context_length_field: QSpinBox | None = None
+
+        self._set_window_title(completion)
         self.setModal(True)
         self.resize(1200, 740)
 
@@ -86,6 +97,20 @@ class ThreeWayCompletionEditorWindow(QDialog):
         self.connect_signals()
         self.set_facet(self.active_facet)
         self.set_completion(completion)
+
+    def _set_window_title(self, completion: PromptCompletion) -> None:
+        """Set the window title based on mode and completion model info."""
+        if self.mode == EditorMode.MANUAL:
+            self.setWindowTitle("Three-way completion editor - Manual Edit")
+        else:  # CONTINUATION
+            title = "Three-way completion editor - Continuation"
+            if completion:
+                self.mapped_model = self._resolve_mapped_model(completion.model_id)
+                if self.mapped_model:
+                    title += f" ({self.mapped_model.path})"
+                else:
+                    title += f" (No provider for {completion.model_id})"
+            self.setWindowTitle(title)
 
     def setup_ui(self) -> None:
         """Build the three-column layout along with controls and actions."""
@@ -131,23 +156,11 @@ class ThreeWayCompletionEditorWindow(QDialog):
         splitter.setSizes([1, 1, 1])
         layout.addWidget(splitter, stretch=1)
 
-        roles_layout = QHBoxLayout()
-        roles_layout.setSpacing(10)
-        roles_label = QLabel("Role:", self)
-        roles_layout.addWidget(roles_label)
+        # Add mode-specific controls
+        if self.mode == EditorMode.CONTINUATION:
+            self._add_continuation_controls(layout)
 
-        button_group = QButtonGroup(self)
-        self.manual_radio = QRadioButton("Manual edit", self)
-        self.manual_radio.setChecked(True)
-        button_group.addButton(self.manual_radio)
-        roles_layout.addWidget(self.manual_radio)
-
-        self.generate_radio = QRadioButton("Continue generation", self)
-        button_group.addButton(self.generate_radio)
-        roles_layout.addWidget(self.generate_radio)
-        roles_layout.addStretch()
-        layout.addLayout(roles_layout)
-
+        # Common options layout
         options_layout = QHBoxLayout()
         options_layout.setSpacing(10)
         self.archive_checkbox = QCheckBox("Archive original on save", self)
@@ -162,12 +175,14 @@ class ThreeWayCompletionEditorWindow(QDialog):
         options_layout.addStretch()
         layout.addLayout(options_layout)
 
+        # Actions layout
         actions_layout = QHBoxLayout()
         actions_layout.addStretch()
 
-        self.generate_button = QPushButton("Generate continuation", self)
-        self.generate_button.setEnabled(False)
-        actions_layout.addWidget(self.generate_button)
+        if self.mode == EditorMode.CONTINUATION:
+            self.generate_button = QPushButton("Generate continuation", self)
+            self.generate_button.setEnabled(False)
+            actions_layout.addWidget(self.generate_button)
 
         self.save_button = QPushButton("Save", self)
         self.save_button.setEnabled(False)
@@ -182,14 +197,39 @@ class ThreeWayCompletionEditorWindow(QDialog):
         self.status_label = QLabel("", self)
         layout.addWidget(self.status_label)
 
+    def _add_continuation_controls(self, layout: QVBoxLayout) -> None:
+        """Add continuation-specific controls for max tokens and context length."""
+
+        controls_layout = QHBoxLayout()
+        controls_layout.setSpacing(10)
+
+        # Max tokens control
+        max_tokens_label = QLabel("Max Tokens:", self)
+        controls_layout.addWidget(max_tokens_label)
+
+        self.max_tokens_field = QSpinBox(self)
+        self.max_tokens_field.setRange(1, 100000)
+        self.max_tokens_field.setValue(self.app.config.default_max_tokens)
+        controls_layout.addWidget(self.max_tokens_field)
+
+        # Context length control
+        context_label = QLabel("Context Length:", self)
+        controls_layout.addWidget(context_label)
+
+        self.context_length_field = QSpinBox(self)
+        self.context_length_field.setRange(1, 1000000)
+        self.context_length_field.setValue(self.app.config.default_context_length)
+        controls_layout.addWidget(self.context_length_field)
+
+        controls_layout.addStretch()
+        layout.addLayout(controls_layout)
+
     def connect_signals(self) -> None:
         """Wire UI widgets to handlers that maintain dialog state."""
 
-        if not self.new_edit or not self.manual_radio or not self.generate_radio:
+        if not self.new_edit:
             raise RuntimeError("Editor was not initialised correctly before wiring signals.")
 
-        self.manual_radio.toggled.connect(self._on_role_changed)
-        self.generate_radio.toggled.connect(self._on_role_changed)
         self.new_edit.textChanged.connect(self._on_new_text_changed)
 
         if self.generate_button:
@@ -223,10 +263,43 @@ class ThreeWayCompletionEditorWindow(QDialog):
         if self.new_edit:
             self.new_edit.setPlainText(completion.completion_text)
 
+        # Set reasonable defaults for continuation mode
+        if self.mode == EditorMode.CONTINUATION:
+            self._configure_continuation_parameters(completion, prompt_text)
+
         self.generated_response = None
         self._generated_text_cache = None
         self._update_save_button_state()
         self._set_status("Ready to edit completion.")
+
+    def _configure_continuation_parameters(self, completion: PromptCompletion, prompt_text: str) -> None:
+        """Configure max tokens and context length for continuation mode."""
+
+        if not self.max_tokens_field or not self.context_length_field:
+            return
+
+        # Calculate tokens in original completion
+        completion_tokens = self.app.providers_manager.count_tokens(completion.completion_text)
+
+        # Set max_tokens to max(1024, 2 * original completion tokens)
+        suggested_max_tokens = max(1024, 2 * completion_tokens)
+        self.max_tokens_field.setValue(suggested_max_tokens)
+
+        # Calculate prompt tokens
+        prompt_tokens = self.app.providers_manager.count_tokens(prompt_text)
+
+        # Set context_length to prompt_tokens + max_tokens rounded up to nearest 1024 multiple
+        suggested_context_length = prompt_tokens + suggested_max_tokens
+        suggested_context_length = ((suggested_context_length + 1023) // 1024) * 1024
+        self.context_length_field.setValue(suggested_context_length)
+
+        # Update generate button state based on mapped model availability
+        if self.mode == EditorMode.CONTINUATION:
+            if self.generate_button:
+                has_mapped_model = self.mapped_model is not None
+                self.generate_button.setEnabled(has_mapped_model)
+                if not has_mapped_model:
+                    self._set_status("Cannot generate continuation: no provider available for this model", error=True)
 
     def set_facet(self, facet: "Facet | None") -> None:
         """Update the active facet and toggle pairwise preference appropriately."""
@@ -274,16 +347,6 @@ class ThreeWayCompletionEditorWindow(QDialog):
 
         return editor
 
-    def _on_role_changed(self) -> None:
-        """Enable generation only when the continue role is active."""
-
-        role = "manual" if self.manual_radio and self.manual_radio.isChecked() else "continue"
-        self.log.debug("Role switched to %s", role)
-        enabled = bool(self.generate_radio and self.generate_radio.isChecked())
-        if self.generate_button:
-            self.generate_button.setEnabled(enabled)
-        self._update_save_button_state()
-
     def _on_new_text_changed(self) -> None:
         """Refresh save button state when the editable column changes."""
 
@@ -299,20 +362,36 @@ class ThreeWayCompletionEditorWindow(QDialog):
         has_delta = bool(text.strip()) and text != self._original_completion_text
         self.save_button.setEnabled(has_delta)
 
-    def _resolve_mapped_model(self) -> "MappedModel | None":
-        """Find the provider mapping for the original completion's model id."""
+    def _resolve_mapped_model(self, model_id: str | None = None) -> "MappedModel | None":
+        """Find the provider mapping for the given model id, prioritizing providers with highest logprobs capabilities."""
 
-        if not self.original_completion:
-            return None
+        target_model_id = model_id
+        if not target_model_id:
+            if not self.original_completion:
+                return None
+            target_model_id = self.original_completion.model_id
+
         if not getattr(self.app, "providers_manager", None):
             return None
 
-        target_model_id = self.original_completion.model_id
+        # Find all providers for this model_id and rank by logprobs capability
+        candidates = []
         for mapped in self.app.providers_manager.model_provider_map.values():
             if mapped.model_id == target_model_id:
-                return mapped
-        self.log.debug("No mapped model found for id: %s", target_model_id)
-        return None
+                capability = getattr(mapped.provider, 'logprob_capability', 0)
+                candidates.append((mapped, capability))
+
+        if not candidates:
+            self.log.debug("No mapped model found for id: %s", target_model_id)
+            return None
+
+        # Sort by logprobs capability (highest first)
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        best_mapped_model = candidates[0][0]
+
+        self.log.debug("Resolved model %s to provider %s with logprob capability %d", target_model_id, best_mapped_model.provider.id,
+                       candidates[0][1])
+        return best_mapped_model
 
     def _on_generate_clicked(self) -> None:
         """Ask the provider to continue the original completion."""
@@ -320,13 +399,13 @@ class ThreeWayCompletionEditorWindow(QDialog):
         if (not self.original_completion or not self.prompt_edit or not self.original_edit or not self.new_edit):
             return
 
-        mapped_model = self._resolve_mapped_model()
-        if mapped_model is None:
+        # Use the already resolved mapped model
+        if self.mapped_model is None:
             QMessageBox.warning(
                 self,
                 "Provider unavailable",
-                ("Cannot continue generation because the original provider "
-                 "configuration is unavailable. Switch to manual editing instead."),
+                ("Cannot continue generation because no provider "
+                 "is available for this model."),
             )
             self.log.warning(
                 "Generation skipped: missing provider for model %s",
@@ -337,17 +416,21 @@ class ThreeWayCompletionEditorWindow(QDialog):
         prompt_text = self.prompt_edit.toPlainText()
         original_text = self.original_edit.toPlainText()
 
+        # Get context length and max tokens from controls if available
+        context_length = self.context_length_field.value() if self.context_length_field else self.original_completion.context_length
+        max_tokens = self.max_tokens_field.value() if self.max_tokens_field else self.original_completion.max_tokens
+
         # Parse the prompt text to get a CommonConversation object
         prompt_conversation = parse_flat_prefix_string(prompt_text)
 
         try:
-            response = mapped_model.generate(
+            response = self.mapped_model.generate(
                 prompt=prompt_conversation,
                 prefill=original_text,
                 temperature=self.original_completion.temperature,
                 top_k=self.original_completion.top_k,
-                context_length=self.original_completion.context_length,
-                max_tokens=self.original_completion.max_tokens,
+                context_length=context_length,
+                max_tokens=max_tokens,
             )
         except (RuntimeError, ValueError, ImportError) as exc:  # pragma: no cover - defensive logging
             self.log.error("Continuation generation failed: %s", exc)
@@ -383,7 +466,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
             return
 
         response = self.generated_response if self._generated_text_cache == new_text else None
-        generation_role = bool(self.generate_radio and self.generate_radio.isChecked())
+        generation_role = self.mode == EditorMode.CONTINUATION
         if generation_role and response is None:
             self._set_status("Generated text was edited; saving as manual revision instead.")
 
