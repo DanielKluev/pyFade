@@ -48,14 +48,10 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
     current_model: "Llama|None"
     current_model_gguf_file: str | None
     current_model_logits_all: bool
+    current_model_context_length: int
 
-    def __init__(
-        self,
-        default_temperature: float = 0.7,
-        default_top_k: int = 40,
-        default_context_length: int = 1024,
-        default_max_tokens: int = 128,
-    ):
+    def __init__(self, default_temperature: float = 0.7, default_top_k: int = 40, default_context_length: int = 1024,
+                 default_max_tokens: int = 128):
         if not IS_LLAMA_CPP_AVAILABLE:
             raise ImportError("llama_cpp is not available. Ensure llama-cpp-python is installed.")
         self.log = logging.getLogger("PrefillAwareLlamaCppInternal")
@@ -64,6 +60,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         self.current_model_id = None
         self.current_model_gguf_file = None
         self.current_model_logits_all = False
+        self.current_model_context_length = 0
 
     def load_model(self, model_id: str, gguf_file: str, n_gpu_layers: int = -1, verbose: bool = False, logits_all: bool = False,
                    n_ctx: int = 1024) -> Optional["Llama"]:
@@ -72,7 +69,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         Else unload current model and load the new one.
         """
         if (self.current_model and self.current_model_id == model_id and self.current_model_gguf_file == gguf_file and
-                self.current_model_logits_all == logits_all):
+                self.current_model_logits_all == logits_all and n_ctx <= self.current_model_context_length):
             return self.current_model  # Model already loaded
 
         if not IS_LLAMA_CPP_AVAILABLE or not llama_cpp:
@@ -86,6 +83,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             self.current_model_id = None
             self.current_model_gguf_file = None
             self.current_model_logits_all = False
+            self.current_model_context_length = 0
             time.sleep(1)  # Give some time for memory to be freed
 
         self.log.info(
@@ -106,6 +104,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             self.current_model_id = model_id
             self.current_model_gguf_file = gguf_file
             self.current_model_logits_all = logits_all
+            self.current_model_context_length = n_ctx
             return model
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.log.error("Failed to load Llama model from %s: %s", gguf_file, e)

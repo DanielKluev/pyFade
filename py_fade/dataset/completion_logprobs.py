@@ -74,23 +74,33 @@ class PromptCompletionLogprobs(dataset_base):
         """
         if not dataset.session:
             raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
-        instance = (dataset.session.query(cls).filter_by(prompt_completion_id=completion.id, logprobs_model_id=response.model_id).first())
+        if not response.logprobs:
+            raise ValueError("LLMResponse does not contain logprobs.")
+        return cls.get_or_create_from_llm_response_logprobs(dataset, completion, response.model_id, response.logprobs)
+
+    @classmethod
+    def get_or_create_from_llm_response_logprobs(cls, dataset: "DatasetDatabase", completion: "PromptCompletion", model_id: str,
+                                                 logprobs: "CommonCompletionLogprobsProtocol") -> "PromptCompletionLogprobs":
+        if not dataset.session:
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+
+        instance = (dataset.session.query(cls).filter_by(prompt_completion_id=completion.id, logprobs_model_id=model_id).first())
         if not instance:
-            if not response.logprobs:
+            if not logprobs:
                 raise ValueError("LLMResponse does not contain logprobs.")
-            logprob_values = [lp.logprob for lp in response.logprobs if lp.logprob is not None]
+            logprob_values = [lp.logprob for lp in logprobs if lp.logprob is not None]
             if not logprob_values:
                 raise ValueError("LLMResponse logprobs do not contain any valid logprob values.")
             min_logprob = min(logprob_values)
             avg_logprob = sum(logprob_values) / len(logprob_values)
             instance = cls(
                 prompt_completion_id=completion.id,
-                logprobs_model_id=response.model_id,
+                logprobs_model_id=model_id,
                 logprobs=[{
                     "token": lp.token,
                     "logprob": lp.logprob,
                     "top_logprobs": lp.top_logprobs
-                } for lp in response.logprobs],
+                } for lp in logprobs],
                 min_logprob=min_logprob,
                 avg_logprob=avg_logprob,
             )

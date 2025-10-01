@@ -41,6 +41,8 @@ def apply_template_qwen3(messages: CommonConversation) -> str:
     Roles: 'system', 'user', 'assistant'
     Each turn looks like this:
         <|im_start|>{role}\n{content}<|im_end|>\n
+
+    Qwen3 doesn't use <bos> token at all. Results in annoying off-by-one errors in llama.cpp.
     """
     prompt = ""
     previous_role = None

@@ -171,6 +171,8 @@ class CommonCompletionProtocol(Protocol):
     completion_text: str  # Full text of the completion.
     prefill: str | None  # Part of completion that wasn't generated, but artificially inserted manually or during beam expansion.
     beam_token: str | None  # Token at which beam tree was forked, if any.
+    temperature: float
+    top_k: int
     is_truncated: bool  # Whether the completion was truncated due to max tokens limit.
     is_archived: bool  # Whether this completion is archived and hidden by default.
 

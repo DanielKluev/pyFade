@@ -69,8 +69,8 @@ class PromptCompletion(dataset_base):
     is_archived: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     @classmethod
-    def get_or_create_from_llm_response(cls, dataset: "DatasetDatabase", prompt_revision: "PromptRevision",
-                                        response: "LLMResponse") -> "PromptCompletion":
+    def get_or_create_from_llm_response(cls, dataset: "DatasetDatabase", prompt_revision: "PromptRevision", response: "LLMResponse",
+                                        parent_completion_id: int | None = None) -> "PromptCompletion":
         """
         Get or create a PromptCompletion from LLMResponse.
         """
@@ -82,6 +82,7 @@ class PromptCompletion(dataset_base):
             instance = cls(
                 sha256=sha256,
                 prompt_revision_id=prompt_revision.id,
+                parent_completion_id=parent_completion_id,
                 model_id=response.model_id,
                 temperature=response.temperature,
                 top_k=response.top_k,

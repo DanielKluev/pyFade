@@ -4,7 +4,9 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 
-from py_fade.data_formats.base_data_classes import CommonConversation, CommonCompletionLogprobsProtocol
+from py_fade.data_formats.base_data_classes import CommonConversation, CommonCompletionLogprobsProtocol, CommonCompletionProtocol
+from py_fade.dataset.completion import PromptCompletion
+from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.providers.llm_response import LLMResponseLogprobs, SinglePositionTokenLogprobs, LLMResponse
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
@@ -57,7 +59,7 @@ class CompletionPrefix:
         return cls(
             prefix_text=prefix_text,
             prefix_token_size=prefix_tokens_count,
-            logprobs=response.logprobs.logprobs[0:prefix_tokens_count],
+            logprobs=response.logprobs[0:prefix_tokens_count],
             next_token_logprobs=next_token_logprobs,
         )
 
@@ -275,3 +277,81 @@ class TextGenerationController:
         response.logprobs = logprobs
         self.all_completions.append(response)
         return response
+
+    def generate_continuation(self, original_completion: CommonCompletionProtocol, context_length: int | None = None,
+                              max_tokens: int | None = None) -> LLMResponse | None:
+        """
+        Generates continuation for given original completion.
+
+        If mapped model and provider support high-fidelity continuation,
+        then we use them to faithfully continue the original completion from the point it stopped.
+
+        Otherwise, we re-generate the entire completion from previous prompt and prefill.
+
+        Returns the new LLMResponse if successful, or None if continuation failed.
+        """
+        if self.provider.check_high_fidelity_continuation_possible(original_completion):
+            return self.generate_high_fidelity_continuation(original_completion)
+
+        if context_length is None:
+            context_length = self.default_context_length
+
+        if max_tokens is None:
+            max_tokens = self.default_max_tokens
+
+        self.log.warning("High-fidelity continuation not possible, re-generating full completion from previous prefill.")
+
+        generation_kwargs = {
+            "prompt": self.prompt_conversation,
+            "prefill": original_completion.prefill,
+            "temperature": original_completion.temperature,
+            "top_k": original_completion.top_k,
+            "context_length": context_length,
+            "max_tokens": max_tokens,
+            "top_logprobs": 1,
+        }
+        response = self.mapped_model.generate(**generation_kwargs)
+        self.all_completions.append(response)
+        return response
+
+    def generate_high_fidelity_continuation(self, original_completion: CommonCompletionProtocol) -> LLMResponse | None:
+        """
+        Generate high-fidelity continuation for given original completion.
+
+        This requires that the mapped model and provider support high-fidelity continuation,
+        and that the original completion contains full token logprobs.
+
+        Returns the new LLMResponse if successful, or None if continuation failed.
+        """
+        if not self.provider.check_high_fidelity_continuation_possible(original_completion):
+            self.log.error("High-fidelity continuation not possible for this completion.")
+            return None
+
+        prefill_text = original_completion.completion_text
+        generation_kwargs = {
+            "prompt": self.prompt_conversation,
+            "prefill": prefill_text,
+            "temperature": original_completion.temperature,
+            "top_k": original_completion.top_k,
+            "context_length": self.default_context_length,
+            "max_tokens": self.default_max_tokens,
+            "top_logprobs": 1,
+        }
+        response = self.mapped_model.generate(**generation_kwargs)
+        self.all_completions.append(response)
+        return response
+
+    def evaluate_completion_logprobs(self, completion: PromptCompletion, save: bool = False) -> CommonCompletionLogprobsProtocol:
+        """
+        Evaluate token logprobs for given completion using the mapped model and provider.
+
+        Returns a CommonCompletionLogprobsProtocol object containing the logprobs.
+        """
+        eval_logprobs = self.mapped_model.evaluate_completion(
+            prompt=completion.prompt_conversation,
+            completion=completion.completion_text,
+        )
+        if save and self.dataset.session:
+            PromptCompletionLogprobs.get_or_create_from_llm_response_logprobs(self.dataset, completion, self.mapped_model.model_id,
+                                                                              eval_logprobs)
+        return eval_logprobs
