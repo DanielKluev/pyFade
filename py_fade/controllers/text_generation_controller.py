@@ -4,11 +4,11 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 
-from py_fade.data_formats.base_data_classes import CommonConversation, CommonCompletionLogprobsProtocol, CommonCompletionProtocol
+from py_fade.data_formats.base_data_classes import CommonConversation, CommonCompletionLogprobs, CommonCompletionProtocol, CompletionTokenLogprobs, SinglePositionTopLogprobs, SinglePositionToken
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.dataset.prompt import PromptRevision
-from py_fade.providers.llm_response import LLMResponseLogprobs, SinglePositionTokenLogprobs, LLMResponse
+from py_fade.providers.llm_response import LLMResponseLogprobs, LLMResponse
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 
 if TYPE_CHECKING:
@@ -23,8 +23,8 @@ class CompletionPrefix:
 
     prefix_text: str
     prefix_token_size: int
-    logprobs: CommonCompletionLogprobsProtocol
-    next_token_logprobs: list[tuple[str, float]] | None = None  # Top logprobs for next token after prefix, if known
+    sampled_logprobs: CompletionTokenLogprobs
+    next_token_logprobs: SinglePositionTopLogprobs | None = None  # Top logprobs for next token after prefix, if known
 
     @classmethod
     def try_get_from_response(cls, prefix_text: str, response: LLMResponse) -> "CompletionPrefix|None":
@@ -64,7 +64,7 @@ class CompletionPrefix:
         )
 
     @classmethod
-    def create_from_eval(cls, prefix_text: str, eval_logprobs: CommonCompletionLogprobsProtocol) -> "CompletionPrefix":
+    def create_from_eval(cls, prefix_text: str, eval_logprobs: CommonCompletionLogprobs) -> "CompletionPrefix":
         """
         Create CompletionPrefix from evaluated logprobs for given prefix text.
         """
@@ -89,7 +89,8 @@ class TextGenerationController:
     all_completions: list[LLMResponse]
     cached_prefixes: dict[str, CompletionPrefix]
 
-    def __init__(self, app: "PyFadeApp", mapped_model: "MappedModel", dataset: "DatasetDatabase", prompt_revision: PromptRevision) -> None:
+    def __init__(self, app: "PyFadeApp", mapped_model: "MappedModel", dataset: "DatasetDatabase", prompt_revision: PromptRevision,
+                 context_length: int | None = None) -> None:
         """
         Bind the controller to the owning app, dataset, and selected model.
         """
@@ -99,7 +100,7 @@ class TextGenerationController:
         self.cached_prefixes = {}
         self.default_temperature = app.config.default_temperature
         self.default_top_k = app.config.default_top_k
-        self.default_context_length = app.config.default_context_length
+        self.default_context_length = context_length or app.config.default_context_length
         self.default_max_tokens = app.config.default_max_tokens
         self.mapped_model = mapped_model
         self.provider = mapped_model.provider
@@ -254,12 +255,12 @@ class TextGenerationController:
         next_token_logprobs = response.logprobs.first_token_top_logprobs
         return next_token_logprobs
 
-    def _expand_beam(self, beam_prefix: CompletionPrefix, beam_token_prob: SinglePositionTokenLogprobs, length: int) -> LLMResponse | None:
+    def _expand_beam(self, beam_prefix: CompletionPrefix, beam_token_prob: SinglePositionToken, length: int) -> LLMResponse | None:
         """
         Expand a single beam from its prefix, generating up to `length` tokens or until stopping criteria.
         Returns a LLMResponse if completed, or None if not.
         """
-        prefill_text = beam_prefix.prefix_text + beam_token_prob.token
+        prefill_text = beam_prefix.prefix_text + beam_token_prob.token_str
         generation_kwargs = {
             "prompt": self.prompt_conversation,
             "prefill": prefill_text,
@@ -268,7 +269,7 @@ class TextGenerationController:
             "context_length": self.default_context_length,
             "max_tokens": length,
             "top_logprobs": 1,
-            "beam_token": beam_token_prob.token,
+            "beam_token": beam_token_prob.token_str,
         }
         response = self.mapped_model.generate(**generation_kwargs)
 
@@ -341,16 +342,14 @@ class TextGenerationController:
         self.all_completions.append(response)
         return response
 
-    def evaluate_completion_logprobs(self, completion: PromptCompletion, save: bool = False) -> CommonCompletionLogprobsProtocol:
+    def evaluate_completion_logprobs(self, completion: PromptCompletion, save: bool = False) -> CommonCompletionLogprobs:
         """
         Evaluate token logprobs for given completion using the mapped model and provider.
 
         Returns a CommonCompletionLogprobsProtocol object containing the logprobs.
         """
-        eval_logprobs = self.mapped_model.evaluate_completion(
-            prompt=completion.prompt_conversation,
-            completion=completion.completion_text,
-        )
+        eval_logprobs = self.mapped_model.evaluate_completion(prompt=completion.prompt_conversation, completion=completion.completion_text,
+                                                              context_length=max(self.default_context_length, completion.context_length))
         if save and self.dataset.session:
             PromptCompletionLogprobs.get_or_create_from_llm_response_logprobs(self.dataset, completion, self.mapped_model.model_id,
                                                                               eval_logprobs)

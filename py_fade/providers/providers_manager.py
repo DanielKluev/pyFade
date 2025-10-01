@@ -3,7 +3,7 @@
 import logging
 import pathlib
 
-from py_fade.data_formats.base_data_classes import CommonConversation, CommonCompletionLogprobsProtocol
+from py_fade.data_formats.base_data_classes import CommonConversation, CommonCompletionLogprobs
 from py_fade.providers.base_provider import BasePrefillAwareProvider
 from py_fade.providers.llama_cpp import PrefillAwareLlamaCppInternal, IS_LLAMA_CPP_AVAILABLE
 from py_fade.providers.llm_response import LLMResponse
@@ -41,11 +41,11 @@ class MappedModel:
         merged_kwargs = {**self.provider_params, **kwargs}
         return self.provider.generate(self.model_id, prompt, prefill, **merged_kwargs)
 
-    def evaluate_completion(self, prompt: CommonConversation, completion: str, **kwargs) -> CommonCompletionLogprobsProtocol:
+    def evaluate_completion(self, prompt: CommonConversation, completion: str, **kwargs) -> CommonCompletionLogprobs:
         """
         Evaluate a given completion for given prompt by bound model.
 
-        Returns token logprobs and metadata as defined in CommonCompletionLogprobsProtocol.
+        Returns token logprobs and metadata as defined in CommonCompletionLogprobs.
         """
         merged_kwargs = {**self.provider_params, **kwargs}
         return self.provider.evaluate_completion(self.model_id, prompt, completion, **merged_kwargs)

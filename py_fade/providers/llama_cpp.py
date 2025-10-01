@@ -19,8 +19,8 @@ from py_fade.providers.base_provider import (
     LOGPROB_LEVEL_TOP_LOGPROBS,
     BasePrefillAwareProvider,
 )
-from py_fade.data_formats.base_data_classes import CommonConversation
-from py_fade.providers.llm_response import LLMResponseLogprobs, SinglePositionTokenLogprobs, LLMResponse
+from py_fade.data_formats.base_data_classes import CommonCompletionLogprobs, CommonConversation, CompletionTokenLogprobs, SinglePositionToken
+from py_fade.providers.llm_response import LLMResponseLogprobs, LLMResponse
 
 try:
     import llama_cpp  # pylint: disable=import-error
@@ -249,7 +249,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             gguf_file=gguf_file,
             n_gpu_layers=-1,
             verbose=True,
-            logits_all=top_logprobs > 0,
+            logits_all=True,
             n_ctx=context_length,
         )
         if not model:
@@ -270,6 +270,13 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         prompt_with_completion = prompt.copy_with_prefill(completion)
         formatted_prompt: str = template_func(prompt_with_completion)  # type: ignore
         self.log.info("Formatted prompt with template:\n%s\n%s", formatted_prompt, "-" * 40)
+        prompt_tokens, completion_tokens = self._tokenize_prompt_and_completion(model, prompt, completion, template_func)
+        result = self._evaluate_one_step(model, prompt_tokens, completion_tokens)
+        return LLMResponseLogprobs(
+            logprobs_model_id=model_id,
+            logprobs=result,
+        )
+
         response = model(
             formatted_prompt,
             max_tokens=max_tokens,
@@ -347,7 +354,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             logprobs=logprobs_list,
         )
 
-    def mask_logprobs_by_str(self, logprobs: list[SinglePositionTokenLogprobs], mask_str: str, max_skip: int) -> LLMResponseLogprobs | None:
+    def mask_logprobs_by_str(self, logprobs: CompletionTokenLogprobs, mask_str: str, max_skip: int) -> LLMResponseLogprobs | None:
         """
         Given a list of LLMPTokenLogProbs and a mask string, return a new list where only tokens that are
             exact match over mask_str are kept.
@@ -389,3 +396,55 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             logprobs_model_id=self.current_model_id or "",
             logprobs=masked_logprobs,
         )
+
+    def _tokenize_prompt_and_completion(self, model: "Llama", prompt: CommonConversation, completion: str,
+                                        template_func) -> tuple[list[int], list[int]]:
+        """
+        Tokenize prompt and completion using model's tokenizer.
+
+        Future: Ensure fidelity to original tokenization of completion, by using list[int] instead of just str for prefill/completion.
+        Returns (prompt_tokens, completion_tokens).
+        """
+        formatted_prompt: str = template_func(prompt)  # type: ignore
+        prompt_tokens = model.tokenize(formatted_prompt.encode("utf-8"), add_bos=False)
+        completion_tokens = model.tokenize(completion.encode("utf-8"), add_bos=False)
+        return prompt_tokens, completion_tokens
+
+    def _evaluate_one_step(self, model: "Llama", prompt_tokens: list[int], completion_tokens: list[int]) -> CommonCompletionLogprobs:
+        """
+        Evaluate one step of completion after prompt, returning logprobs for each token in completion.
+        """
+        if not prompt_tokens:
+            raise ValueError("Prompt tokens cannot be empty for evaluation.")
+
+        all_tokens = prompt_tokens + completion_tokens
+        completion_token_offset = len(prompt_tokens)
+
+        model.reset()
+        self.log.info("eval() on %d prompt tokens + %d completion tokens = %d total tokens", len(prompt_tokens), len(completion_tokens),
+                      len(all_tokens))
+        model.eval(all_tokens)
+        self.log.info("eval() done, got %d logits. Converting to logprobs", len(model._scores))
+        all_logprobs = model.logits_to_logprobs(model._scores)  # pylint: disable=protected-access
+
+        ## Now the most tricky part: logprobs are predicted for next token, so we need to align them very carefully.
+        self.log.info("eval() done, got logprobs. Lengths: all_tokens = %d, all_logprobs = %d, completion_token_offset = %d",
+                      len(all_tokens), len(all_logprobs), completion_token_offset)
+
+        result = []
+        for i in range(len(all_tokens)):
+            if i < completion_token_offset:
+                continue  # Skip prompt tokens
+            token = all_tokens[i]
+            token_str = model.detokenize([token]).decode("utf-8", errors="ignore")  # pylint: disable=protected-access
+            logprob = float(all_logprobs[i - 1][token])  # Logprobs are for next token, so offset by -1
+            top_logprobs_list = []
+            top_indices = all_logprobs[i - 1].argsort()[-5:][::-1]  # Top 5 tokens
+            for idx in top_indices:
+                alt_token_str = model.detokenize([idx]).decode("utf-8", errors="ignore")  # pylint: disable=protected-access
+                alt_logprob = float(all_logprobs[i - 1][idx])
+                top_logprobs_list.append((alt_token_str, alt_logprob))
+            print(f"Idx {i}: Token '{repr(token_str)}' Logprob {logprob:.4f}\n\tTop5: {top_logprobs_list}")
+            result.append(SinglePositionTokenLogprobs(token=token_str, logprob=logprob, top_logprobs=top_logprobs_list))
+
+        return result
