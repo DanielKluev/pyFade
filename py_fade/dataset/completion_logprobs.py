@@ -1,10 +1,9 @@
 """ORM models for storing token log probability traces alongside completions."""
 
 import datetime
-import bz2
+from typing import TYPE_CHECKING, Any
 import zstandard
 import msgpack
-from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Float, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -13,7 +12,6 @@ from sqlalchemy.types import JSON, DateTime, LargeBinary
 from py_fade.dataset.dataset_base import dataset_base
 
 from py_fade.data_formats.base_data_classes import CommonCompletionLogprobs, CompletionTokenLogprobs, CompletionTopLogprobs
-from py_fade.providers.llm_response import LLMResponseLogprobs
 
 if TYPE_CHECKING:
     from py_fade.dataset.completion import PromptCompletion
@@ -126,6 +124,9 @@ class PromptCompletionLogprobs(dataset_base, CommonCompletionLogprobs):
     @classmethod
     def get_or_create_from_llm_response_logprobs(cls, dataset: "DatasetDatabase", completion: "PromptCompletion", model_id: str,
                                                  logprobs: "CommonCompletionLogprobs") -> "PromptCompletionLogprobs":
+        """
+        Get or create PromptCompletionLogprobs from LLMResponse logprobs.
+        """
         if not dataset.session:
             raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
@@ -143,6 +144,8 @@ class PromptCompletionLogprobs(dataset_base, CommonCompletionLogprobs):
             min_logprob = logprobs.min_logprob
             avg_logprob = logprobs.avg_logprob
 
+            # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
+            # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
             instance = cls(
                 prompt_completion_id=completion.id,
                 logprobs_model_id=model_id,
@@ -153,6 +156,7 @@ class PromptCompletionLogprobs(dataset_base, CommonCompletionLogprobs):
                 min_logprob=min_logprob,
                 avg_logprob=avg_logprob,
             )
+            # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
             dataset.session.add(instance)
             dataset.session.commit()
         return instance

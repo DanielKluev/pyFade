@@ -12,14 +12,13 @@ from PyQt6.QtGui import QMouseEvent
 
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.components.widget_completion_text_editor import CompletionTextEdit
-from py_fade.providers.llm_response import SinglePositionTokenLogprobs
 from py_fade.providers.providers_manager import MappedModel
 from py_fade.providers.mock_provider import MockLLMProvider
-from tests.helpers.data_helpers import build_sample_with_completion, create_test_llm_response, setup_beam_heatmap_test
+from tests.helpers.data_helpers import (build_sample_with_completion, create_test_llm_response, setup_beam_heatmap_test,
+                                        create_test_single_position_token)
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
-
 
 # Use imported helper functions instead of local duplicates
 _build_sample_with_completion = build_sample_with_completion
@@ -155,9 +154,10 @@ class TestCompletionTextEditHeatmapMode:
     ) -> None:
         """Heatmap mode can be toggled on and off."""
         _ = ensure_google_icon_font
-        beam = _create_test_llm_response(completion_text="Hello world",
-                                         logprobs=[SinglePositionTokenLogprobs("Hello", -0.1),
-                                                   SinglePositionTokenLogprobs(" world", -0.8)])
+        beam = _create_test_llm_response(
+            completion_text="Hello world",
+            logprobs=[create_test_single_position_token("Hello", -0.1),
+                      create_test_single_position_token(" world", -0.8)])
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
         text_edit = frame.text_edit
@@ -199,9 +199,10 @@ class TestCompletionTextEditHeatmapMode:
     ) -> None:
         """Token position cache is updated correctly for tooltips."""
         _ = ensure_google_icon_font
-        beam = _create_test_llm_response(completion_text="Hello world",
-                                         logprobs=[SinglePositionTokenLogprobs("Hello", -0.1),
-                                                   SinglePositionTokenLogprobs(" world", -0.8)])
+        beam = _create_test_llm_response(
+            completion_text="Hello world",
+            logprobs=[create_test_single_position_token("Hello", -0.1),
+                      create_test_single_position_token(" world", -0.8)])
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
         text_edit = frame.text_edit
@@ -240,9 +241,9 @@ class TestCompletionTextEditHeatmapMode:
         beam = _create_test_llm_response(
             completion_text="Hello world",
             logprobs=[
-                SinglePositionTokenLogprobs("Hello", -0.1),
-                SinglePositionTokenLogprobs("mismatch", -0.8),  # This token doesn't match
-                SinglePositionTokenLogprobs(" world", -0.9)
+                create_test_single_position_token("Hello", -0.1),
+                create_test_single_position_token("mismatch", -0.8),  # This token doesn't match
+                create_test_single_position_token(" world", -0.9)
             ])
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
@@ -269,9 +270,10 @@ class TestCompletionTextEditMouseInteraction:
     ) -> None:
         """Mouse move events show tooltips in heatmap mode."""
         _ = ensure_google_icon_font
-        beam = _create_test_llm_response(completion_text="Hello world",
-                                         logprobs=[SinglePositionTokenLogprobs("Hello", -0.1),
-                                                   SinglePositionTokenLogprobs(" world", -0.8)])
+        beam = _create_test_llm_response(
+            completion_text="Hello world",
+            logprobs=[create_test_single_position_token("Hello", -0.1),
+                      create_test_single_position_token(" world", -0.8)])
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
         text_edit = frame.text_edit
@@ -377,7 +379,7 @@ class TestCompletionTextEditEdgeCases:
     ) -> None:
         """Setting logprobs without completion is handled."""
         _ = ensure_google_icon_font
-        beam = _create_test_llm_response(logprobs=[SinglePositionTokenLogprobs("test", -1.0)])
+        beam = _create_test_llm_response(logprobs=[create_test_single_position_token("test", -1.0)])
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
         text_edit = frame.text_edit
@@ -405,7 +407,7 @@ class TestCompletionTextEditEdgeCases:
 
         beam = _create_test_llm_response(
             completion_text=long_text,
-            logprobs=[SinglePositionTokenLogprobs("This", -0.1)] * 10  # Some logprobs
+            logprobs=[create_test_single_position_token("This", -0.1)] * 10  # Some logprobs
         )
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
@@ -465,7 +467,7 @@ class TestCompletionTextEditIntegrationWithCompletionFrame:
     ) -> None:
         """CompletionTextEdit heatmap mode responds to target model changes."""
         _ = ensure_google_icon_font
-        beam = _create_test_llm_response(completion_text="test", logprobs=[SinglePositionTokenLogprobs("test", -1.0)])
+        beam = _create_test_llm_response(completion_text="test", logprobs=[create_test_single_position_token("test", -1.0)])
         beam.is_full_response_logprobs = True
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")

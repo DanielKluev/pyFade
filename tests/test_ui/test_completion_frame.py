@@ -10,16 +10,15 @@ from unittest.mock import patch
 from PyQt6.QtWidgets import QMessageBox
 
 from py_fade.gui.components.widget_completion import CompletionFrame
-from py_fade.providers.llm_response import SinglePositionTokenLogprobs
 from py_fade.providers.providers_manager import MappedModel
 from py_fade.providers.mock_provider import MockLLMProvider
-from tests.helpers.data_helpers import build_sample_with_completion, create_test_llm_response, setup_beam_heatmap_test
+from tests.helpers.data_helpers import (build_sample_with_completion, create_test_llm_response, setup_beam_heatmap_test,
+                                        create_test_single_position_token)
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
     from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.app import pyFadeApp
-
 
 # Use imported helper functions instead of local duplicates
 _build_sample_with_completion = build_sample_with_completion
@@ -478,7 +477,9 @@ class TestCompletionFrameStatusIcons:
     ) -> None:
         """LLMResponse with logprobs shows metrics icon with proper color."""
         _ = ensure_google_icon_font
-        beam = _create_test_llm_response(logprobs=[SinglePositionTokenLogprobs("test", -1.2), SinglePositionTokenLogprobs("token", -0.8)])
+        beam = _create_test_llm_response(
+            logprobs=[create_test_single_position_token("test", -1.2),
+                      create_test_single_position_token("token", -0.8)])
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
         frame.show()
@@ -828,9 +829,10 @@ class TestCompletionFrameHeatmapMode:
         _ = ensure_google_icon_font
 
         # Create LLMResponse with full logprobs
-        beam = _create_test_llm_response(completion_text="Test token",
-                                         logprobs=[SinglePositionTokenLogprobs("Test", -0.5),
-                                                   SinglePositionTokenLogprobs(" token", -1.2)])
+        beam = _create_test_llm_response(
+            completion_text="Test token",
+            logprobs=[create_test_single_position_token("Test", -0.5),
+                      create_test_single_position_token(" token", -1.2)])
         beam.is_full_response_logprobs = True
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
@@ -867,8 +869,8 @@ class TestCompletionFrameHeatmapMode:
         # Create LLMResponse with full logprobs and prefill
         beam = _create_test_llm_response(
             completion_text="Prefill content", prefill="Prefill",
-            logprobs=[SinglePositionTokenLogprobs("Prefill", -0.3),
-                      SinglePositionTokenLogprobs(" content", -0.9)])
+            logprobs=[create_test_single_position_token("Prefill", -0.3),
+                      create_test_single_position_token(" content", -0.9)])
         beam.is_full_response_logprobs = True
 
         frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
@@ -895,7 +897,7 @@ class TestCompletionFrameHeatmapMode:
         _ = ensure_google_icon_font
 
         # Create LLMResponse with partial logprobs
-        beam_partial = _create_test_llm_response(logprobs=[SinglePositionTokenLogprobs("test", -1.0)])
+        beam_partial = _create_test_llm_response(logprobs=[create_test_single_position_token("test", -1.0)])
         beam_partial.is_full_response_logprobs = False
 
         frame = CompletionFrame(temp_dataset, beam_partial, display_mode="beam")
@@ -909,7 +911,7 @@ class TestCompletionFrameHeatmapMode:
         assert not frame._can_show_heatmap(beam_partial)
 
         # Create LLMResponse with full logprobs that match the completion text
-        beam_full = _create_test_llm_response(completion_text="test", logprobs=[SinglePositionTokenLogprobs("test", -1.0)])
+        beam_full = _create_test_llm_response(completion_text="test", logprobs=[create_test_single_position_token("test", -1.0)])
         beam_full.is_full_response_logprobs = True
 
         # Should show heatmap for full logprobs with target model
@@ -931,7 +933,7 @@ class TestCompletionFrameHeatmapMode:
         assert not completion.check_full_response_logprobs()
 
         # Test with an LLMResponse that has matching logprobs
-        beam = _create_test_llm_response(completion_text="test", logprobs=[SinglePositionTokenLogprobs("test", -1.0)])
+        beam = _create_test_llm_response(completion_text="test", logprobs=[create_test_single_position_token("test", -1.0)])
         beam.is_full_response_logprobs = True
 
         # LLMResponse should have full coverage when tokens match
@@ -947,7 +949,9 @@ class TestCompletionFrameHeatmapMode:
         _ = ensure_google_icon_font
 
         # Create LLMResponse with logprobs
-        beam = _create_test_llm_response(logprobs=[SinglePositionTokenLogprobs("test", -1.0), SinglePositionTokenLogprobs(" token", -0.5)])
+        beam = _create_test_llm_response(
+            logprobs=[create_test_single_position_token("test", -1.0),
+                      create_test_single_position_token(" token", -0.5)])
 
         # Test that we can get logprobs for the matching model ID
         logprobs_data = beam.get_logprobs_for_model_id("test-beam-model")

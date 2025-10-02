@@ -5,7 +5,7 @@ import logging
 import base64
 from dataclasses import dataclass
 import struct
-from typing import Iterable, Iterator, Protocol, runtime_checkable, Generic
+from typing import Iterable, Protocol, runtime_checkable
 
 from py_fade.data_formats.utils import is_equal_utf_8, try_decode_utf_8
 
@@ -167,6 +167,9 @@ class SinglePositionTopLogprobs(list[SinglePositionToken]):
 
     @classmethod
     def from_list_of_dicts(cls, data: list[dict]) -> "SinglePositionTopLogprobs":
+        """
+        Create SinglePositionTopLogprobs from list of dicts.
+        """
         result = cls()
         for entry in data:
             result.append(SinglePositionToken.from_dict(entry))
@@ -198,6 +201,9 @@ class CompletionTopLogprobs(list[SinglePositionTopLogprobs]):
 
     @classmethod
     def from_list_of_lists(cls, data: list[list]) -> "CompletionTopLogprobs":
+        """
+        Create CompletionTopLogprobs from list of lists of dicts.
+        """
         result = cls()
         for position_list in data:
             top_logprobs = SinglePositionTopLogprobs.from_list_of_dicts(position_list)
@@ -261,11 +267,11 @@ class CompletionTopLogprobs(list[SinglePositionTopLogprobs]):
             token_bytes_list = data["token_bytes"][pos_idx]
             logprobs = data["logprob_f16"][pos_idx]
             spans = data["span"][pos_idx]
-            for i in range(len(token_ids)):
+            for i, token_id in enumerate(token_ids):
                 # Decode token bytes to string if necessary
                 token_str = token_strs[i] if token_strs[i] is not None else token_bytes_list[i].decode("utf-8", errors="replace")
                 token = SinglePositionToken(
-                    token_id=token_ids[i],
+                    token_id=token_id,
                     token_str=token_str,
                     token_bytes=token_bytes_list[i],
                     logprob=struct.unpack("e", logprobs[i])[0],  # Unpack float16 to float32
@@ -311,57 +317,57 @@ class CompletionTokenLogprobs(list[SinglePositionToken]):
                 result.append(token)  # No need to reconstruct, already valid
                 i += 1
                 continue
-            else:
-                joined_bytes = token.token_bytes
-                token_str = None
-                span = None
-                for j in range(1, 4):  # Check up to 4 bytes for multibyte sequence
-                    if i + j >= len(all_tokens):
-                        break  # No more tokens to check
-                    joined_bytes += all_tokens[i + j].token_bytes
-                    token_str = try_decode_utf_8(joined_bytes)
-                    if token_str is not None:
-                        span = j + 1
-                        break
-                if token_str is None or span is None:
-                    # Failed to reconstruct valid UTF-8 sequence, fallback to original token
-                    logging.getLogger("CompletionTokenLogprobs").error(
-                        "Failed to reconstruct valid UTF-8 sequence starting with token ID %d, using original token_str.",
-                        token.token_id,
-                    )
-                    result.append(token)
-                    i += 1
-                    continue
-                # Reconstructed valid UTF-8 sequence
-                # Create new SinglePositionToken with reconstructed token_str and span
-                reconstructed_token = SinglePositionToken(
-                    token_id=token.token_id,
-                    token_str=token_str,
-                    token_bytes=token.token_bytes,
-                    logprob=token.logprob,
-                    span=span,
-                )
-                result.append(reconstructed_token)
 
-                # Skip continuation tokens
-                for k in range(1, span):
-                    if i + k < len(all_tokens):
-                        cont_token = all_tokens[i + k]
-                        if cont_token.is_eos:
-                            logging.getLogger("CompletionTokenLogprobs").error(
-                                "Unexpected EOS token in continuation of multi-byte sequence at token ID %d.",
-                                cont_token.token_id,
-                            )
-                            break
-                        # Add continuation token with span=0
-                        continuation = SinglePositionToken(
-                            token_id=cont_token.token_id,
-                            token_str="",
-                            token_bytes=cont_token.token_bytes,
-                            logprob=cont_token.logprob,
-                            span=0,
+            joined_bytes = token.token_bytes
+            token_str = None
+            span = None
+            for j in range(1, 4):  # Check up to 4 bytes for multibyte sequence
+                if i + j >= len(all_tokens):
+                    break  # No more tokens to check
+                joined_bytes += all_tokens[i + j].token_bytes
+                token_str = try_decode_utf_8(joined_bytes)
+                if token_str is not None:
+                    span = j + 1
+                    break
+            if token_str is None or span is None:
+                # Failed to reconstruct valid UTF-8 sequence, fallback to original token
+                logging.getLogger("CompletionTokenLogprobs").error(
+                    "Failed to reconstruct valid UTF-8 sequence starting with token ID %d, using original token_str.",
+                    token.token_id,
+                )
+                result.append(token)
+                i += 1
+                continue
+            # Reconstructed valid UTF-8 sequence
+            # Create new SinglePositionToken with reconstructed token_str and span
+            reconstructed_token = SinglePositionToken(
+                token_id=token.token_id,
+                token_str=token_str,
+                token_bytes=token.token_bytes,
+                logprob=token.logprob,
+                span=span,
+            )
+            result.append(reconstructed_token)
+
+            # Skip continuation tokens
+            for k in range(1, span):
+                if i + k < len(all_tokens):
+                    cont_token = all_tokens[i + k]
+                    if cont_token.is_eos:
+                        logging.getLogger("CompletionTokenLogprobs").error(
+                            "Unexpected EOS token in continuation of multi-byte sequence at token ID %d.",
+                            cont_token.token_id,
                         )
-                        result.append(continuation)
+                        break
+                    # Add continuation token with span=0
+                    continuation = SinglePositionToken(
+                        token_id=cont_token.token_id,
+                        token_str="",
+                        token_bytes=cont_token.token_bytes,
+                        logprob=cont_token.logprob,
+                        span=0,
+                    )
+                    result.append(continuation)
                 i += span
                 continue
         return result

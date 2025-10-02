@@ -165,12 +165,12 @@ def test_mock_provider_evaluate_completion_matches_completion():
         top_logprobs=5,
     )
 
-    reconstructed = "".join(entry.token for entry in logprobs)
+    reconstructed = "".join(entry.token_str for entry in logprobs.sampled_logprobs)
     assert reconstructed == completion
-    for entry in logprobs:
-        if entry.top_logprobs:
-            assert entry.top_logprobs[0][0] == entry.token
-            assert entry.top_logprobs[0][1] == pytest.approx(entry.logprob)
+    for entry in logprobs.sampled_logprobs:
+        # Mock provider doesn't include alternative logprobs
+        assert entry.token_str is not None
+        assert entry.logprob is not None
 
 
 def test_mock_provider_first_position_sentence_starters():

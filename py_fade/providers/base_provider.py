@@ -83,7 +83,7 @@ class BasePrefillAwareProvider:
             return len(tokens)
         return len(text) // avg_chars_per_token
 
-    def check_high_fidelity_continuation_possible(self, completion: CommonCompletionProtocol) -> bool:  # pylint: disable=unused-argument
+    def check_high_fidelity_continuation_possible(self, model_id: str, completion: CommonCompletionProtocol) -> bool:  # pylint: disable=unused-argument
         """
         Check if high-fidelity continuation is possible for this completion, based on provider capabilities and completion data.
 
