@@ -107,14 +107,20 @@ class _StreamingTokenSpec:
     true_index: int
 
 
-def _compute_seed(prompt_text: str, prefill: str, forced_response: str | None) -> int:
+def _compute_seed(prompt_text: str, prefill: str, forced_response: str | None | "CompletionPrefill") -> int:
     hasher = hashlib.sha256()
     hasher.update(prompt_text.encode("utf-8", "replace"))
     hasher.update(b"<prefill>")
     hasher.update(prefill.encode("utf-8", "replace"))
     if forced_response is not None:
         hasher.update(b"<forced>")
-        hasher.update(forced_response.encode("utf-8", "replace"))
+        # Handle CompletionPrefill object
+        if isinstance(forced_response, str):
+            response_text = forced_response
+        else:
+            # Assume it has a prefill_text attribute
+            response_text = getattr(forced_response, "prefill_text", str(forced_response))
+        hasher.update(response_text.encode("utf-8", "replace"))
     return int.from_bytes(hasher.digest()[:8], "big", signed=False)
 
 
