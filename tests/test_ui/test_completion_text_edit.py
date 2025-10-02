@@ -221,13 +221,13 @@ class TestCompletionTextEditHeatmapMode:
         # First token should be "Hello" at position 0-5
         assert cache[0][0] == 0  # start position
         assert cache[0][1] == 5  # end position
-        assert cache[0][2].token == "Hello"
+        assert cache[0][2].token_str == "Hello"
         assert cache[0][2].logprob == -0.1
 
         # Second token should be " world" at position 5-11
         assert cache[1][0] == 5  # start position
         assert cache[1][1] == 11  # end position
-        assert cache[1][2].token == " world"
+        assert cache[1][2].token_str == " world"
         assert cache[1][2].logprob == -0.8
 
     def test_heatmap_token_mismatch_handling(

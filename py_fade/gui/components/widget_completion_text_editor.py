@@ -37,11 +37,18 @@ class CompletionTextEdit(QTextEdit):
         self.completion_frame = completion_frame
         self._token_positions_cache: list[tuple[int, int, SinglePositionToken]] = []
 
-    def update_heatmap_cache(self, logprobs_data: CommonCompletionLogprobs, text: str) -> None:
-        """Update cached token positions for tooltip lookups."""
+    def update_heatmap_cache(self, logprobs_data: CommonCompletionLogprobs, text: str) -> None:  # pylint: disable=unused-argument
+        """
+        Update cached token positions for tooltip lookups.
+
+        Uses Qt document to properly handle UTF-16 positioning for emoji and multi-byte characters.
+        The `text` parameter is kept for API compatibility but not used since we use Qt's document directly.
+        """
         self._token_positions_cache = []
 
-        text_pos = 0
+        # Use Qt's document to search for tokens, which handles UTF-16 properly
+        search_start_pos = 0
+
         for token_data in logprobs_data.sampled_logprobs:
             token = token_data.token_str
             logprob = token_data.logprob
@@ -49,22 +56,32 @@ class CompletionTextEdit(QTextEdit):
             if not token or logprob is None:
                 continue
 
-            # Find token position in text
-            token_len = len(token)
-            if text_pos + token_len > len(text):
-                break
+            # Use Qt's find method which handles UTF-16 properly
+            cursor = self.document().find(token, search_start_pos)
 
-            if text[text_pos:text_pos + token_len] == token:
-                self._token_positions_cache.append((text_pos, text_pos + token_len, token_data))
-                text_pos += token_len
+            if not cursor.isNull():
+                # Found the token
+                start_pos = cursor.selectionStart()
+                end_pos = cursor.selectionEnd()
+                self._token_positions_cache.append((start_pos, end_pos, token_data))
+                search_start_pos = end_pos
             else:
-                # Try to find token starting from current position
-                found_pos = text.find(token, text_pos)
-                if found_pos != -1 and found_pos <= text_pos + 10:  # Don't search too far ahead
-                    self._token_positions_cache.append((found_pos, found_pos + token_len, token_data))
-                    text_pos = found_pos + token_len
+                # Token not found, try searching a bit ahead
+                # This handles cases where tokens don't perfectly match the text
+                cursor = self.document().find(token, search_start_pos)
+                if not cursor.isNull():
+                    start_pos = cursor.selectionStart()
+                    end_pos = cursor.selectionEnd()
+                    # Only accept if within reasonable distance
+                    if start_pos <= search_start_pos + 20:  # Allow some leeway
+                        self._token_positions_cache.append((start_pos, end_pos, token_data))
+                        search_start_pos = end_pos
+                    else:
+                        # Skip this token and advance by 1
+                        search_start_pos += 1
                 else:
-                    text_pos += 1  # Skip character if token not found nearby
+                    # Skip character if token not found
+                    search_start_pos += 1
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # pylint: disable=invalid-name
         """Handle mouse move events to show tooltips in heatmap mode."""
@@ -142,70 +159,65 @@ class CompletionTextEdit(QTextEdit):
     def _highlight_prefill_and_beam(self) -> None:
         """
         Highlight prefill and beam token sections in the text.
+
+        Uses Qt's text search to properly handle UTF-16 positioning for emoji and multi-byte characters.
         """
         if not self._completion:
             return
-        document_cursor = self.textCursor()
 
-        def apply_highlight(start: int, end: int, color: QColor) -> None:
+        def apply_highlight_by_search(search_text: str, color: QColor, start_pos: int = 0) -> int:
+            """
+            Find and highlight text using Qt's search, returning the end position or -1 if not found.
+
+            Returns the UTF-16 position after the found text, or -1 if not found.
+            """
+            # Use Qt's document find method which handles UTF-16 properly
+            cursor = self.document().find(search_text, start_pos)
+            if cursor.isNull():
+                return -1
+
+            # Apply highlighting
             highlight_format = QTextCharFormat()
             highlight_format.setBackground(color)
-            cursor = QTextCursor(document_cursor)
-            cursor.setPosition(start)
-            cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
             cursor.mergeCharFormat(highlight_format)
 
-        text = self._completion.completion_text
+            # Return position after the found text
+            return cursor.position()
+
         prefill = self._completion.prefill
         beam_token = self._completion.beam_token
 
         if prefill:
-            start = text.find(prefill)
-            if start >= 0:
-                end = start + len(prefill)
-                apply_highlight(start, end, PREFILL_COLOR)
+            prefill_end = apply_highlight_by_search(prefill, PREFILL_COLOR)
+            if prefill_end >= 0:
                 if beam_token:
-                    beam_start = text.find(beam_token, start)
-                    if beam_start >= 0:
-                        beam_end = beam_start + len(beam_token)
-                        apply_highlight(beam_start, beam_end, BEAM_TOKEN_COLOR)
-                    else:
+                    # Search for beam token starting after prefill
+                    beam_end = apply_highlight_by_search(beam_token, BEAM_TOKEN_COLOR, prefill_end)
+                    if beam_end < 0:
                         self.log.debug("Beam token '%s' not found within completion text.", beam_token)
             else:
                 self.log.debug("Prefill '%s' not found in completion text.", prefill)
         elif beam_token:
-            beam_start = text.find(beam_token)
-            if beam_start >= 0:
-                apply_highlight(beam_start, beam_start + len(beam_token), BEAM_TOKEN_COLOR)
+            beam_end = apply_highlight_by_search(beam_token, BEAM_TOKEN_COLOR)
+            if beam_end < 0:
+                self.log.debug("Beam token '%s' not found in completion text.", beam_token)
 
     def _highlight_logprob_heatmap(self) -> None:
         """
         Apply logprob-based color highlighting to tokens.
+
+        Uses Qt document search to properly handle UTF-16 positioning for emoji and multi-byte characters.
         """
         if not self._completion or not self._logprobs:
             return
+
         text = self._completion.completion_text
         logprobs_data = self._logprobs
         self.update_heatmap_cache(logprobs_data, text)
 
-        document_cursor = self.textCursor()
-        text_pos = 0
-
-        for token_data in logprobs_data.sampled_logprobs:
-            token = token_data.token_str
+        # Use the cache to apply highlighting
+        for start_pos, end_pos, token_data in self._token_positions_cache:
             logprob = token_data.logprob
-
-            # Find token position in text
-            token_len = len(token)
-            if text_pos + token_len > len(text):
-                break
-            if text[text_pos:text_pos + token_len] != token:
-                # Try to find token starting from current position
-                found_pos = text.find(token, text_pos)
-                if found_pos == -1 or found_pos > text_pos + 10:  # Don't search too far ahead
-                    text_pos += 1  # Skip character if token not found nearby
-                    continue
-                text_pos = found_pos
 
             # Apply color based on logprob
             color = logprob_to_qcolor(logprob)
@@ -214,10 +226,8 @@ class CompletionTextEdit(QTextEdit):
             highlight_format = QTextCharFormat()
             highlight_format.setBackground(color)
 
-            # Apply highlight
-            cursor = QTextCursor(document_cursor)
-            cursor.setPosition(text_pos)
-            cursor.setPosition(text_pos + token_len, QTextCursor.MoveMode.KeepAnchor)
+            # Apply highlight using Qt cursor
+            cursor = self.textCursor()
+            cursor.setPosition(start_pos)
+            cursor.setPosition(end_pos, QTextCursor.MoveMode.KeepAnchor)
             cursor.mergeCharFormat(highlight_format)
-
-            text_pos += token_len

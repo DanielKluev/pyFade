@@ -956,9 +956,9 @@ class TestCompletionFrameHeatmapMode:
         # Test that we can get logprobs for the matching model ID
         logprobs_data = beam.get_logprobs_for_model_id("test-beam-model")
         assert logprobs_data is not None
-        assert len(logprobs_data.logprobs) == 2
-        assert logprobs_data.logprobs[0].token == "test"
-        assert logprobs_data.logprobs[1].token == " token"
+        assert len(logprobs_data.sampled_logprobs) == 2
+        assert logprobs_data.sampled_logprobs[0].token_str == "test"
+        assert logprobs_data.sampled_logprobs[1].token_str == " token"
 
         # Test that we get None for non-matching model ID
         logprobs_data_none = beam.get_logprobs_for_model_id("non-existent-model")
@@ -986,8 +986,8 @@ class TestCompletionFrameHeatmapMode:
 
         # Verify the cache contains expected token positions
         cache = text_edit._token_positions_cache
-        assert cache[0][2].token == "Hello"  # First token
-        assert cache[1][2].token == " world"  # Second token
+        assert cache[0][2].token_str == "Hello"  # First token
+        assert cache[1][2].token_str == " world"  # Second token
 
     def test_heatmap_mode_with_target_model_logprobs(
         self,
