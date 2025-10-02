@@ -9,7 +9,9 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 from py_fade.controllers.text_generation_controller import CompletionPrefix
-from py_fade.providers.llm_response import LLMResponse, SinglePositionTokenLogprobs, LLMResponseLogprobs
+from py_fade.providers.llm_response import LLMResponse
+from py_fade.data_formats.base_data_classes import CompletionTokenLogprobs, CompletionTopLogprobs
+from tests.helpers.data_helpers import create_test_single_position_token
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -19,36 +21,39 @@ def test_completion_prefix_creation():
     """Test CompletionPrefix creation and validation."""
     prefix_text = "Hello world"
     prefix_token_size = 2
-    logprobs = [
-        SinglePositionTokenLogprobs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1), ("Hi", -1.2)]),
-        SinglePositionTokenLogprobs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5), (" there", -2.1)])
-    ]
+    sampled_logprobs = CompletionTokenLogprobs(
+        [create_test_single_position_token("Hello", -0.1),
+         create_test_single_position_token(" world", -0.5)])
 
-    prefix = CompletionPrefix(prefix_text=prefix_text, prefix_token_size=prefix_token_size, logprobs=logprobs, next_token_logprobs=None)
+    prefix = CompletionPrefix(prefix_text=prefix_text, prefix_token_size=prefix_token_size, sampled_logprobs=sampled_logprobs,
+                              alternative_logprobs=None)
 
     assert prefix.prefix_text == prefix_text
     assert prefix.prefix_token_size == prefix_token_size
-    assert len(prefix.logprobs) == 2
-    assert prefix.logprobs[0].token == "Hello"
-    assert prefix.logprobs[1].token == " world"
-    assert prefix.next_token_logprobs is None
+    assert len(prefix.sampled_logprobs) == 2
+    assert prefix.sampled_logprobs[0].token_str == "Hello"
+    assert prefix.sampled_logprobs[1].token_str == " world"
+    assert prefix.alternative_logprobs is None
 
 
 def test_completion_prefix_from_response():
     """Test extracting CompletionPrefix from LLMResponse."""
     # Create a mock LLMResponse with proper logprobs
+    from py_fade.data_formats.base_data_classes import CommonCompletionLogprobs, CommonConversation, CommonMessage
     response = MagicMock(spec=LLMResponse)
     response.completion_text = "Hello world and more"
     response.check_full_response_logprobs.return_value = True
-    # Create proper LLMResponseLogprobs object instead of plain list
-    response.logprobs = LLMResponseLogprobs(
+    # Create proper CommonCompletionLogprobs object instead of old LLMResponseLogprobs
+    sampled_logprobs = CompletionTokenLogprobs([
+        create_test_single_position_token("Hello", -0.1),
+        create_test_single_position_token(" world", -0.5),
+        create_test_single_position_token(" and", -0.8),
+        create_test_single_position_token(" more", -1.2)
+    ])
+    response.logprobs = CommonCompletionLogprobs(
         logprobs_model_id="test-model",
-        logprobs=[
-            SinglePositionTokenLogprobs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1)]),
-            SinglePositionTokenLogprobs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5)]),
-            SinglePositionTokenLogprobs(token=" and", logprob=-0.8, top_logprobs=[(" and", -0.8)]),
-            SinglePositionTokenLogprobs(token=" more", logprob=-1.2, top_logprobs=[(" more", -1.2)])
-        ]
+        sampled_logprobs=sampled_logprobs,
+        alternative_logprobs=CompletionTopLogprobs(),
     )
 
     # Try to extract prefix "Hello world"
@@ -56,23 +61,25 @@ def test_completion_prefix_from_response():
 
     assert prefix is not None
     assert prefix.prefix_text == "Hello world"
-    assert len(prefix.logprobs) == 2
-    assert prefix.logprobs[0].token == "Hello"
-    assert prefix.logprobs[1].token == " world"
+    assert len(prefix.sampled_logprobs) == 2
+    assert prefix.sampled_logprobs[0].token_str == "Hello"
+    assert prefix.sampled_logprobs[1].token_str == " world"
 
 
 def test_completion_prefix_from_response_mismatch():
     """Test that CompletionPrefix extraction fails with mismatched prefix."""
+    from py_fade.data_formats.base_data_classes import CommonCompletionLogprobs
     response = MagicMock(spec=LLMResponse)
     response.completion_text = "Hello world"
     response.check_full_response_logprobs.return_value = True
-    # Create proper LLMResponseLogprobs object instead of plain list
-    response.logprobs = LLMResponseLogprobs(
+    # Create proper CommonCompletionLogprobs object
+    sampled_logprobs = CompletionTokenLogprobs(
+        [create_test_single_position_token("Hello", -0.1),
+         create_test_single_position_token(" world", -0.5)])
+    response.logprobs = CommonCompletionLogprobs(
         logprobs_model_id="test-model",
-        logprobs=[
-            SinglePositionTokenLogprobs(token="Hello", logprob=-0.1, top_logprobs=[("Hello", -0.1)]),
-            SinglePositionTokenLogprobs(token=" world", logprob=-0.5, top_logprobs=[(" world", -0.5)])
-        ]
+        sampled_logprobs=sampled_logprobs,
+        alternative_logprobs=CompletionTopLogprobs(),
     )
 
     # Try to extract a prefix that doesn't match

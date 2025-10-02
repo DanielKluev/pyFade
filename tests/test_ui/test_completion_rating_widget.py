@@ -452,15 +452,17 @@ def test_evaluate_button_respects_logprob_availability(
 
     session = temp_dataset.session
     assert session is not None
+    # Create proper logprobs using SinglePositionToken
+    from tests.helpers.data_helpers import create_test_single_position_token
+    from py_fade.data_formats.base_data_classes import CompletionTokenLogprobs, CompletionTopLogprobs
+    sampled_logprobs_list = [create_test_single_position_token("a", -1.0).to_dict()]
+    alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
     session.add(
         PromptCompletionLogprobs(
             prompt_completion_id=completion.id,
             logprobs_model_id="mock-echo-model",
-            logprobs=[{
-                "token": "a",
-                "logprob": -1.0,
-                "top_logprobs": []
-            }],
+            sampled_logprobs_json=sampled_logprobs_list,
+            alternative_logprobs_bin=alternative_logprobs_bin,
             min_logprob=-1.0,
             avg_logprob=-1.0,
         ))

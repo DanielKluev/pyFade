@@ -6,16 +6,17 @@ from __future__ import annotations
 from PyQt6.QtWidgets import QCheckBox, QPushButton
 
 from py_fade.gui.components.widget_token_picker import WidgetTokenPicker
-from py_fade.providers.llm_response import SinglePositionTokenLogprobs
+from py_fade.data_formats.base_data_classes import SinglePositionTopLogprobs
+from tests.helpers.data_helpers import create_test_single_position_token
 
 
 def test_token_picker_normalises_llm_logprob_objects(qt_app):
-    """Test that token picker properly normalizes LLMPTokenLogProbs objects into tuples."""
-    tokens: list[SinglePositionTokenLogprobs | tuple[str, float]] = [
-        SinglePositionTokenLogprobs(token="B", logprob=-1.2),
-        SinglePositionTokenLogprobs(token="A", logprob=-0.4),
-        SinglePositionTokenLogprobs(token="C", logprob=-3.1),
-    ]
+    """Test that token picker properly normalizes SinglePositionToken objects."""
+    tokens = SinglePositionTopLogprobs([
+        create_test_single_position_token("B", -1.2),
+        create_test_single_position_token("A", -0.4),
+        create_test_single_position_token("C", -3.1),
+    ])
 
     widget = WidgetTokenPicker(None, tokens, multi_select=False)
     qt_app.processEvents()
@@ -29,10 +30,10 @@ def test_token_picker_normalises_llm_logprob_objects(qt_app):
 
 def test_token_picker_single_select_emits_selected_tokens(qt_app):
     """Test that token picker in single-select mode emits selected tokens immediately."""
-    tokens: list[SinglePositionTokenLogprobs | tuple[str, float]] = [
-        ("first", -0.1),
-        ("second", -0.3),
-    ]
+    tokens = SinglePositionTopLogprobs([
+        create_test_single_position_token("first", -0.1),
+        create_test_single_position_token("second", -0.3),
+    ])
     widget = WidgetTokenPicker(None, tokens, multi_select=False)
     captured: list[list[tuple[str, float]]] = []
     widget.tokens_selected.connect(lambda payload: captured.append(list(payload)))
@@ -60,11 +61,11 @@ def test_token_picker_single_select_emits_selected_tokens(qt_app):
 
 def test_token_picker_multi_select_requires_accept(qt_app):
     """Test that token picker in multi-select mode requires explicit accept action."""
-    tokens: list[SinglePositionTokenLogprobs | tuple[str, float]] = [
-        ("alpha", -0.5),
-        ("beta", -0.2),
-        ("gamma", -1.1),
-    ]
+    tokens = SinglePositionTopLogprobs([
+        create_test_single_position_token("alpha", -0.5),
+        create_test_single_position_token("beta", -0.2),
+        create_test_single_position_token("gamma", -1.1),
+    ])
     widget = WidgetTokenPicker(None, tokens, multi_select=True)
     captured: list[list[tuple[str, float]]] = []
     widget.tokens_selected.connect(lambda payload: captured.append(list(payload)))

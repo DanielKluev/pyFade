@@ -11,10 +11,32 @@ from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
-from py_fade.providers.llm_response import LLMResponse, LLMResponseLogprobs
+from py_fade.providers.llm_response import LLMResponse
+from py_fade.data_formats.base_data_classes import (CommonCompletionLogprobs, CompletionTokenLogprobs, CompletionTopLogprobs,
+                                                    SinglePositionToken)
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
+
+# Backward compatibility alias for tests
+SinglePositionTokenLogprobs = SinglePositionToken
+
+
+def create_test_single_position_token(token_str: str, logprob: float, token_id: int | None = None) -> SinglePositionToken:
+    """
+    Create a test SinglePositionToken from simple inputs.
+
+    Helper for tests that need to create token data without dealing with all the details.
+    """
+    if token_id is None:
+        token_id = hash(token_str) % 100000  # Use hash as dummy token_id
+    return SinglePositionToken(
+        token_id=token_id,
+        token_str=token_str,
+        token_bytes=token_str.encode("utf-8"),
+        logprob=logprob,
+        span=len(token_str),
+    )
 
 
 def ensure_test_facets(dataset: "DatasetDatabase") -> List[Facet]:
@@ -23,12 +45,8 @@ def ensure_test_facets(dataset: "DatasetDatabase") -> List[Facet]:
 
     Returns a list of facets that can be used in tests for consistent behavior.
     """
-    facet_specs = [
-        ("Reasoning", "Logical reasoning and problem-solving capability"),
-        ("Creativity", "Creative and imaginative responses"),
-        ("Safety", "Safe and appropriate content generation"),
-        ("Accuracy", "Factual accuracy and correctness")
-    ]
+    facet_specs = [("Reasoning", "Logical reasoning and problem-solving capability"), ("Creativity", "Creative and imaginative responses"),
+                   ("Safety", "Safe and appropriate content generation"), ("Accuracy", "Factual accuracy and correctness")]
 
     facets = []
     for name, description in facet_specs:
@@ -124,11 +142,14 @@ def create_test_llm_response(**overrides) -> LLMResponse:
         "is_truncated": False,
     }
 
-    # Handle logprobs conversion from list to LLMResponseLogprobs
+    # Handle logprobs conversion from list to CommonCompletionLogprobs
     if "logprobs" in overrides and isinstance(overrides["logprobs"], list):
         logprobs_list = overrides["logprobs"]
-        overrides["logprobs"] = LLMResponseLogprobs(logprobs_model_id=overrides.get("model_id", defaults["model_id"]),
-                                                    logprobs=logprobs_list)
+        # Convert list of SinglePositionToken to CompletionTokenLogprobs
+        sampled_logprobs = CompletionTokenLogprobs(logprobs_list)
+        alternative_logprobs = CompletionTopLogprobs()  # Empty for test data
+        overrides["logprobs"] = CommonCompletionLogprobs(logprobs_model_id=overrides.get("model_id", defaults["model_id"]),
+                                                         sampled_logprobs=sampled_logprobs, alternative_logprobs=alternative_logprobs)
 
     defaults.update(overrides)
     return LLMResponse(**defaults)
@@ -142,13 +163,13 @@ def setup_beam_heatmap_test(dataset: "DatasetDatabase", qt_app) -> Tuple["Comple
     """
     # Import here to avoid circular imports
     from py_fade.gui.components.widget_completion import CompletionFrame  # pylint: disable=import-outside-toplevel
-    from py_fade.providers.llm_response import SinglePositionTokenLogprobs  # pylint: disable=import-outside-toplevel
     from py_fade.providers.providers_manager import MappedModel  # pylint: disable=import-outside-toplevel
     from py_fade.providers.mock_provider import MockLLMProvider  # pylint: disable=import-outside-toplevel
 
-    beam = create_test_llm_response(completion_text="Hello world",
-                                   logprobs=[SinglePositionTokenLogprobs("Hello", -0.1),
-                                            SinglePositionTokenLogprobs(" world", -0.8)])
+    beam = create_test_llm_response(
+        completion_text="Hello world",
+        logprobs=[create_test_single_position_token("Hello", -0.1),
+                  create_test_single_position_token(" world", -0.8)])
     beam.is_full_response_logprobs = True
 
     frame = CompletionFrame(dataset, beam, display_mode="beam")

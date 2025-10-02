@@ -10,7 +10,6 @@ import pytest
 
 import py_fade.providers.llama_cpp as llama_module
 from py_fade.providers.llama_cpp import PrefillAwareLlamaCppInternal
-from py_fade.providers.llm_response import SinglePositionTokenLogprobs
 
 
 def _make_provider() -> PrefillAwareLlamaCppInternal:
