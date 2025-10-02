@@ -11,7 +11,7 @@ from py_fade.data_formats.base_data_classes import (CommonConversation, CommonCo
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.dataset.prompt import PromptRevision
-from py_fade.providers.llm_response import LLMResponseLogprobs, LLMResponse
+from py_fade.providers.llm_response import LLMResponse
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 
 if TYPE_CHECKING:

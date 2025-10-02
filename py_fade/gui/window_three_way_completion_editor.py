@@ -33,8 +33,6 @@ from PyQt6.QtWidgets import (
 
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_pairwise_ranks import PromptCompletionPairwiseRanking
-from py_fade.dataset.completion_rating import PromptCompletionRating
-from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 
 if TYPE_CHECKING:  # pragma: no cover - import hints only
     from py_fade.app import pyFadeApp

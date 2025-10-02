@@ -200,7 +200,7 @@ class PyFadeApp:
             self.cached_text_generation_controllers[key] = controller
             self.cached_text_generation_controllers_list.append(controller)
             # Limit cache size to `cached_text_generation_controllers_limit` controllers
-            if (len(self.cached_text_generation_controllers_list) > self.cached_text_generation_controllers_limit):
+            if len(self.cached_text_generation_controllers_list) > self.cached_text_generation_controllers_limit:
                 oldest = self.cached_text_generation_controllers_list.pop(0)
                 oldest_key = self._make_controller_cache_key(oldest.mapped_model, oldest.dataset, oldest.prompt_revision)
                 del self.cached_text_generation_controllers[oldest_key]

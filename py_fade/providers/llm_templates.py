@@ -51,7 +51,7 @@ def apply_template_qwen3(messages: CommonConversation) -> str:
         content = message.content
         if role not in ("system", "user", "assistant"):
             raise ValueError(f"Unsupported role '{role}' for Qwen3 template.")
-        if previous_role is not None and (previous_role == role or role == "system"):
+        if previous_role is not None and previous_role in (role, 'system'):
             raise ValueError("Consecutive messages with the same role or system role in between are not allowed.")
         if i == len(messages.messages) - 1 and role == "assistant":  # Last message is assistant, no end tag
             prompt += f"<|im_start|>{role}\n{content}"

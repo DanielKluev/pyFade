@@ -3,8 +3,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from py_fade.data_formats.base_data_classes import (CommonCompletionProtocol, CommonCompletionLogprobs, CommonConversation,
-                                                    SinglePositionToken)
+from py_fade.data_formats.base_data_classes import CommonCompletionProtocol, CommonCompletionLogprobs, CommonConversation
 
 if TYPE_CHECKING:
     from py_fade.dataset.completion import PromptCompletion

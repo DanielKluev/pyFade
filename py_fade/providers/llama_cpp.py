@@ -5,7 +5,6 @@ import logging
 import os
 import time
 from typing import Callable, Optional
-from xml.parsers.expat import model
 from numpy.typing import NDArray
 import numpy as np
 
@@ -25,7 +24,7 @@ from py_fade.providers.base_provider import (
 from py_fade.data_formats.base_data_classes import (CommonCompletionLogprobs, CommonCompletionProtocol, CommonConversation,
                                                     CompletionTokenLogprobs, CompletionTopLogprobs, SinglePositionToken,
                                                     SinglePositionTopLogprobs, CompletionPrefill)
-from py_fade.providers.llm_response import LLMResponseLogprobs, LLMResponse
+from py_fade.providers.llm_response import LLMResponse
 
 try:
     import llama_cpp  # pylint: disable=import-error
@@ -121,13 +120,13 @@ class ResponseBuilder:
 
         class _PatchCtx:
 
-            def __enter__(_self):
-                _self.original = model.sample
-                model.sample = self._make_sample_func_wrapper(model, _self.original)
+            def __enter__(ctx_self):  # noqa: N805
+                ctx_self.original = model.sample
+                model.sample = self._make_sample_func_wrapper(model, ctx_self.original)
                 return self
 
-            def __exit__(_self, exc_type, exc, tb):
-                model.sample = _self.original
+            def __exit__(ctx_self, exc_type, exc, tb):  # noqa: N805
+                model.sample = ctx_self.original
 
         return _PatchCtx()
 
