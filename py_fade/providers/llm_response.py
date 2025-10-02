@@ -3,82 +3,84 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from py_fade.data_formats.base_data_classes import (CommonCompletionProtocol, CommonCompletionLogprobsProtocol,
-                                                     CommonConversation, SinglePositionTokenLogprobs)
+from py_fade.data_formats.base_data_classes import (CommonCompletionProtocol, CommonCompletionLogprobs, CommonConversation,
+                                                    SinglePositionToken)
 
 if TYPE_CHECKING:
     from py_fade.dataset.completion import PromptCompletion
     from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 
+# @dataclass(slots=True)
+# class LLMResponseLogprobs(CommonCompletionLogprobs):
+#     """
+#     Logprobs associated with an LLMResponse for a specific model_id.
+#     """
+#     logprobs_model_id: str  # Model ID for which these logprobs were generated.
+#     logprobs: list[SinglePositionTokenLogprobs]  # List of token information and logprobs for each position.
+#     min_logprob: float | None = None  # min(logprobs), minimal logprob of any token in response
+#     avg_logprob: float | None = None  # average(logprobs), average logprob of all tokens in response
 
-@dataclass(slots=True)
-class LLMResponseLogprobs(CommonCompletionLogprobsProtocol):
-    """
-    Logprobs associated with an LLMResponse for a specific model_id.
-    """
-    logprobs_model_id: str  # Model ID for which these logprobs were generated.
-    logprobs: list[SinglePositionTokenLogprobs]  # List of token information and logprobs for each position.
-    min_logprob: float | None = None  # min(logprobs), minimal logprob of any token in response
-    avg_logprob: float | None = None  # average(logprobs), average logprob of all tokens in response
+#     @classmethod
+#     def from_sequence(
+#         cls, logprobs_model_id: str, *sequence: "list[SinglePositionTokenLogprobs] | "
+#         "SinglePositionTokenLogprobs | CommonCompletionLogprobsProtocol | "
+#         "LLMResponseLogprobs | None"
+#     ) -> "LLMResponseLogprobs":
+#         """
+#         Create LLMResponseLogprobs from a sequence of logprobs, supporting mixing different input types.
+#         """
+#         logprobs = []
+#         for item in sequence:
+#             if isinstance(item, cls):
+#                 logprobs.extend(item.logprobs)
+#             elif isinstance(item, list):
+#                 logprobs.extend(item)
+#             elif isinstance(item, SinglePositionTokenLogprobs):
+#                 logprobs.append(item)
+#             else:
+#                 continue
+#         return cls(logprobs_model_id=logprobs_model_id, logprobs=logprobs)
 
-    @classmethod
-    def from_sequence(cls, logprobs_model_id: str, *sequence: "list[SinglePositionTokenLogprobs] | "
-                                                              "SinglePositionTokenLogprobs | CommonCompletionLogprobsProtocol | "
-                                                              "LLMResponseLogprobs | None") -> "LLMResponseLogprobs":
-        """
-        Create LLMResponseLogprobs from a sequence of logprobs, supporting mixing different input types.
-        """
-        logprobs = []
-        for item in sequence:
-            if isinstance(item, cls):
-                logprobs.extend(item.logprobs)
-            elif isinstance(item, list):
-                logprobs.extend(item)
-            elif isinstance(item, SinglePositionTokenLogprobs):
-                logprobs.append(item)
-            else:
-                continue
-        return cls(logprobs_model_id=logprobs_model_id, logprobs=logprobs)
+#     @property
+#     def first_token_top_logprobs(self) -> list[tuple[str, float]]:
+#         """
+#         Return top logprobs for the first token of current completion, if available.
+#         """
+#         if self.logprobs and len(self.logprobs) > 0:
+#             first_token_logprobs = self.logprobs[0]
+#             if first_token_logprobs.top_logprobs:
+#                 return first_token_logprobs.top_logprobs
+#         return []
 
-    @property
-    def first_token_top_logprobs(self) -> list[tuple[str, float]]:
-        """
-        Return top logprobs for the first token of current completion, if available.
-        """
-        if self.logprobs and len(self.logprobs) > 0:
-            first_token_logprobs = self.logprobs[0]
-            if first_token_logprobs.top_logprobs:
-                return first_token_logprobs.top_logprobs
-        return []
+#     def __bool__(self):
+#         """
+#         True if logprobs are available, False otherwise.
+#         """
+#         return len(self.logprobs) > 0
 
-    def __bool__(self):
-        """
-        True if logprobs are available, False otherwise.
-        """
-        return len(self.logprobs) > 0
+#     def __post_init__(self):
+#         if self.logprobs:
+#             logprob_values = [lp.logprob for lp in self.logprobs if lp.logprob is not None]
+#             if logprob_values:
+#                 self.min_logprob = min(logprob_values)
+#                 self.avg_logprob = sum(logprob_values) / len(logprob_values)
 
-    def __post_init__(self):
-        if self.logprobs:
-            logprob_values = [lp.logprob for lp in self.logprobs if lp.logprob is not None]
-            if logprob_values:
-                self.min_logprob = min(logprob_values)
-                self.avg_logprob = sum(logprob_values) / len(logprob_values)
+#     def __iter__(self):
+#         return iter(self.logprobs)
 
-    def __iter__(self):
-        return iter(self.logprobs)
+#     def __len__(self):
+#         return len(self.logprobs)
 
-    def __len__(self):
-        return len(self.logprobs)
-
-    def __getitem__(self, key) -> "LLMResponseLogprobs":
-        if isinstance(key, slice):
-            logprobs = self.logprobs.__getitem__(key)
-        else:
-            logprobs = [self.logprobs[key]]  # Single item, wrap in list
-        return LLMResponseLogprobs(
-            logprobs_model_id=self.logprobs_model_id,
-            logprobs=logprobs,
-        )
+#     def __getitem__(self, key) -> "LLMResponseLogprobs":
+#         if isinstance(key, slice):
+#             logprobs = self.logprobs.__getitem__(key)
+#         else:
+#             logprobs = [self.logprobs[key]]  # Single item, wrap in list
+#         return LLMResponseLogprobs(
+#             logprobs_model_id=self.logprobs_model_id,
+#             logprobs=logprobs,
+#         )
+LLMResponseLogprobs = CommonCompletionLogprobs  # Alias for compatibility, as no extra fields are needed
 
 
 @dataclass(slots=True)
@@ -98,7 +100,7 @@ class LLMResponse(CommonCompletionProtocol):
     prefill: str | None = None  # part of completion that wasn't generated, but artificially
     # inserted manually or during beam expansion
     beam_token: str | None = None  # token at which beam tree was forked, if any
-    logprobs: LLMResponseLogprobs | None = None  # per-token logprobs if available
+    logprobs: CommonCompletionLogprobs | None = None  # per-token logprobs if available
     is_truncated: bool | None = None  # whether generation stopped due to max_tokens limit
     is_full_response_logprobs: bool | None = None  # whether logprobs cover full_response_text (True) or just part (False).
     is_archived: bool = False  # whether this completion is archived and hidden by default
@@ -108,9 +110,9 @@ class LLMResponse(CommonCompletionProtocol):
         """
         Create LLMResponse from PromptCompletion and associated PromptCompletionLogprobs.
         """
-        if not logprobs.logprobs or len(logprobs.logprobs) == 0:
-            raise ValueError("PromptCompletionLogprobs does not contain logprobs.")
-        llm_response_logprobs = logprobs.to_llm_response_logprobs()
+        if not logprobs.sampled_logprobs:
+            raise ValueError("Missing sampled_logprobs in provided PromptCompletionLogprobs.")
+        llm_response_logprobs = logprobs
 
         return cls(
             model_id=logprobs.logprobs_model_id,
@@ -127,12 +129,12 @@ class LLMResponse(CommonCompletionProtocol):
             is_truncated=completion.is_truncated,
         )
 
-    def get_logprobs_for_model_id(self, model_id: str) -> CommonCompletionLogprobsProtocol | None:
+    def get_logprobs_for_model_id(self, model_id: str) -> CommonCompletionLogprobs | None:
         """
         Get logprobs for the given model ID, if available.
 
         As LLMResponse is always per single model_id, just either return only available logprobs or None.
-        Returns `CommonCompletionLogprobsProtocol` compatible result or None if logprobs for the target model_id are not available.
+        Returns `CommonCompletionLogprobs` compatible result or None if logprobs for the target model_id are not available.
         """
         if self.logprobs and self.model_id == model_id:
             return self.logprobs

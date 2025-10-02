@@ -10,7 +10,7 @@ from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
-from py_fade.data_formats.base_data_classes import CommonCompletionLogprobsProtocol, CommonConversation, CommonCompletionProtocol
+from py_fade.data_formats.base_data_classes import CommonCompletionLogprobs, CommonConversation, CommonCompletionProtocol
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.dataset.completion_rating import PromptCompletionRating
@@ -117,10 +117,10 @@ class PromptCompletion(dataset_base):
         """Compute SHA256 hash of text."""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-    def get_logprobs_for_model_id(self, model_id: str) -> CommonCompletionLogprobsProtocol | None:
+    def get_logprobs_for_model_id(self, model_id: str) -> CommonCompletionLogprobs | None:
         """
         Get logprobs for the given model ID, if available.
-        Returns `CommonCompletionLogprobsProtocol` compatible result or None if logprobs for the target model_id are not available.
+        Returns `CommonCompletionLogprobs` compatible result or None if logprobs for the target model_id are not available.
         """
         if not self.logprobs:
             return None

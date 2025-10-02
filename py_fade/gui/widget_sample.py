@@ -281,7 +281,7 @@ class WidgetSample(QWidget):
 
     def set_sample(self, sample: Sample | None):
         """Set the sample and populate UI with sample data."""
-        self.sample = sample
+        self.sample: Sample | None = sample
 
         if self.sample:
             # Existing sample - populate with actual data
@@ -410,10 +410,12 @@ class WidgetSample(QWidget):
         """
         if not self.app:
             return
+        current_context_length = self.context_length_field.value()
+        max_context_length = max(current_context_length, completion.prompt_revision.context_length)
         controller = self.app.get_or_create_text_generation_controller(
             mapped_model,
             completion.prompt_revision,
-            context_length=completion.prompt_revision.context_length,
+            context_length=max_context_length,
             max_tokens=completion.max_tokens,
         )
         controller.evaluate_completion_logprobs(completion, save=True)
@@ -474,10 +476,12 @@ class WidgetSample(QWidget):
         if not self.app or not self.dataset or not self.dataset.session:
             raise RuntimeError("App or dataset not properly initialized.")
 
-        # Existing samples can have only title and group path updated
+        # Existing samples can have metadata updated, but not prompt
         if self.sample and self.sample.id:
             self.sample.title = self.title_field.text().strip()
             self.sample.group_path = self.group_field.currentText().strip() or None
+            self.sample.prompt_revision.context_length = self.context_length_field.value()
+            self.sample.prompt_revision.max_tokens = self.max_tokens_field.value()
             self.dataset.session.commit()
         else:
             # Create new sample with current prompt
