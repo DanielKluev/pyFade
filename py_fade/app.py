@@ -13,13 +13,11 @@ import sys
 
 ## MUST keep it on top of imports, as they may rely on path changes. **NEVER** move this.
 from py_fade.app_config import (
-    AppConfig,
-)  # pylint: disable=unused-import,wrong-import-order,ungrouped-imports
+    AppConfig,)  # pylint: disable=unused-import,wrong-import-order,ungrouped-imports
 
 ## MUST keep it on top of imports, as they may rely on path changes. **NEVER** move this.
 from py_fade.features_checker import (
-    SUPPORTED_FEATURES,
-)  # pylint: disable=unused-import,wrong-import-order,ungrouped-imports
+    SUPPORTED_FEATURES,)  # pylint: disable=unused-import,wrong-import-order,ungrouped-imports
 
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication, QWidget
@@ -67,9 +65,7 @@ class PyFadeApp:
         )
         logging.getLogger("ollama").setLevel(logging.WARNING)
 
-    def __init__(
-        self, config_path: str | pathlib.Path | None = None, is_debug: bool | None = None
-    ) -> None:
+    def __init__(self, config_path: str | pathlib.Path | None = None, is_debug: bool | None = None) -> None:
         if is_debug is None:
             is_debug = self.debug_enabled
         self.is_debug = is_debug
@@ -170,19 +166,15 @@ class PyFadeApp:
         """
         if dataset is None:
             if self.current_dataset is None:
-                raise RuntimeError(
-                    "No dataset is currently open. Please open a dataset first "
-                    "or provide a dataset parameter."
-                )
+                raise RuntimeError("No dataset is currently open. Please open a dataset first "
+                                   "or provide a dataset parameter.")
             dataset = self.current_dataset
 
         # If mapped_model is str, expecting it's model_path, look it up in providers manager
         if isinstance(mapped_model, str):
             resolved_model = self.providers_manager.get_mapped_model(mapped_model)
             if resolved_model is None:
-                raise ValueError(
-                    f"Mapped model with name '{mapped_model}' not found in providers manager."
-                )
+                raise ValueError(f"Mapped model with name '{mapped_model}' not found in providers manager.")
             mapped_model = resolved_model
 
         if context_length is None:
@@ -192,10 +184,9 @@ class PyFadeApp:
 
         # If prompt_revision is str, expecting it's prompt text. Look it up in dataset
         if isinstance(prompt_revision, str):
-            prompt_revision = PromptRevision.get_or_create(
-                dataset, prompt_revision, context_length, max_tokens
-            )
+            prompt_revision = PromptRevision.get_or_create(dataset, prompt_revision, context_length, max_tokens)
 
+        context_length = max(context_length, prompt_revision.context_length)
         key = self._make_controller_cache_key(mapped_model, dataset, prompt_revision)
         if key not in self.cached_text_generation_controllers:
             controller = TextGenerationController(
@@ -203,19 +194,15 @@ class PyFadeApp:
                 mapped_model,
                 dataset,
                 prompt_revision,
+                context_length=context_length,
             )
             controller.load_cache()
             self.cached_text_generation_controllers[key] = controller
             self.cached_text_generation_controllers_list.append(controller)
             # Limit cache size to `cached_text_generation_controllers_limit` controllers
-            if (
-                len(self.cached_text_generation_controllers_list)
-                > self.cached_text_generation_controllers_limit
-            ):
+            if (len(self.cached_text_generation_controllers_list) > self.cached_text_generation_controllers_limit):
                 oldest = self.cached_text_generation_controllers_list.pop(0)
-                oldest_key = self._make_controller_cache_key(
-                    oldest.mapped_model, oldest.dataset, oldest.prompt_revision
-                )
+                oldest_key = self._make_controller_cache_key(oldest.mapped_model, oldest.dataset, oldest.prompt_revision)
                 del self.cached_text_generation_controllers[oldest_key]
         return self.cached_text_generation_controllers[key]
 
@@ -268,14 +255,12 @@ class PyFadeApp:
     ) -> str:
         """Build a stable cache key for controller instances."""
 
-        return "|".join(
-            (
-                mapped_model.model_id,
-                mapped_model.provider.id,
-                str(dataset.db_path),
-                str(prompt_revision.id),
-            )
-        )
+        return "|".join((
+            mapped_model.model_id,
+            mapped_model.provider.id,
+            str(dataset.db_path),
+            str(prompt_revision.id),
+        ))
 
     def _require_q_app(self) -> QApplication:
         """Return the current QApplication instance or raise if it is missing."""

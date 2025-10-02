@@ -44,7 +44,7 @@ class CompletionFrame(QFrame):
     # Existing signals
     archive_toggled = pyqtSignal(object, bool)
     resume_requested = pyqtSignal(object)
-    evaluate_requested = pyqtSignal(object, str)
+    evaluate_requested = pyqtSignal(object, object, object)  # completion, target_model, completion_frame
 
     # New signals for multi-mode support
     edit_requested = pyqtSignal(object)  # PromptCompletion
@@ -398,9 +398,10 @@ class CompletionFrame(QFrame):
         self.resume_requested.emit(self.completion)
 
     def _on_evaluate_clicked(self) -> None:
-        """Handle evaluate button click."""
-        target = (self.target_model.model_id if self.target_model else None) or self.completion.model_id
-        self.evaluate_requested.emit(self.completion, target)
+        """
+        Handle evaluate button click.
+        """
+        self.evaluate_requested.emit(self.completion, self.target_model, self)
 
     def _on_edit_clicked(self) -> None:
         """Handle edit button click."""

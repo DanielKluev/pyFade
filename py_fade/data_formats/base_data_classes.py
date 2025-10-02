@@ -2,8 +2,12 @@
 Fundamental language model data classes.
 """
 import logging
+import base64
 from dataclasses import dataclass
-from typing import Iterator, Protocol, runtime_checkable
+import struct
+from typing import Iterable, Iterator, Protocol, runtime_checkable, Generic
+
+from py_fade.data_formats.utils import is_equal_utf_8, try_decode_utf_8
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,67 +102,347 @@ class CommonConversation:
         return False
 
 
-@dataclass(slots=True)
-class SinglePositionTokenLogprobs:
+@dataclass(frozen=True, slots=True)
+class SinglePositionToken:
     """
-    Token logprobs for a single token position.
+    Token ID and logprob for a single token position.
+
+    `span` is to reconcile multi-token strings.
+    If complex emoji or other multi-token string is originally sampled as multiple sub-UTF-8 tokens,
+    we want to record beginning of this multi-token string as a single token with span=N,
+    and the following N-1 tokens as continuation tokens with span=0.
+    For normal one to one tokenization, span=1.
     """
 
-    token: str
+    token_id: int
+    token_str: str
+    token_bytes: bytes  # Serialize bytes as base64 string in JSON
     logprob: float
-    top_logprobs: list[tuple[str, float]] | None = None  # top N token logprobs if available
+    span: int  # Handle split UTF-8 tokens. Normally 1. If multi-token string, first token has span=N, rest 0.
 
-    def find_logprob(self, search_token: str) -> float | None:
+    @staticmethod
+    def eos_span() -> int:
         """
-        Find logprob for given token in top_logprobs if available.
-        Returns logprob if found, None otherwise.
+        Special span value for EOS token.
         """
-        if self.top_logprobs:
-            for tok, lp in self.top_logprobs:
-                if tok == search_token:
-                    return lp
-        return None
+        return -10
+
+    @property
+    def is_eos(self) -> bool:
+        """
+        Whether this token is EOS token.
+        """
+        return self.span == self.eos_span()
+
+    def to_dict(self) -> dict[str, object]:
+        """
+        Serialize to dict with abbreviated keys: 'i', 'st', 'b', 'l', 'sp'.
+        """
+        return {
+            "i": self.token_id,
+            "st": self.token_str,
+            "b": base64.b64encode(self.token_bytes).decode("utf-8"),
+            "l": self.logprob,
+            "sp": self.span,
+        }
 
     @classmethod
-    def from_list_of_tuples(cls, data: list[tuple[str, float]]) -> list["SinglePositionTokenLogprobs"]:
+    def from_dict(cls, data: dict) -> "SinglePositionToken":
         """
-        Create list of LLMPTokenLogProbs from list of (token, logprob) tuples.
+        Create SinglePositionToken from dict with 'i', 'st', 'b', 'l', 'sp'.
         """
-        return [cls(token=t[0], logprob=t[1]) for t in data]
+        return cls(
+            token_id=data["i"],
+            token_str=data["st"],
+            token_bytes=base64.b64decode(data["b"]),
+            logprob=data["l"],
+            span=data["sp"],
+        )
+
+
+class SinglePositionTopLogprobs(list[SinglePositionToken]):
+    """
+    List of possible alternative tokens and their logprobs for a single token position, sorted by logprob descending.
+    """
 
     @classmethod
-    def to_list_of_tuples(cls, data: list["SinglePositionTokenLogprobs"]) -> list[tuple[str, float]]:
+    def from_list_of_dicts(cls, data: list[dict]) -> "SinglePositionTopLogprobs":
+        result = cls()
+        for entry in data:
+            result.append(SinglePositionToken.from_dict(entry))
+        return result
+
+    def to_list_of_dicts(self) -> list[dict]:
         """
-        Convert list of LLMPTokenLogProbs to list of (token, logprob) tuples.
+        Serialize each SinglePositionToken to a dict.
         """
-        return [(t.token, t.logprob) for t in data]
+        return [lp.to_dict() for lp in self]
 
 
-@runtime_checkable
-class CommonCompletionLogprobsProtocol(Protocol):
+@dataclass(frozen=True, slots=True)
+class SinglePositionTokenWithAlternatives:
+    """
+    Token ID and logprob for a single token position, along with top alternative tokens and their logprobs.
+    """
+    token: SinglePositionToken
+    top_logprobs: SinglePositionTopLogprobs
+
+
+class CompletionTopLogprobs(list[SinglePositionTopLogprobs]):
+    """
+    List of all token positions, each with alternative tokens for that position.
+    For i-th element, represents top alternative tokens and logprobs for i-th position in the completion.
+
+    If no top logprobs were calculated, this is an empty list.
+    """
+
+    @classmethod
+    def from_list_of_lists(cls, data: list[list]) -> "CompletionTopLogprobs":
+        result = cls()
+        for position_list in data:
+            top_logprobs = SinglePositionTopLogprobs.from_list_of_dicts(position_list)
+            result.append(top_logprobs)
+        return result
+
+    def to_list_of_lists(self) -> list[list]:
+        """
+        Serialize each position's top logprobs to a list of lists of dicts.
+        """
+        return [position.to_list_of_dicts() for position in self]
+
+    def to_dict_of_lists(self) -> dict[str, list[list]]:
+        """
+        Serialize to a dictionary of 2D lists for each attribute.
+
+        For efficient compression and storage in database.
+        """
+        result = {
+            "token_id": [],
+            "token_str": [],
+            "token_bytes": [],
+            "logprob_f16": [],
+            "span": [],
+        }
+        for position in self:
+            token_ids = []
+            token_strs = []
+            token_bytes = []
+            logprobs = []
+            spans = []
+            for token in position:
+                token_ids.append(token.token_id)
+                if is_equal_utf_8(token.token_bytes, token.token_str):
+                    token_strs.append(None)  # Save space by not storing redundant string
+                else:
+                    token_strs.append(token.token_str)
+                token_bytes.append(token.token_bytes)  # Expecting bytes-supporting storage
+                logprobs.append(struct.pack("e", token.logprob))  # Store as float16 for space efficiency
+                spans.append(token.span)
+            result["token_id"].append(token_ids)
+            result["token_str"].append(token_strs)
+            result["token_bytes"].append(token_bytes)
+            result["logprob_f16"].append(logprobs)
+            result["span"].append(spans)
+        return result
+
+    @classmethod
+    def from_dict_of_lists(cls, data: dict[str, list[list]]) -> "CompletionTopLogprobs":
+        """
+        Create CompletionTopLogprobs from a dictionary of 2D lists for each attribute.
+
+        For efficient compression and storage in database.
+        """
+        result = cls()
+        num_positions = len(data["token_id"])
+        for pos_idx in range(num_positions):
+            position = SinglePositionTopLogprobs()
+            token_ids = data["token_id"][pos_idx]
+            token_strs = data["token_str"][pos_idx]
+            token_bytes_list = data["token_bytes"][pos_idx]
+            logprobs = data["logprob_f16"][pos_idx]
+            spans = data["span"][pos_idx]
+            for i in range(len(token_ids)):
+                # Decode token bytes to string if necessary
+                token_str = token_strs[i] if token_strs[i] is not None else token_bytes_list[i].decode("utf-8", errors="replace")
+                token = SinglePositionToken(
+                    token_id=token_ids[i],
+                    token_str=token_str,
+                    token_bytes=token_bytes_list[i],
+                    logprob=struct.unpack("e", logprobs[i])[0],  # Unpack float16 to float32
+                    span=spans[i],
+                )
+                position.append(token)
+            result.append(position)
+        return result
+
+
+class CompletionTokenLogprobs(list[SinglePositionToken]):
+    """
+    List of all token positions, each with sampled token and its logprob.
+    Each element represents the actual token sampled at that position with it's logprob.
+    """
+
+    @classmethod
+    def from_list_of_dicts(cls, data: list[dict]) -> "CompletionTokenLogprobs":
+        """
+        Create SinglePositionToken list from dicts.
+        """
+        result = cls()
+        for entry in data:
+            result.append(SinglePositionToken.from_dict(entry))
+        return result
+
+    @classmethod
+    def from_stitched_tokens(cls, all_tokens: list[SinglePositionToken]) -> "CompletionTokenLogprobs":
+        """
+        Create CompletionTokenLogprobs from list of stitched together different sequences of SinglePositionToken.
+
+        Since we are stitching together multiple parts, we have to reconstruct spans and token_strs correctly.
+        """
+        result = cls()
+        # Amount of tokens stay same, we just reconstruct spans and token_strs
+        i = 0
+        while i < len(all_tokens):
+            token = all_tokens[i]
+            if token.is_eos:
+                result.append(token)
+                break  # We should never have any tokens after EOS, it's last sampled token
+            if is_equal_utf_8(token.token_bytes, token.token_str):
+                result.append(token)  # No need to reconstruct, already valid
+                i += 1
+                continue
+            else:
+                joined_bytes = token.token_bytes
+                token_str = None
+                span = None
+                for j in range(1, 4):  # Check up to 4 bytes for multibyte sequence
+                    if i + j >= len(all_tokens):
+                        break  # No more tokens to check
+                    joined_bytes += all_tokens[i + j].token_bytes
+                    token_str = try_decode_utf_8(joined_bytes)
+                    if token_str is not None:
+                        span = j + 1
+                        break
+                if token_str is None or span is None:
+                    # Failed to reconstruct valid UTF-8 sequence, fallback to original token
+                    logging.getLogger("CompletionTokenLogprobs").error(
+                        "Failed to reconstruct valid UTF-8 sequence starting with token ID %d, using original token_str.",
+                        token.token_id,
+                    )
+                    result.append(token)
+                    i += 1
+                    continue
+                # Reconstructed valid UTF-8 sequence
+                # Create new SinglePositionToken with reconstructed token_str and span
+                reconstructed_token = SinglePositionToken(
+                    token_id=token.token_id,
+                    token_str=token_str,
+                    token_bytes=token.token_bytes,
+                    logprob=token.logprob,
+                    span=span,
+                )
+                result.append(reconstructed_token)
+
+                # Skip continuation tokens
+                for k in range(1, span):
+                    if i + k < len(all_tokens):
+                        cont_token = all_tokens[i + k]
+                        if cont_token.is_eos:
+                            logging.getLogger("CompletionTokenLogprobs").error(
+                                "Unexpected EOS token in continuation of multi-byte sequence at token ID %d.",
+                                cont_token.token_id,
+                            )
+                            break
+                        # Add continuation token with span=0
+                        continuation = SinglePositionToken(
+                            token_id=cont_token.token_id,
+                            token_str="",
+                            token_bytes=cont_token.token_bytes,
+                            logprob=cont_token.logprob,
+                            span=0,
+                        )
+                        result.append(continuation)
+                i += span
+                continue
+        return result
+
+    def to_list_of_dicts(self) -> list[dict]:
+        """
+        Serialize each SinglePositionToken to a dict.
+        """
+        return [lp.to_dict() for lp in self]
+
+    def to_token_id_list(self) -> list[int]:
+        """
+        Convert to list of token IDs.
+        """
+        return [lp.token_id for lp in self]
+
+    def build_full_text(self) -> str:
+        """
+        Reconstruct full text from token_strs, taking spans into account.
+        """
+        text_parts = []
+        for token in self:
+            if token.span > 0:
+                text_parts.append(token.token_str)
+        return "".join(text_parts)
+
+
+class CommonCompletionLogprobs:
     """
     Protocol for logprobs associated with a completion and specific model_id.
     """
     logprobs_model_id: str  # Model ID for which these logprobs were generated.
-    logprobs: list[SinglePositionTokenLogprobs]  # List of token information and logprobs for each position.
-    min_logprob: float | None = None  # min(logprobs), minimal logprob of any token in response
-    avg_logprob: float | None = None  # average(logprobs), average logprob of all tokens in response
+    sampled_logprobs: CompletionTokenLogprobs  # Logprobs of sampled tokens, matching completion text.
+    alternative_logprobs: CompletionTopLogprobs  # List of top alternative tokens and their logprobs.
+    min_logprob: float | None = None  # min(sampled_logprobs), minimal logprob of any token in response
+    avg_logprob: float | None = None  # average(sampled_logprobs), average logprob of all tokens in response
 
-    def __iter__(self) -> Iterator[SinglePositionTokenLogprobs]:
-        """Iterate over logprobs."""
-        return iter(self.logprobs)
+    def __init__(self, logprobs_model_id: str, sampled_logprobs: CompletionTokenLogprobs, alternative_logprobs: CompletionTopLogprobs):
+        self.logprobs_model_id = logprobs_model_id
+        self.sampled_logprobs = sampled_logprobs
+        self.alternative_logprobs = alternative_logprobs
+        if sampled_logprobs:
+            logprob_values = [lp.logprob for lp in sampled_logprobs if lp.logprob is not None]
+            if logprob_values:
+                self.min_logprob = min(logprob_values)
+                self.avg_logprob = sum(logprob_values) / len(logprob_values)
+            else:
+                self.min_logprob = None
+                self.avg_logprob = None
+        else:
+            self.min_logprob = None
+            self.avg_logprob = None
 
-    @staticmethod
-    def iterable_over_dicts(data: list[dict]) -> Iterator[SinglePositionTokenLogprobs]:
+
+@dataclass(frozen=True, slots=True)
+class CompletionPrefill:
+    """
+    Unified representation of pre-generated completion text.
+
+    Key issue is that we may have native "model-generated" tokenization or not.
+    So this class unifies both cases, plain string and tokenized with logprobs.
+    """
+    prefill_text: str  # Full prefill text.
+    prefill_tokenized: CompletionTokenLogprobs | None = None  # Tokenized prefill with logprobs, if available.
+
+    @classmethod
+    def from_tokens(cls, *tokens: Iterable[SinglePositionToken]) -> "CompletionPrefill":
         """
-        Helper to iterate over list of dicts with keys 'token', 'logprob', 'top_logprobs' as SinglePositionTokenLogprobs.
+        Create CompletionPrefill from a sequence of iterables of SinglePositionToken.
         """
-        for entry in data:
-            yield SinglePositionTokenLogprobs(
-                token=entry.get("token", ""),
-                logprob=entry.get("logprob"),  # type: ignore
-                top_logprobs=entry.get("top_logprobs"),
-            )
+        token_strs = []
+        prefill_tokenized = CompletionTokenLogprobs()
+        for iterable in tokens:
+            for token in iterable:
+                if not isinstance(token, SinglePositionToken):
+                    raise ValueError("All items must be SinglePositionToken instances.")
+                token_strs.append(token.token_str)
+                prefill_tokenized.append(token)
+
+        prefill_text = "".join(token_strs)
+        return cls(prefill_text=prefill_text, prefill_tokenized=prefill_tokenized)
 
 
 @runtime_checkable
@@ -171,21 +455,26 @@ class CommonCompletionProtocol(Protocol):
     completion_text: str  # Full text of the completion.
     prefill: str | None  # Part of completion that wasn't generated, but artificially inserted manually or during beam expansion.
     beam_token: str | None  # Token at which beam tree was forked, if any.
+    temperature: float
+    top_k: int
     is_truncated: bool  # Whether the completion was truncated due to max tokens limit.
     is_archived: bool  # Whether this completion is archived and hidden by default.
 
-    def get_logprobs_for_model_id(self, model_id: str) -> CommonCompletionLogprobsProtocol | None:
+    def get_logprobs_for_model_id(self, model_id: str) -> CommonCompletionLogprobs | None:
         """
         Get logprobs for the given model ID, if available.
-        Returns `CommonCompletionLogprobsProtocol` compatible result or None if logprobs for the target model_id are not available.
+        Returns `CommonCompletionLogprobs` compatible result or None if logprobs for the target model_id are not available.
         """
         raise NotImplementedError
 
     def check_full_response_logprobs(self, target_model_id: str | None = None) -> bool:
         """
-        Check if logprobs cover the entire completion text.
+        Check if available token logprobs fully match the completion text.
+
         Go through logprobs and match tokens to completion_text.
         True if all tokens match and cover full text, False otherwise.
+
+        Take in account span semantics for multi-token strings.
         """
         if not target_model_id:
             target_model_id = self.model_id
@@ -194,19 +483,23 @@ class CommonCompletionProtocol(Protocol):
             return False
 
         resp_pos = 0
-        for lp in logprobs_entry:
+        for lp in logprobs_entry.sampled_logprobs:
             if lp.logprob is None:
-                logging.getLogger("LLMResponse").warning("Logprob is None, cannot match full response logprobs.")
+                logging.getLogger("CommonCompletionProtocol").warning("Logprob is None, cannot match full response logprobs.")
                 return False
+
+            if lp.span < 1:
+                continue  # Continuation token of multi-token string or special EOS token, skip
+
             # Check if token matches the response text at current position
-            if self.completion_text[resp_pos:resp_pos + len(lp.token)] != lp.token:
-                expected_text = self.completion_text[resp_pos:resp_pos + len(lp.token)]
-                logging.getLogger("LLMResponse").warning(
+            if self.completion_text[resp_pos:resp_pos + len(lp.token_str)] != lp.token_str:
+                expected_text = self.completion_text[resp_pos:resp_pos + len(lp.token_str)]
+                logging.getLogger("CommonCompletionProtocol").warning(
                     "Logprob token '%s' does not match response text at position %d, '%s'.",
-                    lp.token,
+                    lp.token_str,
                     resp_pos,
                     expected_text,
                 )
                 return False
-            resp_pos += len(lp.token)
+            resp_pos += len(lp.token_str)
         return resp_pos == len(self.completion_text)

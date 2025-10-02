@@ -32,6 +32,7 @@ from PyQt6.QtWidgets import (
 )
 
 from py_fade.dataset.completion import PromptCompletion
+from py_fade.dataset.completion_pairwise_ranks import PromptCompletionPairwiseRanking
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 
@@ -54,16 +55,8 @@ class ThreeWayCompletionEditorWindow(QDialog):
 
     completion_saved = pyqtSignal(PromptCompletion)
 
-    def __init__(
-        self,
-        app: "pyFadeApp",
-        dataset: "DatasetDatabase",
-        completion: PromptCompletion,
-        mode: EditorMode,
-        *,
-        facet: "Facet | None" = None,
-        parent: QWidget | None = None,
-    ) -> None:
+    def __init__(self, app: "pyFadeApp", dataset: "DatasetDatabase", completion: PromptCompletion, mode: EditorMode, *,
+                 facet: "Facet | None" = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.log = logging.getLogger(self.__class__.__name__)
         self.app = app
@@ -316,15 +309,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
             self.pairwise_checkbox.setChecked(True)
             self.pairwise_checkbox.setToolTip(f"Saving will prefer the new completion for facet '{facet.name}'.")
 
-    def _build_column(
-        self,
-        parent: QWidget,
-        *,
-        title: str,
-        background: str,
-        font: QFont,
-        read_only: bool,
-    ) -> QPlainTextEdit:
+    def _build_column(self, parent: QWidget, *, title: str, background: str, font: QFont, read_only: bool) -> QPlainTextEdit:
         """Create a single column within the splitter and return its editor."""
 
         column = QWidget(parent)
@@ -394,7 +379,9 @@ class ThreeWayCompletionEditorWindow(QDialog):
         return best_mapped_model
 
     def _on_generate_clicked(self) -> None:
-        """Ask the provider to continue the original completion."""
+        """
+        Ask the provider to continue the original completion.
+        """
 
         if (not self.original_completion or not self.prompt_edit or not self.original_edit or not self.new_edit):
             return
@@ -413,34 +400,35 @@ class ThreeWayCompletionEditorWindow(QDialog):
             )
             return
 
-        prompt_text = self.prompt_edit.toPlainText()
-        original_text = self.original_edit.toPlainText()
-
         # Get context length and max tokens from controls if available
         context_length = self.context_length_field.value() if self.context_length_field else self.original_completion.context_length
         max_tokens = self.max_tokens_field.value() if self.max_tokens_field else self.original_completion.max_tokens
 
-        # Parse the prompt text to get a CommonConversation object
-        prompt_conversation = parse_flat_prefix_string(prompt_text)
+        generation_controller = self.app.get_or_create_text_generation_controller(self.mapped_model,
+                                                                                  self.original_completion.prompt_revision,
+                                                                                  context_length=context_length, max_tokens=max_tokens)
+
+        if generation_controller is None:
+            self.log.error("Generation controller could not be created for model %s", self.mapped_model.model_id)
+            return
+
+        self._set_status("Generating continuation...")
 
         try:
-            response = self.mapped_model.generate(
-                prompt=prompt_conversation,
-                prefill=original_text,
-                temperature=self.original_completion.temperature,
-                top_k=self.original_completion.top_k,
-                context_length=context_length,
-                max_tokens=max_tokens,
-            )
+            response = generation_controller.generate_continuation(original_completion=self.original_completion, max_tokens=max_tokens,
+                                                                   context_length=context_length)
         except (RuntimeError, ValueError, ImportError) as exc:  # pragma: no cover - defensive logging
             self.log.error("Continuation generation failed: %s", exc)
             self._set_status(f"Generation failed: {exc}", error=True)
             return
+        if response is None:
+            self.log.error("Continuation generation returned no response for unknown reasons.")
+            self._set_status("Generation failed: no response", error=True)
+            return
 
-        combined_text = response.completion_text or ((response.prefill or "") + response.generated_part_text)
         self.generated_response = response
-        self._generated_text_cache = combined_text
-        self.new_edit.setPlainText(combined_text)
+        self._generated_text_cache = response.completion_text
+        self.new_edit.setPlainText(response.completion_text)
         self._set_status(f"Continuation generated with model {response.model_id}.")
         self._update_save_button_state()
 
@@ -465,31 +453,34 @@ class ThreeWayCompletionEditorWindow(QDialog):
             self._set_status("New completion text cannot be empty.", error=True)
             return
 
-        response = self.generated_response if self._generated_text_cache == new_text else None
+        if new_text == self._original_completion_text:
+            self._set_status("New completion text is identical to the original; no changes to save.", error=True)
+            return
+
         generation_role = self.mode == EditorMode.CONTINUATION
-        if generation_role and response is None:
-            self._set_status("Generated text was edited; saving as manual revision instead.")
+        was_edited = self._generated_text_cache != new_text
+        response = self.generated_response
+        if response and not was_edited and generation_role:
+            self.log.info("Saving generated continuation as-is.")
+            new_completion = PromptCompletion.get_or_create_from_llm_response(self.dataset, self.original_completion.prompt_revision,
+                                                                              response, parent_completion_id=self.original_completion.id)
+        else:  # Manual edit or edited after generation
+            if response and was_edited and generation_role:
+                self.log.info("Saving manually edited continuation.")
+            else:
+                self.log.info("Saving manual edit of original completion.")
 
-        model_id = response.model_id if response else "manual"
-        temperature = response.temperature if response else self.original_completion.temperature
-        top_k = response.top_k if response else self.original_completion.top_k
-        prefill = response.prefill if response else None
-        beam_token = response.beam_token if response else None
-        context_length = (response.context_length if response else self.original_completion.context_length)
-        max_tokens = response.max_tokens if response else self.original_completion.max_tokens
-        is_truncated = bool(response.is_truncated) if response else False
-
-        new_completion = self._persist_new_completion(
-            text=new_text,
-            model_id=model_id,
-            temperature=temperature,
-            top_k=top_k,
-            prefill=prefill,
-            beam_token=beam_token,
-            context_length=context_length,
-            max_tokens=max_tokens,
-            is_truncated=is_truncated,
-        )
+            new_completion = self._persist_new_completion(
+                text=new_text,
+                model_id="manual",
+                temperature=0.0,
+                top_k=1,
+                prefill=None,
+                beam_token=None,
+                context_length=0,
+                max_tokens=0,
+                is_truncated=False,
+            )
 
         if new_completion is None:
             return
@@ -505,19 +496,9 @@ class ThreeWayCompletionEditorWindow(QDialog):
         self._set_status("New completion saved.")
         self.accept()
 
-    def _persist_new_completion(
-        self,
-        *,
-        text: str,
-        model_id: str,
-        temperature: float,
-        top_k: int,
-        prefill: str | None,
-        beam_token: str | None,
-        context_length: int,
-        max_tokens: int,
-        is_truncated: bool,
-    ) -> PromptCompletion | None:
+    def _persist_new_completion(self, *, text: str, model_id: str, temperature: float, top_k: int, prefill: str | None,
+                                beam_token: str | None, context_length: int, max_tokens: int,
+                                is_truncated: bool) -> PromptCompletion | None:
         """Create and commit a new ``PromptCompletion`` record."""
 
         session = self.dataset.session if self.dataset else None
@@ -561,26 +542,8 @@ class ThreeWayCompletionEditorWindow(QDialog):
         if not self.active_facet or not self.dataset or not self.original_completion:
             return
 
-        preferred_rating = 10
-        discouraged_rating = 2
-        PromptCompletionRating.set_rating(
-            self.dataset,
-            new_completion,
-            self.active_facet,
-            preferred_rating,
-        )
-        PromptCompletionRating.set_rating(
-            self.dataset,
-            self.original_completion,
-            self.active_facet,
-            discouraged_rating,
-        )
-        self.log.debug(
-            "Facet '%s' preference recorded: new=%s original=%s",
-            self.active_facet.name,
-            preferred_rating,
-            discouraged_rating,
-        )
+        # Create new PromptCompletionPairwiseRanking record if not already existing for this facet and pair
+        PromptCompletionPairwiseRanking.get_or_create(self.dataset, new_completion, self.original_completion, self.active_facet)
 
     def _set_status(self, message: str, *, error: bool = False) -> None:
         """Update the status label and mirror the message to logs."""

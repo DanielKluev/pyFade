@@ -72,7 +72,7 @@ class WidgetSample(QWidget):
     sample_copied = pyqtSignal(object)  # Signal emitted when sample is copied
     completion_archive_toggled = pyqtSignal(object, bool)
     completion_resume_requested = pyqtSignal(object)
-    completion_evaluate_requested = pyqtSignal(object, str)
+    completion_evaluate_requested = pyqtSignal(object, object)
 
     def __init__(self, parent: QWidget | None, app: "pyFadeApp", sample: Sample | None = None):
         super().__init__(parent)
@@ -281,7 +281,7 @@ class WidgetSample(QWidget):
 
     def set_sample(self, sample: Sample | None):
         """Set the sample and populate UI with sample data."""
-        self.sample = sample
+        self.sample: Sample | None = sample
 
         if self.sample:
             # Existing sample - populate with actual data
@@ -403,10 +403,24 @@ class WidgetSample(QWidget):
         # Also emit the signal for backward compatibility in case any code depends on it
         self.completion_resume_requested.emit(completion)
 
-    def _on_completion_evaluate_requested(self, completion: "PromptCompletion", model_name: str) -> None:
-        """Emit an evaluate request for logprob generation."""
-
-        self.completion_evaluate_requested.emit(completion, model_name)
+    def _on_completion_evaluate_requested(self, completion: "PromptCompletion", mapped_model: MappedModel,
+                                          completion_frame: "CompletionFrame") -> None:
+        """
+        Emit an evaluate request for logprob generation.
+        """
+        if not self.app:
+            return
+        current_context_length = self.context_length_field.value()
+        max_context_length = max(current_context_length, completion.prompt_revision.context_length)
+        controller = self.app.get_or_create_text_generation_controller(
+            mapped_model,
+            completion.prompt_revision,
+            context_length=max_context_length,
+            max_tokens=completion.max_tokens,
+        )
+        controller.evaluate_completion_logprobs(completion, save=True)
+        completion_frame._update_status_icons()  # pylint: disable=protected-access
+        completion_frame._update_action_buttons()  # pylint: disable=protected-access
 
     def _on_completion_edit_requested(self, completion: "PromptCompletion") -> None:
         """Handle edit request for a completion - open ThreeWayCompletionEditorWindow."""
@@ -462,10 +476,12 @@ class WidgetSample(QWidget):
         if not self.app or not self.dataset or not self.dataset.session:
             raise RuntimeError("App or dataset not properly initialized.")
 
-        # Existing samples can have only title and group path updated
+        # Existing samples can have metadata updated, but not prompt
         if self.sample and self.sample.id:
             self.sample.title = self.title_field.text().strip()
             self.sample.group_path = self.group_field.currentText().strip() or None
+            self.sample.prompt_revision.context_length = self.context_length_field.value()
+            self.sample.prompt_revision.max_tokens = self.max_tokens_field.value()
             self.dataset.session.commit()
         else:
             # Create new sample with current prompt

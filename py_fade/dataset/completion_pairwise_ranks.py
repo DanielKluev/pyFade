@@ -22,48 +22,50 @@ class PromptCompletionPairwiseRanking(dataset_base):
     """Persistent pairwise ranking for two completions scoped to a specific facet."""
 
     __tablename__ = "prompt_completion_pairwise_rankings"
-    __table_args__ = (
-        UniqueConstraint(
-            "better_completion_id",
-            "worse_completion_id",
-            "facet_id",
-            name="uq_prompt_completion_pairwise_rankings_better_worse_facet",
-        ),
-    )
+    __table_args__ = (UniqueConstraint(
+        "better_completion_id",
+        "worse_completion_id",
+        "facet_id",
+        name="uq_prompt_completion_pairwise_rankings_better_worse_facet",
+    ),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    better_completion_id: Mapped[int] = mapped_column(
-        ForeignKey("prompt_completions.id"), nullable=False
-    )
-    better_completion: Mapped["PromptCompletion"] = relationship(
-        "PromptCompletion", foreign_keys=[better_completion_id], back_populates="better_rankings"
-    )
-    worse_completion_id: Mapped[int] = mapped_column(
-        ForeignKey("prompt_completions.id"), nullable=False
-    )
-    worse_completion: Mapped["PromptCompletion"] = relationship(
-        "PromptCompletion", foreign_keys=[worse_completion_id], back_populates="worse_rankings"
-    )
+    better_completion_id: Mapped[int] = mapped_column(ForeignKey("prompt_completions.id"), nullable=False)
+    better_completion: Mapped["PromptCompletion"] = relationship("PromptCompletion", foreign_keys=[better_completion_id])
+    worse_completion_id: Mapped[int] = mapped_column(ForeignKey("prompt_completions.id"), nullable=False)
+    worse_completion: Mapped["PromptCompletion"] = relationship("PromptCompletion", foreign_keys=[worse_completion_id])
     facet_id: Mapped[int] = mapped_column(ForeignKey("facets.id"), nullable=False)
-    facet: Mapped["Facet"] = relationship("Facet", back_populates="completion_pairwise_rankings")
+    facet: Mapped["Facet"] = relationship("Facet")
 
     @classmethod
-    def get(
-        cls,
-        dataset: "DatasetDatabase",
-        better_completion: "PromptCompletion",
-        worse_completion: "PromptCompletion",
-        facet: "Facet",
-    ) -> "PromptCompletionPairwiseRanking | None":
-        """Return the existing pairwise ranking for *better_completion*, *worse_completion* and *facet*, if any."""
+    def get(cls, dataset: "DatasetDatabase", better_completion: "PromptCompletion", worse_completion: "PromptCompletion",
+            facet: "Facet") -> "PromptCompletionPairwiseRanking | None":
+        """
+        Return the existing pairwise ranking for *better_completion*, *worse_completion* and *facet*, if any.
+        """
 
         session = get_session_with_assertion(dataset)
-        return (
-            session.query(cls)
-            .filter_by(
+        return (session.query(cls).filter_by(
+            better_completion=better_completion,
+            worse_completion=worse_completion,
+            facet=facet,
+        ).first())
+
+    @classmethod
+    def get_or_create(cls, dataset: "DatasetDatabase", better_completion: "PromptCompletion", worse_completion: "PromptCompletion",
+                      facet: "Facet") -> "PromptCompletionPairwiseRanking":
+        """
+        Get or create the pairwise ranking for *better_completion*, *worse_completion* and *facet*.
+        """
+
+        session = get_session_with_assertion(dataset)
+        instance = cls.get(dataset, better_completion, worse_completion, facet)
+        if instance is None:
+            instance = cls(
                 better_completion=better_completion,
                 worse_completion=worse_completion,
                 facet=facet,
             )
-            .first()
-        )
+            session.add(instance)
+            session.commit()
+        return instance

@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
 )
 
 from py_fade.controllers.text_generation_controller import TextGenerationController
+from py_fade.data_formats.base_data_classes import SinglePositionToken, SinglePositionTopLogprobs
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.gui.components.widget_token_picker import WidgetTokenPicker
 from py_fade.gui.components.widget_completion import CompletionFrame
@@ -51,7 +52,7 @@ class BeamGenerationWorker(QThread):
         prefill: str = "",
         width: int = 3,
         depth: int = 20,
-        beam_tokens: list[tuple[str, float]] | None = None,
+        beam_tokens: list[SinglePositionToken] | None = None,
         temperature: float = 0.7,
         top_k: int = 40,
         context_length: int = 1024,
@@ -68,6 +69,8 @@ class BeamGenerationWorker(QThread):
         self.top_k = top_k
         self.context_length = context_length
         self.max_tokens = max_tokens
+        if self.beam_tokens:
+            self.width = len(self.beam_tokens)  # Override width to match number of selected tokens
 
     def run(self):
         """Execute beam generation and emit progress signals."""
@@ -171,7 +174,7 @@ class WidgetCompletionBeams(QWidget):
         params_layout.addWidget(self.model_combo, 0, 3)
         # Freeze self.model_combo to the provided mapped_model
         if self.mapped_model:
-            index = self.model_combo.findText(self.mapped_model.model_id)
+            index = self.model_combo.findText(self.mapped_model.path)
             if index >= 0:
                 self.model_combo.setCurrentIndex(index)
             self.model_combo.setEnabled(False)  # Disable changing model in beam widget
@@ -331,7 +334,7 @@ class WidgetCompletionBeams(QWidget):
         except (RuntimeError, ValueError) as exc:
             self.status_label.setText(f"Error: {exc}")
 
-    def _show_token_picker(self, token_logprobs: list[tuple[str, float]]):
+    def _show_token_picker(self, token_logprobs: SinglePositionTopLogprobs):
         """Show token picker window with given tokens."""
         # NOTE: consider extracting dialog creation into WidgetTokenPicker helper.
         # Create token picker dialog
@@ -348,7 +351,7 @@ class WidgetCompletionBeams(QWidget):
         # Create token picker widget
         token_picker = WidgetTokenPicker(
             dialog,
-            token_logprobs,  # type: ignore[arg-type]
+            token_logprobs,
             multi_select=True,
         )
         layout.addWidget(token_picker)
@@ -360,7 +363,7 @@ class WidgetCompletionBeams(QWidget):
         self.token_picker_window = dialog
         dialog.exec()
 
-    def _on_tokens_selected(self, selected_tokens: list[tuple[str, float]], *, dialog: QDialog) -> None:
+    def _on_tokens_selected(self, selected_tokens: list[SinglePositionToken], *, dialog: QDialog) -> None:
         """Handle token selection and start beam generation."""
         dialog.accept()  # Close the dialog
 
@@ -371,7 +374,7 @@ class WidgetCompletionBeams(QWidget):
         # Start beam generation with selected tokens
         self._generate_beams_with_tokens(selected_tokens)
 
-    def _generate_beams_with_tokens(self, beam_tokens: list[tuple[str, float]]):
+    def _generate_beams_with_tokens(self, beam_tokens: list[SinglePositionToken]):
         """Generate beams using the selected tokens."""
         # Clear previous results
         self.clear_beam_results()

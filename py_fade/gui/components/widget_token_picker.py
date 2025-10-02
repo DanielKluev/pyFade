@@ -13,7 +13,13 @@ from PyQt6.QtWidgets import (
 )
 
 from py_fade.gui.auxillary.aux_logprobs_to_color import logprob_to_qcolor
-from py_fade.providers.llm_response import SinglePositionTokenLogprobs
+from py_fade.data_formats.base_data_classes import SinglePositionToken, SinglePositionTopLogprobs
+
+SYMBOLS_MAP = {
+    " ": "␣",
+    "\n": "⏎",
+    "\t": "→",
+}
 
 
 class WidgetTokenPicker(QWidget):
@@ -30,28 +36,19 @@ class WidgetTokenPicker(QWidget):
     """
 
     tokens_selected = pyqtSignal(list)  # Signal emitted with list of selected tokens
-    tokens: list[tuple[str, float]]  # List of (token, logprob) tuples
-    tokens_map: dict[str, tuple[str, float]]  # Token -> (token, logprob) tuple for quick lookup
+    tokens: SinglePositionTopLogprobs  # List of (token, logprob) tuples
+    tokens_map: dict[int, SinglePositionToken]  # Token_id -> SinglePositionToken
+    multi_select: bool  # Whether multi-select mode is enabled
 
-    def __init__(
-        self,
-        parent: QWidget | None,
-        tokens: list[SinglePositionTokenLogprobs | tuple[str, float]],
-        multi_select: bool = False,
-    ):
+    def __init__(self, parent: QWidget | None, tokens: SinglePositionTopLogprobs, multi_select: bool = False):
         super().__init__(parent)
         self.log = logging.getLogger(self.__class__.__name__)
         self.multi_select = multi_select
-        self.selected_tokens: set[tuple[str, float]] = set()
-        if tokens and isinstance(tokens[0], tuple):
-            self.tokens = list(tokens)  # type: ignore # list of (str, float) tuples
-        elif tokens and isinstance(tokens[0], SinglePositionTokenLogprobs):
-            self.tokens = SinglePositionTokenLogprobs.to_list_of_tuples(tokens)  # type: ignore # already LLMPTokenLogProbs
-        else:
-            raise ValueError("tokens must be a list of LLMPTokenLogProbs or list of (str, float) tuples")
-        self.tokens.sort(key=lambda x: x[1], reverse=True)  # sort by logprob descending
+        self.selected_tokens: set[int] = set()
+        self.tokens = tokens
+        #self.tokens.sort(key=lambda x: x[1], reverse=True)  # sort by logprob descending
         self.log.info("[ > ] Token picker with tokens:\n\t%s", self.tokens)
-        self.tokens_map = {t[0]: t for t in self.tokens}
+        self.tokens_map = {t.token_id: t for t in self.tokens}
 
         self.token_widgets: list[QWidget] = []  # Keep references to token widgets
 
@@ -99,11 +96,11 @@ class WidgetTokenPicker(QWidget):
         row = 0
         col = 0
 
-        for token, logprob in self.tokens:
+        for token in self.tokens:
             if self.multi_select:
-                widget = self._create_checkbox_token(token, logprob)
+                widget = self._create_checkbox_token(token)
             else:
-                widget = self._create_button_token(token, logprob)
+                widget = self._create_button_token(token)
 
             self.token_widgets.append(widget)
             self.tokens_grid.addWidget(widget, row, col)
@@ -113,13 +110,20 @@ class WidgetTokenPicker(QWidget):
                 col = 0
                 row += 1
 
-    def _create_button_token(self, token: str, logprob: float) -> QPushButton:
+    def _sanitize_token_display(self, token_str: str) -> str:
+        """Sanitize token for display, replacing special characters."""
+        for symbol, replacement in SYMBOLS_MAP.items():
+            token_str = token_str.replace(symbol, replacement)
+        return token_str
+
+    def _create_button_token(self, token: SinglePositionToken) -> QPushButton:
         """Create a button widget for single-select mode."""
-        button = QPushButton(f"{token}\n({logprob:.2f})")
+        token_str = self._sanitize_token_display(token.token_str)
+        button = QPushButton(f"{token_str} [{token.logprob:.2f}]")
         button.setCheckable(True)
 
         # Set color based on logprob
-        color = logprob_to_qcolor(logprob)
+        color = logprob_to_qcolor(token.logprob)
         button.setStyleSheet(f"""
             QPushButton {{
                 background-color: {color.name()};
@@ -144,12 +148,13 @@ class WidgetTokenPicker(QWidget):
         button.clicked.connect(lambda checked, t=token: self._on_single_select(t, checked))
         return button
 
-    def _create_checkbox_token(self, token: str, logprob: float) -> QWidget:
+    def _create_checkbox_token(self, token: SinglePositionToken) -> QWidget:
         """Create a checkbox widget for multi-select mode."""
-        checkbox = QCheckBox(f"{token} ({logprob:.2f})")
+        token_str = self._sanitize_token_display(token.token_str)
+        checkbox = QCheckBox(f"{token_str} [{token.logprob:.2f}]")
 
         # Set color based on logprob
-        color = logprob_to_qcolor(logprob)
+        color = logprob_to_qcolor(token.logprob)
         checkbox.setStyleSheet(f"""
             QCheckBox {{
                 background-color: {color.name()};
@@ -174,7 +179,7 @@ class WidgetTokenPicker(QWidget):
         checkbox.stateChanged.connect(lambda state, t=token: self._on_multi_select(t, state == Qt.CheckState.Checked.value))
         return checkbox
 
-    def _on_single_select(self, token: str, checked: bool):
+    def _on_single_select(self, token: SinglePositionToken, checked: bool):
         """Handle single-select token selection."""
         if checked:
             # Uncheck all other buttons
@@ -186,27 +191,32 @@ class WidgetTokenPicker(QWidget):
                         widget.setChecked(False)
 
             self.selected_tokens.clear()
-            self.selected_tokens.add(self.tokens_map[token])
+            self.selected_tokens.add(token.token_id)
             # Emit immediately for single-select
             self._emit_selection()
         else:
-            self.selected_tokens.discard(self.tokens_map[token])
+            self.selected_tokens.discard(token.token_id)
 
-    def _on_multi_select(self, token: str, checked: bool):
+    def _on_multi_select(self, token: SinglePositionToken, checked: bool):
         """Handle multi-select token selection."""
         if checked:
-            self.selected_tokens.add(self.tokens_map[token])
+            self.selected_tokens.add(token.token_id)
         else:
-            self.selected_tokens.discard(self.tokens_map[token])
+            self.selected_tokens.discard(token.token_id)
 
     def _emit_selection(self):
         """Emit the tokens_selected signal with current selection."""
-        selected_list = list(self.selected_tokens)
+        selected_list = self.get_selected_tokens()
+        self.log.info("Emitting selected tokens: %s", selected_list)
         self.tokens_selected.emit(selected_list)
 
-    def get_selected_tokens(self) -> list[tuple[str, float]]:
+    def get_selected_tokens(self) -> list[SinglePositionToken]:
         """Get the currently selected tokens."""
-        return list(self.selected_tokens)
+        result = []
+        for token_id in self.selected_tokens:
+            if token_id in self.tokens_map:
+                result.append(self.tokens_map[token_id])
+        return result
 
     def clear_selection(self):
         """Clear the current selection."""
