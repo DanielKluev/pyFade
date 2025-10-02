@@ -1,5 +1,9 @@
 """
 Widget for editing completion text with formatting and highlighting capabilities.
+
+This module provides a custom QTextEdit widget that properly handles text highlighting
+for emoji and multi-byte Unicode characters by using Qt's native UTF-16 text positioning
+instead of Python string indexing.
 """
 
 from __future__ import annotations
@@ -26,6 +30,10 @@ BEAM_TOKEN_COLOR = QColor("#C5E1A5")
 class CompletionTextEdit(QTextEdit):
     """
     Custom QTextEdit that supports prefill, beam token and heatmap highlighting.
+
+    This widget properly handles emoji and multi-byte Unicode characters by using
+    Qt's document.find() and QTextCursor methods for text positioning, which work
+    with UTF-16 code units instead of Python's Unicode code points.
     """
     _completion: CommonCompletionProtocol | None = None
     _logprobs: CommonCompletionLogprobs | None = None
