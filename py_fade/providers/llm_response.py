@@ -110,9 +110,9 @@ class LLMResponse(CommonCompletionProtocol):
         """
         Create LLMResponse from PromptCompletion and associated PromptCompletionLogprobs.
         """
-        if not logprobs.logprobs or len(logprobs.logprobs) == 0:
-            raise ValueError("PromptCompletionLogprobs does not contain logprobs.")
-        llm_response_logprobs = logprobs.to_llm_response_logprobs()
+        if not logprobs.sampled_logprobs:
+            raise ValueError("Missing sampled_logprobs in provided PromptCompletionLogprobs.")
+        llm_response_logprobs = logprobs
 
         return cls(
             model_id=logprobs.logprobs_model_id,

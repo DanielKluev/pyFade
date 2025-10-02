@@ -4,7 +4,7 @@ import logging
 
 from tiktoken import get_encoding
 
-from py_fade.data_formats.base_data_classes import CommonConversation, CommonCompletionLogprobs, CommonCompletionProtocol
+from py_fade.data_formats.base_data_classes import CommonConversation, CommonCompletionLogprobs, CommonCompletionProtocol, CompletionPrefill
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 from py_fade.providers.llm_response import LLMResponse
 
@@ -54,7 +54,7 @@ class BasePrefillAwareProvider:
             messages.append({"role": "assistant", "content": prefill})
         return messages
 
-    def generate(self, model_id: str, prompt: CommonConversation, prefill: str | None = None, **kwargs) -> LLMResponse:
+    def generate(self, model_id: str, prompt: CommonConversation, prefill: CompletionPrefill | None = None, **kwargs) -> LLMResponse:
         """
         Generate completion for the given prompt using the specified model.
         
@@ -62,7 +62,8 @@ class BasePrefillAwareProvider:
         """
         raise NotImplementedError("Subclasses must implement the generate method.")
 
-    def evaluate_completion(self, model_id: str, prompt: CommonConversation, completion: str, **kwargs) -> CommonCompletionLogprobs:
+    def evaluate_completion(self, model_id: str, prompt: CommonConversation, completion: CompletionPrefill,
+                            **kwargs) -> CommonCompletionLogprobs:
         """
         Evaluate a given completion for given prompt by bound model.
 

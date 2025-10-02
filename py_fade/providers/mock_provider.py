@@ -42,8 +42,8 @@ from py_fade.providers.base_provider import (
     LOGPROB_LEVEL_TOP_LOGPROBS,
     BasePrefillAwareProvider,
 )
-from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMResponse, LLMResponseLogprobs
-from py_fade.data_formats.base_data_classes import CommonConversation
+from py_fade.providers.llm_response import LLMResponse, LLMResponseLogprobs
+from py_fade.data_formats.base_data_classes import CommonConversation, SinglePositionToken, SinglePositionTokenWithAlternatives
 
 _GPT2_ENCODING = tiktoken.get_encoding("gpt2")
 
@@ -126,7 +126,7 @@ def _canonicalize_messages(messages: Sequence[dict[str, str]]) -> str:
     return "\n".join(parts)
 
 
-class MockResponseGenerator(Iterator[SinglePositionTokenLogprobs]):
+class MockResponseGenerator(Iterator[SinglePositionTokenWithAlternatives]):
     """Deterministic mock response generator used by :class:`MockLLMProvider`.
 
     The generator precomputes a greedy tokenization of the combined
@@ -137,14 +137,8 @@ class MockResponseGenerator(Iterator[SinglePositionTokenLogprobs]):
     ``llama-cpp`` integrations.
     """
 
-    def __init__(
-        self,
-        messages: Sequence[dict[str, str]],
-        prefill: str,
-        max_length: int,
-        top_logprobs: int,
-        forced_response_text: str | None = None,
-    ) -> None:
+    def __init__(self, messages: Sequence[dict[str, str]], prefill: str, max_length: int, top_logprobs: int,
+                 forced_response_text: str | None = None) -> None:
         self.messages = [{
             "role": message.get("role", "user"),
             "content": message.get("content", ""),
@@ -178,7 +172,7 @@ class MockResponseGenerator(Iterator[SinglePositionTokenLogprobs]):
     def __iter__(self) -> "MockResponseGenerator":
         return self
 
-    def __next__(self) -> SinglePositionTokenLogprobs:
+    def __next__(self) -> SinglePositionTokenWithAlternatives:
         if self.limit is not None and self._position >= self.limit:
             if self._position < len(self._streaming_specs):
                 self.was_truncated = True

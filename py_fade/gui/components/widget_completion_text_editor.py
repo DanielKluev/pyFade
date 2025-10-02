@@ -10,7 +10,7 @@ from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor, QMouseEvent
 from PyQt6.QtWidgets import QTextEdit, QToolTip, QWidget
 
 from py_fade.gui.auxillary import logprob_to_qcolor
-from py_fade.data_formats.base_data_classes import CommonCompletionProtocol, CommonCompletionLogprobsProtocol, SinglePositionTokenLogprobs
+from py_fade.data_formats.base_data_classes import CommonCompletionProtocol, CommonCompletionLogprobs, SinglePositionToken
 
 if TYPE_CHECKING:
     from py_fade.gui.components.widget_completion import CompletionFrame
@@ -28,23 +28,22 @@ class CompletionTextEdit(QTextEdit):
     Custom QTextEdit that supports prefill, beam token and heatmap highlighting.
     """
     _completion: CommonCompletionProtocol | None = None
-    _logprobs: CommonCompletionLogprobsProtocol | None = None
+    _logprobs: CommonCompletionLogprobs | None = None
     is_heatmap_mode: bool = False  # Whether to show logprob heatmap or prefill/beam highlights
 
     def __init__(self, completion_frame: 'CompletionFrame', parent: QWidget | None = None):
         super().__init__(parent)
         self.log = logging.getLogger("CompletionTextEdit")
         self.completion_frame = completion_frame
-        self._token_positions_cache: list[tuple[int, int, SinglePositionTokenLogprobs]] = [
-        ]  # List of (start_pos, end_pos, SinglePositionTokenLogprobs)
+        self._token_positions_cache: list[tuple[int, int, SinglePositionToken]] = []
 
-    def update_heatmap_cache(self, logprobs_data: CommonCompletionLogprobsProtocol, text: str) -> None:
+    def update_heatmap_cache(self, logprobs_data: CommonCompletionLogprobs, text: str) -> None:
         """Update cached token positions for tooltip lookups."""
         self._token_positions_cache = []
 
         text_pos = 0
-        for token_data in logprobs_data:
-            token = token_data.token
+        for token_data in logprobs_data.sampled_logprobs:
+            token = token_data.token_str
             logprob = token_data.logprob
 
             if not token or logprob is None:
@@ -82,7 +81,7 @@ class CompletionTextEdit(QTextEdit):
         for start_pos, end_pos, token_data in self._token_positions_cache:
             if start_pos <= cursor_pos < end_pos:
                 # Show tooltip with logprob value
-                tooltip_text = f"Token: '{token_data.token}', logprob: {token_data.logprob:.4f}"
+                tooltip_text = f"Token: '{token_data.token_str}', logprob: {token_data.logprob:.4f}"
                 QToolTip.showText(event.globalPosition().toPoint(), tooltip_text, self)
                 return
 
@@ -98,7 +97,7 @@ class CompletionTextEdit(QTextEdit):
         self.is_heatmap_mode = False
         self._update_text_display()
 
-    def set_logprobs(self, logprobs: CommonCompletionLogprobsProtocol | None) -> None:
+    def set_logprobs(self, logprobs: CommonCompletionLogprobs | None) -> None:
         """
         Cache logprobs for heatmap highlighting.
         """
@@ -192,8 +191,8 @@ class CompletionTextEdit(QTextEdit):
         document_cursor = self.textCursor()
         text_pos = 0
 
-        for token_data in logprobs_data:
-            token = token_data.token
+        for token_data in logprobs_data.sampled_logprobs:
+            token = token_data.token_str
             logprob = token_data.logprob
 
             # Find token position in text
