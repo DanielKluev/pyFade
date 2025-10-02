@@ -7,9 +7,9 @@ import pathlib
 
 from ollama import ChatResponse, chat
 
-from py_fade.data_formats.base_data_classes import CommonConversation, CommonMessage
+from py_fade.data_formats.base_data_classes import CommonConversation, CommonMessage, CommonCompletionLogprobs, CompletionPrefill
 from py_fade.providers.base_provider import LOGPROB_LEVEL_NONE, BasePrefillAwareProvider
-from py_fade.providers.llm_response import SinglePositionTokenLogprobs, LLMResponse
+from py_fade.providers.llm_response import LLMResponse
 
 
 class OllamaRegistry:
@@ -101,7 +101,7 @@ class PrefillAwareOllama(BasePrefillAwareProvider):
         self.log = logging.getLogger("PrefillAwareOllama")
         super().__init__(default_temperature, default_top_k, default_context_length, default_max_tokens)
 
-    def generate(self, model_id: str, prompt: str, prefill: str | None = None, **kwargs) -> LLMResponse:
+    def generate(self, model_id: str, prompt: CommonConversation, prefill: CompletionPrefill | None = None, **kwargs) -> LLMResponse:
         """
         We generate a completion using the Ollama API, optionally with a prefill.
         If prefill is provided, we insert it as a start of assistant response.
@@ -162,7 +162,8 @@ class PrefillAwareOllama(BasePrefillAwareProvider):
             max_tokens=max_tokens,
         )
 
-    def evaluate_completion(self, model_id: str, prompt: str, completion: str, **kwargs) -> list[SinglePositionTokenLogprobs]:
+    def evaluate_completion(self, model_id: str, prompt: CommonConversation, completion: CompletionPrefill,
+                            **kwargs) -> CommonCompletionLogprobs:
         """
         Ollama does not provide token-level log probabilities, so we raise an exception.
         """
