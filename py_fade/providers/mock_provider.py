@@ -44,7 +44,7 @@ from py_fade.providers.base_provider import (
 )
 from py_fade.providers.llm_response import LLMResponse
 from py_fade.data_formats.base_data_classes import (CommonConversation, CommonCompletionLogprobs, CompletionTokenLogprobs,
-                                                    CompletionTopLogprobs, SinglePositionToken, SinglePositionTopLogprobs)
+                                                    CompletionTopLogprobs, SinglePositionToken)
 
 _GPT2_ENCODING = tiktoken.get_encoding("gpt2")
 
@@ -127,7 +127,7 @@ def _canonicalize_messages(messages: Sequence[dict[str, str]]) -> str:
     return "\n".join(parts)
 
 
-class MockResponseGenerator(Iterator[SinglePositionTokenWithAlternatives]):
+class MockResponseGenerator(Iterator[SinglePositionToken]):
     """Deterministic mock response generator used by :class:`MockLLMProvider`.
 
     The generator precomputes a greedy tokenization of the combined

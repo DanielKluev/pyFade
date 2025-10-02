@@ -144,6 +144,8 @@ class PromptCompletionLogprobs(dataset_base, CommonCompletionLogprobs):
             min_logprob = logprobs.min_logprob
             avg_logprob = logprobs.avg_logprob
 
+            # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
+            # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
             instance = cls(
                 prompt_completion_id=completion.id,
                 logprobs_model_id=model_id,
@@ -154,6 +156,7 @@ class PromptCompletionLogprobs(dataset_base, CommonCompletionLogprobs):
                 min_logprob=min_logprob,
                 avg_logprob=avg_logprob,
             )
+            # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
             dataset.session.add(instance)
             dataset.session.commit()
         return instance

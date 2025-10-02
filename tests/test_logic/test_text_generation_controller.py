@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 
 from py_fade.controllers.text_generation_controller import CompletionPrefix
 from py_fade.providers.llm_response import LLMResponse
-from py_fade.data_formats.base_data_classes import CompletionTokenLogprobs, CompletionTopLogprobs
+from py_fade.data_formats.base_data_classes import CommonCompletionLogprobs, CompletionTokenLogprobs, CompletionTopLogprobs
 from tests.helpers.data_helpers import create_test_single_position_token
 
 if TYPE_CHECKING:
@@ -39,7 +39,6 @@ def test_completion_prefix_creation():
 def test_completion_prefix_from_response():
     """Test extracting CompletionPrefix from LLMResponse."""
     # Create a mock LLMResponse with proper logprobs
-    from py_fade.data_formats.base_data_classes import CommonCompletionLogprobs, CommonConversation, CommonMessage
     response = MagicMock(spec=LLMResponse)
     response.completion_text = "Hello world and more"
     response.check_full_response_logprobs.return_value = True
@@ -68,7 +67,6 @@ def test_completion_prefix_from_response():
 
 def test_completion_prefix_from_response_mismatch():
     """Test that CompletionPrefix extraction fails with mismatched prefix."""
-    from py_fade.data_formats.base_data_classes import CommonCompletionLogprobs
     response = MagicMock(spec=LLMResponse)
     response.completion_text = "Hello world"
     response.check_full_response_logprobs.return_value = True

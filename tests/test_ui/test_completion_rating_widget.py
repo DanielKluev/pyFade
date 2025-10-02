@@ -23,8 +23,9 @@ from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_dataset_top import WidgetDatasetTop
 from py_fade.gui.widget_sample import WidgetSample
+from py_fade.data_formats.base_data_classes import CompletionTopLogprobs
 from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow
-from tests.helpers.data_helpers import create_test_completion
+from tests.helpers.data_helpers import create_test_single_position_token, create_test_completion
 from tests.helpers.ui_helpers import setup_test_app_with_fake_home
 
 if TYPE_CHECKING:
@@ -453,10 +454,10 @@ def test_evaluate_button_respects_logprob_availability(
     session = temp_dataset.session
     assert session is not None
     # Create proper logprobs using SinglePositionToken
-    from tests.helpers.data_helpers import create_test_single_position_token
-    from py_fade.data_formats.base_data_classes import CompletionTokenLogprobs, CompletionTopLogprobs
     sampled_logprobs_list = [create_test_single_position_token("a", -1.0).to_dict()]
     alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
+    # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
+    # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
     session.add(
         PromptCompletionLogprobs(
             prompt_completion_id=completion.id,
@@ -466,6 +467,7 @@ def test_evaluate_button_respects_logprob_availability(
             min_logprob=-1.0,
             avg_logprob=-1.0,
         ))
+    # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
     session.commit()
     session.refresh(completion)
 
