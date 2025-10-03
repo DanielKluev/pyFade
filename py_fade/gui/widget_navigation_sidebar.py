@@ -204,11 +204,10 @@ class WidgetNavigationTree(QWidget):
         Under each facet, samples are grouped by their group_path.
         Samples without any facet ratings go under "No Facet" node.
         """
-        if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         # Get all facets
-        facets = dataset.session.query(Facet).all()
+        session = dataset.get_session()
+        facets = session.query(Facet).all()
 
         # Apply search filter to facets if present
         search_value: str | None = None
@@ -296,9 +295,9 @@ class WidgetNavigationTree(QWidget):
 
     def _populate_facets(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
         """Populate tree with facets."""
-        if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
-        facets = dataset.session.query(Facet).all()
+
+        session = dataset.get_session()
+        facets = session.query(Facet).all()
 
         search_value: str | None = None
         for criteria in getattr(data_filter, "filters", []):
@@ -323,8 +322,6 @@ class WidgetNavigationTree(QWidget):
 
     def _populate_tags(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
         """Populate tree with tags."""
-        if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         tags = Tag.get_all(dataset)
 
@@ -373,9 +370,6 @@ class WidgetNavigationTree(QWidget):
 
     def _populate_export_templates(self, data_filter: DataFilter, dataset: "DatasetDatabase") -> None:
         """Populate tree with export templates stored in the dataset."""
-
-        if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         templates = ExportTemplate.get_all(dataset)
 
@@ -485,33 +479,50 @@ class WidgetNavigationSidebar(QWidget):
         self.setMaximumWidth(400)
 
     def connect_signals(self):
-        """Connect internal signals."""
+        """
+        Connect internal signals.
+        """
+
         self.filter_panel.filter_changed.connect(self._on_filter_changed)
         self.tree_view.item_selected.connect(self.item_selected.emit)
         self.tree_view.new_item_requested.connect(self.new_item_requested.emit)
 
     def set_dataset(self, dataset: "DatasetDatabase"):
-        """Set the dataset to display in the navigation."""
+        """
+        Set the dataset to display in the navigation.
+        """
+
         self.dataset = dataset
         self._refresh_content()
 
     def refresh(self) -> None:
-        """Public helper to refresh the tree based on current filters."""
+        """
+        Public helper to refresh the tree based on current filters.
+        """
 
         self._refresh_content()
 
     def _on_filter_changed(self):
-        """Handle filter criteria change."""
+        """
+        Handle filter criteria change.
+        """
+
         self._refresh_content()
 
     def _refresh_content(self):
-        """Refresh the tree content based on current filter criteria."""
+        """
+        Refresh the tree content based on current filter criteria.
+        """
+
         if self.dataset:
             filter_criteria = self.filter_panel.get_filter_criteria()
             self.tree_view.update_content(filter_criteria, self.dataset)
 
     def set_current_facet(self, facet: Facet | None):
-        """Highlight the provided facet and switch view to facet listing."""
+        """
+        Highlight the provided facet and switch view to facet listing.
+        """
+
         target_id = facet.id if facet else None
         if target_id == self._current_facet_id:
             return
