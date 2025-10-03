@@ -365,8 +365,48 @@ class WidgetSample(QWidget):
 
         return frame
 
+    def _sort_completions_by_rating_and_logprob(self, completions: list["PromptCompletion"]) -> list["PromptCompletion"]:
+        """
+        Sort completions by rating (descending) and scored_logprob (descending).
+        
+        Completions are sorted by:
+        1. Rating for active facet (higher rated completions first, 0 rating is considered no rating)
+        2. Within each rating group, by scored_logprob for active model (higher scores first)
+        3. Completions without logprobs appear after those with logprobs
+        """
+
+        def sort_key(completion: "PromptCompletion") -> tuple[int, float, float]:
+            # Get rating for active facet (default to 0 if no rating or no facet)
+            rating = 0
+            if self.active_facet:
+                rating_record = completion.rating_for_facet(self.active_facet)
+                if rating_record:
+                    rating = rating_record.rating
+
+            # Get scored_logprob for active model (default to -inf if no logprobs or no model)
+            scored_logprob = -float("inf")
+            has_logprobs = 0.0  # Used to sort completions with logprobs before those without
+            if self.active_model:
+                logprobs = completion.get_logprobs_for_model_id(self.active_model.model_id)
+                if logprobs and logprobs.scored_logprob is not None:
+                    scored_logprob = logprobs.scored_logprob
+                    has_logprobs = 1.0
+
+            # Return tuple: (negative rating for descending, has_logprobs for descending, scored_logprob for descending)
+            # Negative rating and scored_logprob because we want descending order but sort() is ascending
+            return (-rating, -has_logprobs, -scored_logprob)
+
+        return sorted(completions, key=sort_key)
+
     def populate_outputs(self):
-        """Populate the scroll area with completion frames from the sample."""
+        """
+        Populate the scroll area with completion frames from the sample.
+        
+        Completions are sorted by:
+        1. Rating for active facet (higher rated completions first)
+        2. Within each rating group, by scored_logprob for active model (higher scores first)
+        3. Completions without logprobs appear after those with logprobs
+        """
         self.clear_outputs()
 
         # Always add the NewCompletionFrame first
@@ -378,9 +418,15 @@ class WidgetSample(QWidget):
 
         show_archived = self.show_archived_checkbox.isChecked()
 
-        for completion in self.sample.prompt_revision.completions:
-            if completion.is_archived and not show_archived:
-                continue
+        # Filter completions
+        completions_to_display = [
+            completion for completion in self.sample.prompt_revision.completions if not completion.is_archived or show_archived
+        ]
+
+        # Sort completions by rating and scored_logprob
+        sorted_completions = self._sort_completions_by_rating_and_logprob(completions_to_display)
+
+        for completion in sorted_completions:
             frame = self._create_completion_frame(completion)
             self.output_layout.addWidget(frame)
 

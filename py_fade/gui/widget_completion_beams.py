@@ -478,9 +478,35 @@ class WidgetCompletionBeams(QWidget):
         self.beams_layout.addWidget(frame, row, col)
 
     def sort_beam_frames(self):
-        """Sort beam frames by min_logprob descending."""
-        # Sort by min_logprob if available, otherwise by response length
-        self.beam_frames.sort(key=lambda x: getattr(x[0], "min_logprob", -float("inf")), reverse=True)
+        """
+        Sort beam frames by pinned status and scored_logprob.
+        
+        Beams are sorted by:
+        1. Pinned beams first
+        2. Within pinned beams, by scored_logprob (lowest to highest)
+        3. Within unpinned beams, by scored_logprob (lowest to highest)
+        4. Beams without logprobs appear last
+        """
+
+        def sort_key(beam_tuple: tuple[LLMResponse, "CompletionFrame"]) -> tuple[int, float, float]:
+            _beam, frame = beam_tuple
+
+            # Check if pinned (pinned beams should come first)
+            is_pinned = 1 if frame.is_pinned else 0
+
+            # Get scored_logprob (default to inf if no logprobs for sorting to end)
+            scored_logprob = float("inf")
+            has_logprobs = 1.0  # Used to sort beams without logprobs to the end
+            if _beam.logprobs and _beam.logprobs.scored_logprob is not None:
+                scored_logprob = _beam.logprobs.scored_logprob
+                has_logprobs = 0.0
+
+            # Return tuple: (negative is_pinned for descending, has_logprobs for ascending, scored_logprob for ascending)
+            # Negative is_pinned because we want pinned first (1 -> -1 comes before 0 -> 0)
+            # scored_logprob ascending because we want lowest first
+            return (-is_pinned, has_logprobs, scored_logprob)
+
+        self.beam_frames.sort(key=sort_key)
 
         # Clear and re-add frames in sorted order
         for i in reversed(range(self.beams_layout.count())):
@@ -520,10 +546,11 @@ class WidgetCompletionBeams(QWidget):
             self.sample_widget.add_completion(completion)
 
     @pyqtSlot(object, bool)
-    def on_beam_pinned(self, completion, is_pinned):
-        """Handle beam pin/unpin - update visual state."""
+    def on_beam_pinned(self, completion, is_pinned):  # pylint: disable=unused-argument
+        """Handle beam pin/unpin - update visual state and re-sort frames."""
         # Visual feedback is handled in the frame itself
-        # We can add additional logic here if needed
+        # Re-sort the frames to move pinned beams to the top
+        self.sort_beam_frames()
 
     def rearrange_beam_grid(self):
         """Re-arrange beam frames in grid after removal."""
