@@ -362,8 +362,8 @@ class TextGenerationController:
 
         self.log.warning("High-fidelity continuation not possible, re-generating full completion from previous prefill.")
 
-        # When high-fidelity continuation is not possible, use the original completion text as prefill.
-        prefill = self.construct_completion_prefill(original_completion)
+        # When high-fidelity continuation is not possible, use the original prefill, we have to re-create entire completion text.
+        prefill = self.construct_completion_prefill(original_completion.prefill)
         generation_kwargs = {
             "prompt": self.prompt_conversation,
             "prefill": prefill,
