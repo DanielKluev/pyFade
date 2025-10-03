@@ -85,7 +85,10 @@ class PromptCompletionLogprobs(dataset_base, CommonCompletionLogprobs):
 
     @staticmethod
     def compress_alternative_logprobs(alternative_logprobs: CompletionTopLogprobs) -> bytes:
-        """Compress alternative_logprobs to store in database."""
+        """
+        Compress alternative_logprobs to store in database.
+        """
+
         raw_msgpack: bytes = msgpack.packb(alternative_logprobs.to_dict_of_lists(), use_bin_type=True)  # type: ignore
         compressed = zstandard.compress(raw_msgpack, level=22)
         return compressed
@@ -98,7 +101,9 @@ class PromptCompletionLogprobs(dataset_base, CommonCompletionLogprobs):
         self.alternative_logprobs_bin = self.compress_alternative_logprobs(value)
 
     def to_metadata_dict(self) -> dict[str, Any]:
-        """Return a JSON-serialisable representation of the logprob metadata."""
+        """
+        Return a JSON-serialisable representation of the logprob metadata.
+        """
 
         return {
             "id": self.id,
@@ -115,8 +120,6 @@ class PromptCompletionLogprobs(dataset_base, CommonCompletionLogprobs):
         """
         Get or create a PromptCompletionLogprobs from LLMResponse.
         """
-        if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
         if not response.logprobs:
             raise ValueError("LLMResponse does not contain logprobs.")
         return cls.get_or_create_from_llm_response_logprobs(dataset, completion, response.model_id, response.logprobs)
@@ -127,10 +130,9 @@ class PromptCompletionLogprobs(dataset_base, CommonCompletionLogprobs):
         """
         Get or create PromptCompletionLogprobs from LLMResponse logprobs.
         """
-        if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+        session = dataset.get_session()
 
-        instance = (dataset.session.query(cls).filter_by(prompt_completion_id=completion.id, logprobs_model_id=model_id).first())
+        instance = (session.query(cls).filter_by(prompt_completion_id=completion.id, logprobs_model_id=model_id).first())
         if not instance:
             if not logprobs:
                 raise ValueError("LLMResponse does not contain logprobs.")
@@ -147,16 +149,16 @@ class PromptCompletionLogprobs(dataset_base, CommonCompletionLogprobs):
             # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
             # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
             instance = cls(
-                prompt_completion_id=completion.id,
+                prompt_completion_id=completion.id,  # type: ignore
                 logprobs_model_id=model_id,
                 sampled_logprobs=None,
-                sampled_logprobs_json=sampled_logprobs_list,
+                sampled_logprobs_json=sampled_logprobs_list,  # type: ignore
                 alternative_logprobs=None,
-                alternative_logprobs_bin=alternative_logprobs_bin,
-                min_logprob=min_logprob,
-                avg_logprob=avg_logprob,
+                alternative_logprobs_bin=alternative_logprobs_bin,  # type: ignore
+                min_logprob=min_logprob,  # type: ignore
+                avg_logprob=avg_logprob,  # type: ignore
             )
             # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
-            dataset.session.add(instance)
-            dataset.session.commit()
+            session.add(instance)
+            session.commit()
         return instance

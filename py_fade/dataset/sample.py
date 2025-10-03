@@ -12,6 +12,7 @@ from py_fade.dataset.prompt import PromptRevision
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
+    from py_fade.dataset.data_filter import DataFilter
 
 
 class Sample(dataset_base):
@@ -29,21 +30,14 @@ class Sample(dataset_base):
     prompt_revision: Mapped["PromptRevision"] = relationship("PromptRevision", back_populates="samples", lazy="joined")
 
     @classmethod
-    def create_if_unique(
-        cls,
-        dataset: "DatasetDatabase",
-        title: str,
-        prompt_revision: PromptRevision,
-        group_path: str | None = None,
-        notes: str | None = None,
-    ) -> "Sample | None":
+    def create_if_unique(cls, dataset: "DatasetDatabase", title: str, prompt_revision: PromptRevision, group_path: str | None = None,
+                         notes: str | None = None) -> "Sample | None":
         """
         Create new Sample instance if there's no existing sample for same prompt.
         """
-        if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+        session = dataset.get_session()
 
-        existing = dataset.session.query(cls).filter_by(prompt_revision=prompt_revision).first()
+        existing = session.query(cls).filter_by(prompt_revision=prompt_revision).first()
         if existing:
             return None
 
@@ -54,8 +48,8 @@ class Sample(dataset_base):
             date_created=datetime.datetime.now(),
             prompt_revision=prompt_revision,
         )
-        dataset.session.add(new_sample)
-        dataset.session.commit()
+        session.add(new_sample)
+        session.commit()
         return new_sample
 
     @classmethod
@@ -63,10 +57,9 @@ class Sample(dataset_base):
         """
         Fetch samples from the database, optionally applying a DataFilter.
         """
-        if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+        session = dataset.get_session()
 
-        query = dataset.session.query(Sample)
+        query = session.query(Sample)
         if data_filter:
             query = data_filter.apply_to_query(query)
 
@@ -91,9 +84,8 @@ class Sample(dataset_base):
         If there's sample for the given prompt revision, return it. Otherwise,
         Create a new unsaved Sample instance from a given PromptRevision.
         """
-        if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
-        existing = dataset.session.query(cls).filter_by(prompt_revision=prompt_revision).first()
+        session = dataset.get_session()
+        existing = session.query(cls).filter_by(prompt_revision=prompt_revision).first()
         if existing:
             return existing
         return cls(

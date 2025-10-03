@@ -29,9 +29,7 @@ class PromptRevision(dataset_base):
     prompt_text: Mapped[str] = mapped_column(String, nullable=False)
     context_length: Mapped[int] = mapped_column(Integer, nullable=False)
     max_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
-    samples: Mapped[list["Sample"]] = relationship(
-        "Sample", back_populates="prompt_revision", lazy="select"
-    )
+    samples: Mapped[list["Sample"]] = relationship("Sample", back_populates="prompt_revision", lazy="select")
 
     completions: Mapped[list["PromptCompletion"]] = relationship(
         "PromptCompletion",
@@ -48,9 +46,7 @@ class PromptRevision(dataset_base):
         return hashlib.sha256(prompt_text.encode("utf-8")).hexdigest()
 
     @classmethod
-    def new_from_text(
-        cls, prompt_text: str, context_length: int, max_tokens: int
-    ) -> "PromptRevision":
+    def new_from_text(cls, prompt_text: str, context_length: int, max_tokens: int) -> "PromptRevision":
         """
         Create new PromptRevision from prompt text.
         """
@@ -64,24 +60,19 @@ class PromptRevision(dataset_base):
         )
 
     @classmethod
-    def get_or_create(
-        cls, dataset: "DatasetDatabase", prompt_text: str, context_length: int, max_tokens: int
-    ) -> "PromptRevision":
+    def get_or_create(cls, dataset: "DatasetDatabase", prompt_text: str, context_length: int, max_tokens: int) -> "PromptRevision":
         """
         Get existing PromptRevision by text hash or create a new one if not found.
         """
-        if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+        session = dataset.get_session()
         prompt_text = prompt_text.strip()
         sha256 = cls.hash_from_text(prompt_text)
-        instance = dataset.session.query(cls).filter_by(sha256=sha256).first()
+        instance = session.query(cls).filter_by(sha256=sha256).first()
         if instance:
             return instance
         instance = cls.new_from_text(prompt_text, context_length, max_tokens)
-        dataset.session.add(instance)
-        dataset.session.commit()
+        session.add(instance)
+        session.commit()
         return instance
 
     @classmethod
@@ -89,12 +80,9 @@ class PromptRevision(dataset_base):
         """
         Get existing PromptRevision by text hash.
         """
-        if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+        session = dataset.get_session()
         sha256 = cls.hash_from_text(prompt_text.strip())
-        return dataset.session.query(cls).filter_by(sha256=sha256).first()
+        return session.query(cls).filter_by(sha256=sha256).first()
 
     @property
     def prompt_text_oneliner(self) -> str:
@@ -105,5 +93,5 @@ class PromptRevision(dataset_base):
         if len(self.prompt_text) <= max_length:
             prompt = self.prompt_text
         else:
-            prompt = self.prompt_text[: max_length - 3] + "..."
+            prompt = self.prompt_text[:max_length - 3] + "..."
         return prompt.replace("\n", " ").replace("\r", " ")

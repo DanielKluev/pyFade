@@ -31,9 +31,7 @@ class Facet(dataset_base):
     name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     description: Mapped[str] = mapped_column(String, nullable=False)
     total_samples: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    date_created: Mapped[datetime.datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.datetime.now
-    )
+    date_created: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=datetime.datetime.now)
     completion_ratings: Mapped[list["PromptCompletionRating"]] = relationship(
         "PromptCompletionRating",
         back_populates="facet",
@@ -46,24 +44,16 @@ class Facet(dataset_base):
         """
         Retrieve a Facet by its name.
         """
-        if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
-
-        return dataset.session.query(cls).filter_by(name=name).first()
+        session = dataset.get_session()
+        return session.query(cls).filter_by(name=name).first()
 
     @classmethod
     def get_by_id(cls, dataset: "DatasetDatabase", facet_id: int) -> "Facet | None":
         """
         Retrieve a Facet by its ID.
         """
-        if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
-
-        return dataset.session.query(cls).filter_by(id=facet_id).first()
+        session = dataset.get_session()
+        return session.query(cls).filter_by(id=facet_id).first()
 
     @classmethod
     def get_all(cls, dataset: "DatasetDatabase", order_by_date: bool = True):
@@ -74,12 +64,8 @@ class Facet(dataset_base):
             dataset: The dataset database instance
             order_by_date: If True, order by date_created descending (newest first)
         """
-        if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
-
-        query = dataset.session.query(cls)
+        session = dataset.get_session()
+        query = session.query(cls)
         if order_by_date:
             query = query.order_by(desc(cls.date_created))
 
@@ -101,10 +87,7 @@ class Facet(dataset_base):
         Raises:
             ValueError: If a facet with the same name already exists
         """
-        if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+        session = dataset.get_session()
 
         # Check if facet with this name already exists
         existing_facet = cls.get_by_name(dataset, name)
@@ -118,12 +101,10 @@ class Facet(dataset_base):
             date_created=datetime.datetime.now(),
         )
 
-        dataset.session.add(facet)
+        session.add(facet)
         return facet
 
-    def update(
-        self, dataset: "DatasetDatabase", name: str | None = None, description: str | None = None
-    ):
+    def update(self, dataset: "DatasetDatabase", name: str | None = None, description: str | None = None):
         """
         Update the facet's properties.
 
@@ -135,10 +116,6 @@ class Facet(dataset_base):
         Raises:
             ValueError: If the new name already exists for another facet
         """
-        if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
 
         if name is not None and name.strip() != self.name:
             # Check if another facet with this name exists
@@ -157,20 +134,20 @@ class Facet(dataset_base):
         Args:
             dataset: The dataset database instance
         """
-        if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
-
-        dataset.session.delete(self)
+        session = dataset.get_session()
+        session.delete(self)
 
     def __str__(self) -> str:
-        """String representation of the facet."""
+        """
+        String representation of the facet.
+        """
+
         return f"Facet(id={self.id}, name='{self.name}', samples={self.total_samples})"
 
     def __repr__(self) -> str:
-        """Detailed string representation of the facet."""
-        return (
-            f"Facet(id={self.id}, name='{self.name}', description='{self.description[:50]}...', "
-            f"total_samples={self.total_samples}, date_created={self.date_created})"
-        )
+        """
+        Detailed string representation of the facet.
+        """
+
+        return (f"Facet(id={self.id}, name='{self.name}', description='{self.description[:50]}...', "
+                f"total_samples={self.total_samples}, date_created={self.date_created})")

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from py_fade.dataset.dataset_base import dataset_base, get_session_with_assertion
+from py_fade.dataset.dataset_base import dataset_base
 
 if TYPE_CHECKING:
     from py_fade.dataset.completion import PromptCompletion
@@ -44,7 +44,7 @@ class PromptCompletionPairwiseRanking(dataset_base):
         Return the existing pairwise ranking for *better_completion*, *worse_completion* and *facet*, if any.
         """
 
-        session = get_session_with_assertion(dataset)
+        session = dataset.get_session()
         return (session.query(cls).filter_by(
             better_completion=better_completion,
             worse_completion=worse_completion,
@@ -58,7 +58,7 @@ class PromptCompletionPairwiseRanking(dataset_base):
         Get or create the pairwise ranking for *better_completion*, *worse_completion* and *facet*.
         """
 
-        session = get_session_with_assertion(dataset)
+        session = dataset.get_session()
         instance = cls.get(dataset, better_completion, worse_completion, facet)
         if instance is None:
             instance = cls(

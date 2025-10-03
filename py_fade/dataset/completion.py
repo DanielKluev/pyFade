@@ -74,10 +74,9 @@ class PromptCompletion(dataset_base):
         """
         Get or create a PromptCompletion from LLMResponse.
         """
-        if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+        session = dataset.get_session()
         sha256 = hashlib.sha256(response.completion_text.encode("utf-8")).hexdigest()
-        instance = (dataset.session.query(cls).filter_by(prompt_revision_id=prompt_revision.id, sha256=sha256).first())
+        instance = (session.query(cls).filter_by(prompt_revision_id=prompt_revision.id, sha256=sha256).first())
         if not instance:
             instance = cls(
                 sha256=sha256,
@@ -94,8 +93,8 @@ class PromptCompletion(dataset_base):
                 context_length=response.context_length,
                 max_tokens=response.max_tokens,
             )
-            dataset.session.add(instance)
-            dataset.session.commit()
+            session.add(instance)
+            session.commit()
 
         # Also create associated logprobs entry if logprobs are present
         if (response.logprobs and response.check_full_response_logprobs()):
@@ -106,7 +105,9 @@ class PromptCompletion(dataset_base):
         return instance
 
     def rating_for_facet(self, facet: "Facet | None") -> "PromptCompletionRating | None":
-        """Return the cached rating for *facet* if it has been loaded."""
+        """
+        Return the cached rating for *facet* if it has been loaded.
+        """
 
         if not facet:
             return None
@@ -114,14 +115,19 @@ class PromptCompletion(dataset_base):
 
     @staticmethod
     def _compute_sha256(text: str) -> str:
-        """Compute SHA256 hash of text."""
+        """
+        Compute SHA256 hash of text.
+        """
+
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
     def get_logprobs_for_model_id(self, model_id: str) -> CommonCompletionLogprobs | None:
         """
         Get logprobs for the given model ID, if available.
+
         Returns `CommonCompletionLogprobs` compatible result or None if logprobs for the target model_id are not available.
         """
+
         if not self.logprobs:
             return None
         for lp in self.logprobs:

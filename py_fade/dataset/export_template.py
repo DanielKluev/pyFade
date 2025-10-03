@@ -21,7 +21,6 @@ from py_fade.dataset.dataset_base import dataset_base
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
 
-
 FacetConfig = dict[str, Any]
 
 
@@ -42,9 +41,7 @@ class ExportTemplate(dataset_base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     description: Mapped[str] = mapped_column(String, nullable=False)
-    date_created: Mapped[datetime.datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.datetime.now
-    )
+    date_created: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=datetime.datetime.now)
     model_family: Mapped[str] = mapped_column(String, nullable=False)
     filename_template: Mapped[str] = mapped_column(String, nullable=False)
     output_format: Mapped[str] = mapped_column(String, nullable=False)
@@ -59,68 +56,47 @@ class ExportTemplate(dataset_base):
     # ------------------------------------------------------------------
     @classmethod
     def get_by_id(cls, dataset: "DatasetDatabase", template_id: int) -> "ExportTemplate | None":
-        """Return the export template with *template_id* or ``None`` if missing."""
+        """
+        Return the export template with *template_id* or ``None`` if missing.
+        """
 
-        session = dataset.session
-        if session is None:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+        session = dataset.get_session()
         return session.query(cls).filter_by(id=template_id).first()
 
     @classmethod
     def get_by_name(cls, dataset: "DatasetDatabase", name: str) -> "ExportTemplate | None":
-        """Return the export template with the provided *name* or ``None``."""
+        """
+        Return the export template with the provided *name* or ``None``.
+        """
 
-        session = dataset.session
-        if session is None:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+        session = dataset.get_session()
         trimmed = name.strip()
         return session.query(cls).filter_by(name=trimmed).first()
 
     @classmethod
     def get_all(cls, dataset: "DatasetDatabase") -> list["ExportTemplate"]:
-        """Return all export templates ordered by creation date descending."""
+        """
+        Return all export templates ordered by creation date descending.
+        """
 
-        session = dataset.session
-        if session is None:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+        session = dataset.get_session()
         return list(session.query(cls).order_by(desc(cls.date_created)).all())
 
     # ------------------------------------------------------------------
     # Creation/update helpers
     # ------------------------------------------------------------------
     @classmethod
-    def create(
-        cls,
-        dataset: "DatasetDatabase",
-        *,
-        name: str,
-        description: str,
-        training_type: str,
-        output_format: str,
-        model_families: Iterable[str],
-        filename_template: str | None = None,
-        normalize_style: bool = False,
-        encrypt: bool = False,
-        encryption_password: str | None = None,
-        facets: Iterable[FacetConfig] | None = None,
-    ) -> "ExportTemplate":
-        """Create a new export template and attach it to *dataset*.
+    def create(cls, dataset: "DatasetDatabase", *, name: str, description: str, training_type: str, output_format: str,
+               model_families: Iterable[str], filename_template: str | None = None, normalize_style: bool = False, encrypt: bool = False,
+               encryption_password: str | None = None, facets: Iterable[FacetConfig] | None = None) -> "ExportTemplate":
+        """
+        Create a new export template and attach it to *dataset*.
 
         Raises:
             ValueError: if validation fails or a template with ``name`` already exists.
         """
 
-        session = dataset.session
-        if session is None:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+        session = dataset.get_session()
 
         trimmed_name = name.strip()
         if not trimmed_name:
@@ -152,29 +128,15 @@ class ExportTemplate(dataset_base):
         session.add(template)
         return template
 
-    def update(
-        self,
-        dataset: "DatasetDatabase",
-        *,
-        name: str | None = None,
-        description: str | None = None,
-        training_type: str | None = None,
-        output_format: str | None = None,
-        model_families: Iterable[str] | None = None,
-        filename_template: str | None = None,
-        normalize_style: bool | None = None,
-        encrypt: bool | None = None,
-        encryption_password: str | None = None,
-        facets: Iterable[FacetConfig] | None = None,
-    ) -> None:
-        """Update the template with the provided values after validation."""
+    def update(self, dataset: "DatasetDatabase", *, name: str | None = None, description: str | None = None,
+               training_type: str | None = None, output_format: str | None = None, model_families: Iterable[str] | None = None,
+               filename_template: str | None = None, normalize_style: bool | None = None, encrypt: bool | None = None,
+               encryption_password: str | None = None, facets: Iterable[FacetConfig] | None = None) -> None:
+        """
+        Update the template with the provided values after validation.
+        """
 
-        session = dataset.session
-        if session is None:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
-
+        session = dataset.get_session()
         if name is not None:
             trimmed = name.strip()
             if not trimmed:
@@ -196,9 +158,7 @@ class ExportTemplate(dataset_base):
             self.output_format = self._normalize_output_format(normalized_training, output_format)
         elif training_type is not None:
             # Ensure existing format is still compatible with new training type
-            self.output_format = self._normalize_output_format(
-                normalized_training, self.output_format
-            )
+            self.output_format = self._normalize_output_format(normalized_training, self.output_format)
         self.training_type = normalized_training
 
         if model_families is not None:
@@ -221,17 +181,16 @@ class ExportTemplate(dataset_base):
             self.encryption_password = self._normalize_password(self.encrypt, encryption_password)
 
     def delete(self, dataset: "DatasetDatabase") -> None:
-        """Remove this template from *dataset*."""
+        """
+        Remove this template from *dataset*.
+        """
 
-        session = dataset.session
-        if session is None:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+        session = dataset.get_session()
         session.delete(self)
 
     def duplicate(self, dataset: "DatasetDatabase", *, name: str | None = None) -> "ExportTemplate":
-        """Return a detached copy of this template stored in *dataset*.
+        """
+        Return a detached copy of this template stored in *dataset*.
 
         If *name* is provided it is used after validation; otherwise an
         automatically generated unique name is chosen.
@@ -278,10 +237,8 @@ class ExportTemplate(dataset_base):
                 return option
         if not choices:
             raise ValueError(f"No output formats available for training type '{training_type}'.")
-        raise ValueError(
-            f"Unsupported output format '{value}' for training type '{training_type}'. "
-            f"Valid options: {choices}."
-        )
+        raise ValueError(f"Unsupported output format '{value}' for training type '{training_type}'. "
+                         f"Valid options: {choices}.")
 
     @classmethod
     def _normalize_models(cls, models: Iterable[str]) -> list[str]:
@@ -295,10 +252,8 @@ class ExportTemplate(dataset_base):
                     normalized.append(candidate)
                     break
             else:
-                raise ValueError(
-                    f"Model family '{model}' is not supported. "
-                    f"Supported families: {cls.SUPPORTED_MODEL_FAMILIES}."
-                )
+                raise ValueError(f"Model family '{model}' is not supported. "
+                                 f"Supported families: {cls.SUPPORTED_MODEL_FAMILIES}.")
         if not normalized:
             raise ValueError("At least one model family must be selected.")
         return sorted(set(normalized), key=cls.SUPPORTED_MODEL_FAMILIES.index)
@@ -338,16 +293,14 @@ class ExportTemplate(dataset_base):
 
             min_logprob = facet.get("min_logprob")
             avg_logprob = facet.get("avg_logprob")
-            normalized.append(
-                {
-                    "facet_id": facet_id,
-                    "limit_type": limit_type,
-                    "limit_value": limit_value,
-                    "order": order,
-                    "min_logprob": None if min_logprob in (None, "") else float(min_logprob),
-                    "avg_logprob": None if avg_logprob in (None, "") else float(avg_logprob),
-                }
-            )
+            normalized.append({
+                "facet_id": facet_id,
+                "limit_type": limit_type,
+                "limit_value": limit_value,
+                "order": order,
+                "min_logprob": None if min_logprob in (None, "") else float(min_logprob),
+                "avg_logprob": None if avg_logprob in (None, "") else float(avg_logprob),
+            })
         return normalized
 
     @staticmethod

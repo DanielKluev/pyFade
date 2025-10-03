@@ -10,7 +10,7 @@ import pathlib
 
 ## MUST keep it on top of imports, as they may rely on path changes.
 ## **NEVER** move this. Disable pylint warning as it's intentional.
-from py_fade.features_checker import SUPPORTED_FEATURES # pylint: disable=unused-import,wrong-import-order
+from py_fade.features_checker import SUPPORTED_FEATURES  # pylint: disable=unused-import,wrong-import-order
 
 import sqlite3
 from types import ModuleType
@@ -53,10 +53,8 @@ class DatasetDatabase:
         """Instantiate a SQLAlchemy engine honouring the current encryption state."""
 
         if self.password:
-            if not SUPPORTED_FEATURES["sqlcipher3"]:
-                raise RuntimeError(
-                    "SQLCipher support is not available. Cannot open encrypted database."
-                )
+            if not SUPPORTED_FEATURES["sqlcipher3"]:  # type: ignore
+                raise RuntimeError("SQLCipher support is not available. Cannot open encrypted database.")
             if self.db_path.exists() and not self.check_password(self.db_path, self.password):
                 raise ValueError("Incorrect password for SQLCipher database.")
             self.log.info("Opening SQLCipher encrypted database at %s", self.db_path)
@@ -110,6 +108,13 @@ class DatasetDatabase:
         if self.session is None:
             self.session = self._session_factory()
 
+    def get_session(self) -> Session:
+        """Return the active SQLAlchemy session."""
+
+        if not self.session:
+            raise RuntimeError("Session is not initialized. Call initialize() first.")
+        return self.session
+
     def commit(self) -> None:
         """Persist pending changes to the backing SQLite database."""
 
@@ -156,12 +161,10 @@ class DatasetDatabase:
             conn = sqlcipher3.connect(self.db_path)  # type: ignore[attr-defined]
             try:
                 conn.execute("PRAGMA cipher_compatibility = 4;")
-                attach_sql = (
-                    "ATTACH DATABASE "
-                    f"{self._quote_path(dest_path)} "
-                    "AS encrypted KEY "
-                    f"{self._quote_password(password)};"
-                )
+                attach_sql = ("ATTACH DATABASE "
+                              f"{self._quote_path(dest_path)} "
+                              "AS encrypted KEY "
+                              f"{self._quote_password(password)};")
                 conn.execute(attach_sql)
                 conn.execute("SELECT sqlcipher_export('encrypted');")
                 conn.execute("DETACH DATABASE encrypted;")
@@ -194,9 +197,9 @@ class DatasetDatabase:
             conn = sqlcipher3.connect(self.db_path)  # type: ignore[attr-defined]
             try:
                 conn.execute(f"PRAGMA key = {self._quote_password(self.password)};")
-                attach_sql = (
-                    "ATTACH DATABASE " f"{self._quote_path(dest_path)} " "AS plaintext KEY '';"
-                )
+                attach_sql = ("ATTACH DATABASE "
+                              f"{self._quote_path(dest_path)} "
+                              "AS plaintext KEY '';")
                 conn.execute(attach_sql)
                 conn.execute("SELECT sqlcipher_export('plaintext');")
                 conn.execute("DETACH DATABASE plaintext;")
@@ -265,26 +268,18 @@ class DatasetDatabase:
             query = data_filter.apply_to_query(query)
         return query
 
-    def add_response_as_prompt_and_completion(
-        self, prompt_text: str, response: LLMResponse
-    ) -> tuple[PromptRevision, PromptCompletion]:
+    def add_response_as_prompt_and_completion(self, prompt_text: str, response: LLMResponse) -> tuple[PromptRevision, PromptCompletion]:
         """
         Turn response into PromptCompletion, add to sample, and return it.
         """
         if not self.session:
             raise RuntimeError("Session is not initialized. Call initialize() first.")
 
-        prompt_revision = PromptRevision.get_or_create(
-            self, prompt_text, response.context_length, response.max_tokens
-        )
-        completion = PromptCompletion.get_or_create_from_llm_response(
-            self, prompt_revision, response
-        )
+        prompt_revision = PromptRevision.get_or_create(self, prompt_text, response.context_length, response.max_tokens)
+        completion = PromptCompletion.get_or_create_from_llm_response(self, prompt_revision, response)
         return prompt_revision, completion
 
-    def get_beams_for_prompt_and_model(
-        self, prompt: PromptRevision | str, model_id: str
-    ) -> list[LLMResponse]:
+    def get_beams_for_prompt_and_model(self, prompt: PromptRevision | str, model_id: str) -> list[LLMResponse]:
         """
         Retrieve all beam completions for a given prompt text and model_id.
         """
@@ -299,22 +294,15 @@ class DatasetDatabase:
             return []
 
         # Find completions which have completion_logprobs.logprobs_model_id == given model_id
-        completions = (
-            self.session.query(PromptCompletionLogprobs)
-            .join(PromptCompletion)
-            .options(joinedload(PromptCompletionLogprobs.prompt_completion))
-            .filter(
+        completions = (self.session.query(PromptCompletionLogprobs).join(PromptCompletion).options(
+            joinedload(PromptCompletionLogprobs.prompt_completion)).filter(
                 PromptCompletion.prompt_revision_id == prompt_revision.id,
                 PromptCompletionLogprobs.logprobs_model_id == model_id,
-            )
-            .all()
-        )
+            ).all())
 
         responses = []
         for logprobs in completions:
-            response = LLMResponse.from_completion_and_logprobs(
-                logprobs.prompt_completion, logprobs
-            )
+            response = LLMResponse.from_completion_and_logprobs(logprobs.prompt_completion, logprobs)
             responses.append(response)
         return responses
 
