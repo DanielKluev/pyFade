@@ -421,6 +421,17 @@ class CommonCompletionLogprobs:
             self.min_logprob = None
             self.avg_logprob = None
 
+    @property
+    def scored_logprob(self) -> float | None:
+        """
+        Return a single score for the logprobs, for ranking purposes.
+
+        Formula: min_logprob + avg_logprob * 2
+        """
+        if self.min_logprob is None or self.avg_logprob is None:
+            return None
+        return self.min_logprob + self.avg_logprob * 2
+
 
 @dataclass(frozen=True, slots=True)
 class CompletionPrefill:
