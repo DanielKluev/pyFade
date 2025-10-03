@@ -86,8 +86,10 @@ class PromptCompletionRating(dataset_base):
     def delete(self, dataset: "DatasetDatabase") -> None:
         """Remove this rating from the dataset and commit the change."""
 
-        self._ensure_session(dataset)
+        if not dataset.session:
+            raise RuntimeError(
+                "Dataset session is not initialized. Call dataset.initialize() first."
+            )
         session = dataset.session
-        assert session is not None
         session.delete(self)
         session.commit()
