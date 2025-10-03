@@ -253,7 +253,8 @@ class TextGenerationController:
 
         # Not found, need to generate it
         self.log.warning("Prefix not found in cache, evaluating it using the model: %s", prefix)
-        eval_logprobs = self.mapped_model.evaluate_completion(prompt=self.prompt_revision.prompt_text, completion=prefix)
+        prefix_completion = self.construct_completion_prefill(prefix)
+        eval_logprobs = self.mapped_model.evaluate_completion(prompt=self.prompt_revision.prompt_text, completion=prefix_completion)
         beam_prefix = CompletionPrefix.create_from_eval(prefix, eval_logprobs)
         self.cached_prefixes[prefix] = beam_prefix
         return beam_prefix
@@ -359,9 +360,11 @@ class TextGenerationController:
 
         self.log.warning("High-fidelity continuation not possible, re-generating full completion from previous prefill.")
 
+        # When high-fidelity continuation is not possible, use the original completion text as prefill
+        # to ensure the continuation extends the original text
         generation_kwargs = {
             "prompt": self.prompt_conversation,
-            "prefill": original_completion.prefill,
+            "prefill": original_completion.completion_text,
             "temperature": original_completion.temperature,
             "top_k": original_completion.top_k,
             "context_length": context_length,

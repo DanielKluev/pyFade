@@ -6,7 +6,7 @@ from __future__ import annotations
 from PyQt6.QtWidgets import QCheckBox, QPushButton
 
 from py_fade.gui.components.widget_token_picker import WidgetTokenPicker
-from py_fade.data_formats.base_data_classes import SinglePositionTopLogprobs
+from py_fade.data_formats.base_data_classes import SinglePositionTopLogprobs, SinglePositionToken
 from tests.helpers.data_helpers import create_test_single_position_token
 
 
@@ -22,8 +22,9 @@ def test_token_picker_normalises_llm_logprob_objects(qt_app):
     qt_app.processEvents()
 
     try:
-        # Sorted descending by logprob (less negative first).
-        assert [token for token, _ in widget.tokens] == ["A", "B", "C"]
+        # In the new architecture, tokens are SinglePositionToken objects
+        # The widget doesn't sort them - they should be pre-sorted by the caller
+        assert [token.token_str for token in widget.tokens] == ["B", "A", "C"]
     finally:
         widget.deleteLater()
 
@@ -35,7 +36,7 @@ def test_token_picker_single_select_emits_selected_tokens(qt_app):
         create_test_single_position_token("second", -0.3),
     ])
     widget = WidgetTokenPicker(None, tokens, multi_select=False)
-    captured: list[list[tuple[str, float]]] = []
+    captured: list[list[SinglePositionToken]] = []
     widget.tokens_selected.connect(lambda payload: captured.append(list(payload)))
 
     try:
@@ -45,7 +46,10 @@ def test_token_picker_single_select_emits_selected_tokens(qt_app):
         qt_app.processEvents()
 
         assert captured
-        assert set(captured[-1]) == {("first", -0.1)}
+        # Now compare SinglePositionToken objects
+        assert len(captured[-1]) == 1
+        assert captured[-1][0].token_str == "first"
+        assert captured[-1][0].logprob == -0.1
 
         # Selecting the second token should replace the selection.
         second_button = widget.token_widgets[1]
@@ -53,7 +57,9 @@ def test_token_picker_single_select_emits_selected_tokens(qt_app):
         second_button.click()
         qt_app.processEvents()
 
-        assert set(captured[-1]) == {("second", -0.3)}
+        assert len(captured[-1]) == 1
+        assert captured[-1][0].token_str == "second"
+        assert captured[-1][0].logprob == -0.3
         assert not first_button.isChecked()
     finally:
         widget.deleteLater()
@@ -67,7 +73,7 @@ def test_token_picker_multi_select_requires_accept(qt_app):
         create_test_single_position_token("gamma", -1.1),
     ])
     widget = WidgetTokenPicker(None, tokens, multi_select=True)
-    captured: list[list[tuple[str, float]]] = []
+    captured: list[list[SinglePositionToken]] = []
     widget.tokens_selected.connect(lambda payload: captured.append(list(payload)))
 
     try:
@@ -84,7 +90,12 @@ def test_token_picker_multi_select_requires_accept(qt_app):
         qt_app.processEvents()
 
         assert captured
-        assert set(captured[-1]) == {("alpha", -0.5), ("beta", -0.2)}
+        # Compare SinglePositionToken objects
+        assert len(captured[-1]) == 2
+        token_strs = {t.token_str for t in captured[-1]}
+        token_logprobs = {t.logprob for t in captured[-1]}
+        assert token_strs == {"alpha", "beta"}
+        assert token_logprobs == {-0.5, -0.2}
 
         widget.clear_selection()
         qt_app.processEvents()

@@ -410,6 +410,9 @@ class WidgetSample(QWidget):
         """
         if not self.app:
             return
+        # Emit the signal for external listeners
+        self.completion_evaluate_requested.emit(completion, mapped_model.model_id)
+
         current_context_length = self.context_length_field.value()
         max_context_length = max(current_context_length, completion.prompt_revision.context_length)
         controller = self.app.get_or_create_text_generation_controller(

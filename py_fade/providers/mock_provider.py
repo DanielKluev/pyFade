@@ -44,7 +44,8 @@ from py_fade.providers.base_provider import (
 )
 from py_fade.providers.llm_response import LLMResponse
 from py_fade.data_formats.base_data_classes import (CommonConversation, CommonCompletionLogprobs, CompletionTokenLogprobs,
-                                                    CompletionTopLogprobs, SinglePositionToken)
+                                                    CompletionTopLogprobs, SinglePositionToken, CompletionPrefill,
+                                                    SinglePositionTopLogprobs)
 
 _GPT2_ENCODING = tiktoken.get_encoding("gpt2")
 
@@ -454,16 +455,40 @@ class MockLLMProvider(BasePrefillAwareProvider):
 
         response_tokens: list[str] = []
         sampled_logprobs = CompletionTokenLogprobs()
-        for token_info in generator:
+        alternative_logprobs = CompletionTopLogprobs()
+        
+        # Iterate through generator and collect both sampled tokens and alternative logprobs
+        for position, token_info in enumerate(generator):
             response_tokens.append(token_info.token_str)
             sampled_logprobs.append(token_info)
+            
+            # Get alternative logprobs for this position from the generator's specs
+            if position < len(generator._streaming_specs):  # pylint: disable=protected-access
+                spec = generator._streaming_specs[position]  # pylint: disable=protected-access
+                if spec.top_logprobs:
+                    # Convert list of tuples to SinglePositionTopLogprobs
+                    position_alternatives = SinglePositionTopLogprobs()
+                    for token_str, logprob_val in spec.top_logprobs:
+                        # Create SinglePositionToken for each alternative
+                        alt_token = SinglePositionToken(
+                            token_id=-1,  # Mock token ID
+                            token_str=token_str,
+                            token_bytes=token_str.encode("utf-8"),
+                            logprob=logprob_val,
+                            span=len(token_str),
+                        )
+                        position_alternatives.append(alt_token)
+                    alternative_logprobs.append(position_alternatives)
+                else:
+                    # No alternatives for this position
+                    alternative_logprobs.append(SinglePositionTopLogprobs())
+            else:
+                # No spec available, append empty alternatives
+                alternative_logprobs.append(SinglePositionTopLogprobs())
 
         response_text = "".join(response_tokens)
         full_response_text = (prefill or "") + response_text
         is_truncated = generator.was_truncated or generator.has_more_tokens
-
-        # Create empty alternative logprobs (mock provider doesn't track alternatives)
-        alternative_logprobs = CompletionTopLogprobs()
 
         return LLMResponse(
             model_id=model_id,
@@ -484,14 +509,15 @@ class MockLLMProvider(BasePrefillAwareProvider):
             beam_token=kwargs.get("beam_token", None),
         )
 
-    def evaluate_completion(self, model_id: str, prompt: CommonConversation, completion: str, **kwargs) -> CommonCompletionLogprobs:
+    def evaluate_completion(self, model_id: str, prompt: CommonConversation, completion: CompletionPrefill,
+                            **kwargs) -> CommonCompletionLogprobs:
         top_logprobs = kwargs.get("top_logprobs", 20)
         generator = MockResponseGenerator(
             messages=prompt.as_list(),
             prefill="",
             max_length=0,
             top_logprobs=top_logprobs,
-            forced_response_text=completion,
+            forced_response_text=completion.prefill_text,
         )
         sampled_logprobs = CompletionTokenLogprobs(generator)
         generated_text = "".join(lp.token_str for lp in sampled_logprobs)

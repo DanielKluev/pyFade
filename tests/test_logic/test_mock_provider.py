@@ -11,7 +11,7 @@ from py_fade.providers.mock_provider import (
 )
 
 from py_fade.providers.flat_prefix_template import apply_flat_prefix_template, parse_flat_prefix_string
-from py_fade.data_formats.base_data_classes import CommonConversation
+from py_fade.data_formats.base_data_classes import CommonConversation, CompletionPrefill
 
 
 def _logprob_signature(sequence):
@@ -22,8 +22,8 @@ def _logprob_signature(sequence):
     """
     result = []
     for entry in sequence:
-        top = tuple(entry.top_logprobs) if entry.top_logprobs else tuple()
-        result.append((entry.token, entry.logprob, top))
+        # SinglePositionToken has token_str and logprob, but no top_logprobs
+        result.append((entry.token_str, entry.logprob))
     return result
 
 
@@ -98,12 +98,15 @@ def test_mock_provider_generate_returns_top_logprobs():
     assert response.logprobs
 
     inspected = 0
-    for entry in response.logprobs:
-        assert entry.top_logprobs is not None
-        assert entry.top_logprobs[0][0] == entry.token
-        assert entry.top_logprobs[0][1] == pytest.approx(entry.logprob)
-        tokens = [t[0] for t in entry.top_logprobs]
-        assert len(entry.top_logprobs) == token_candidates
+    # Iterate over sampled tokens and alternative logprobs together
+    for sampled_token, alternatives in zip(response.logprobs.sampled_logprobs, response.logprobs.alternative_logprobs):
+        assert alternatives is not None
+        assert len(alternatives) > 0
+        # First alternative should be the sampled token with its logprob
+        assert alternatives[0].token_str == sampled_token.token_str
+        assert alternatives[0].logprob == pytest.approx(sampled_token.logprob)
+        tokens = [t.token_str for t in alternatives]
+        assert len(alternatives) == token_candidates
         assert len(tokens) == len(set(tokens))  # all token candidates **MUST** be unique
         inspected += 1
         if inspected >= 3:
@@ -156,7 +159,8 @@ def test_mock_provider_evaluate_completion_matches_completion():
     logprobs that match the structure and content of the original completion.
     """
     provider = MockLLMProvider()
-    completion = "Sure, this is a tiny completion."
+    completion_text = "Sure, this is a tiny completion."
+    completion = CompletionPrefill(prefill_text=completion_text, prefill_tokenized=None)
 
     logprobs = provider.evaluate_completion(
         model_id="mock-echo-model",
@@ -166,7 +170,7 @@ def test_mock_provider_evaluate_completion_matches_completion():
     )
 
     reconstructed = "".join(entry.token_str for entry in logprobs.sampled_logprobs)
-    assert reconstructed == completion
+    assert reconstructed == completion_text
     for entry in logprobs.sampled_logprobs:
         # Mock provider doesn't include alternative logprobs
         assert entry.token_str is not None
@@ -191,12 +195,12 @@ def test_mock_provider_first_position_sentence_starters():
     )
 
     assert response.logprobs
-    assert len(response.logprobs.logprobs) >= 1
-    first_token_logprobs = response.logprobs.logprobs[0]
-    assert first_token_logprobs.top_logprobs
+    assert len(response.logprobs.alternative_logprobs) >= 1
+    first_token_alternatives = response.logprobs.alternative_logprobs[0]
+    assert first_token_alternatives
 
     # Check that common openers are included in alternatives
-    all_tokens = [t[0] for t in first_token_logprobs.top_logprobs]
+    all_tokens = [t.token_str for t in first_token_alternatives]
     opener_found = any(opener in all_tokens for opener in _COMMON_OPENERS[:5])
     assert opener_found, f"Expected at least one common opener in {all_tokens}"
 
@@ -220,9 +224,9 @@ def test_mock_provider_large_top_logprobs_uniqueness():
     )
 
     assert response.logprobs
-    for entry in response.logprobs.logprobs:
-        assert entry.top_logprobs is not None
-        tokens = [t[0] for t in entry.top_logprobs]
+    for alternatives in response.logprobs.alternative_logprobs:
+        assert alternatives is not None
+        tokens = [t.token_str for t in alternatives]
         assert len(tokens) == large_count
         assert len(tokens) == len(set(tokens)), f"Found duplicate tokens in {tokens[:10]}..."
 
@@ -274,9 +278,9 @@ def test_mock_provider_vocabulary_token_usage():
     assert response.logprobs
     vocab_tokens_found = 0
 
-    for entry in response.logprobs.logprobs:
-        assert entry.top_logprobs is not None
-        tokens = [t[0] for t in entry.top_logprobs]
+    for alternatives in response.logprobs.alternative_logprobs:
+        assert alternatives is not None
+        tokens = [t.token_str for t in alternatives]
 
         # Check if any vocabulary tokens are present
         for token in tokens:
@@ -318,9 +322,14 @@ def test_mock_provider_deterministic_with_improvements():
     assert response1.completion_text == response2.completion_text
 
     # Logprobs should also be identical
-    assert len(response1.logprobs.logprobs) == len(response2.logprobs.logprobs)
-    for lp1, lp2 in zip(response1.logprobs.logprobs, response2.logprobs.logprobs):
-        assert lp1.token == lp2.token
+    assert len(response1.logprobs.sampled_logprobs) == len(response2.logprobs.sampled_logprobs)
+    for lp1, lp2 in zip(response1.logprobs.sampled_logprobs, response2.logprobs.sampled_logprobs):
+        assert lp1.token_str == lp2.token_str
         assert lp1.logprob == pytest.approx(lp2.logprob)
-        if lp1.top_logprobs and lp2.top_logprobs:
-            assert lp1.top_logprobs == lp2.top_logprobs
+    # Check alternative logprobs are also identical
+    assert len(response1.logprobs.alternative_logprobs) == len(response2.logprobs.alternative_logprobs)
+    for alt1, alt2 in zip(response1.logprobs.alternative_logprobs, response2.logprobs.alternative_logprobs):
+        assert len(alt1) == len(alt2)
+        for t1, t2 in zip(alt1, alt2):
+            assert t1.token_str == t2.token_str
+            assert t1.logprob == pytest.approx(t2.logprob)
