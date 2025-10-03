@@ -60,7 +60,7 @@ class TestWidgetCompletionBeamsSorting:
 
     def test_sort_by_scored_logprob_unpinned(self, app_with_dataset):
         """
-        Test unpinned beams are sorted by scored_logprob (lowest first).
+        Test unpinned beams are sorted by scored_logprob (highest/best scores first).
         """
         # Create widget
         mapped_model = MagicMock()
@@ -83,12 +83,12 @@ class TestWidgetCompletionBeamsSorting:
         # Sort frames
         widget.sort_beam_frames()
 
-        # Verify order: lowest scored_logprob first (beam3 -2.0, beam1 -1.5, beam2 -0.5)
+        # Verify order: highest scored_logprob first (beam2 -0.5, beam1 -1.5, beam3 -2.0)
         sorted_beams = [beam for beam, _frame in widget.beam_frames]
         assert len(sorted_beams) == 3
-        assert sorted_beams[0].completion_text == "Beam 3"
+        assert sorted_beams[0].completion_text == "Beam 2"
         assert sorted_beams[1].completion_text == "Beam 1"
-        assert sorted_beams[2].completion_text == "Beam 2"
+        assert sorted_beams[2].completion_text == "Beam 3"
 
     def test_sort_pinned_before_unpinned(self, app_with_dataset):
         """
@@ -118,16 +118,16 @@ class TestWidgetCompletionBeamsSorting:
         # Sort frames
         widget.sort_beam_frames()
 
-        # Verify order: pinned beam first, then unpinned sorted by logprob
+        # Verify order: pinned beam first, then unpinned sorted by logprob (highest first)
         sorted_beams = [beam for beam, _frame in widget.beam_frames]
         assert len(sorted_beams) == 3
         assert sorted_beams[0].completion_text == "Pinned beam"
-        assert sorted_beams[1].completion_text == "Unpinned beam 1"
-        assert sorted_beams[2].completion_text == "Unpinned beam 2"
+        assert sorted_beams[1].completion_text == "Unpinned beam 2"
+        assert sorted_beams[2].completion_text == "Unpinned beam 1"
 
     def test_sort_multiple_pinned_by_logprob(self, app_with_dataset):
         """
-        Test multiple pinned beams are sorted by scored_logprob (lowest first).
+        Test multiple pinned beams are sorted by scored_logprob (highest/best scores first).
         """
         # Create widget
         mapped_model = MagicMock()
@@ -154,13 +154,13 @@ class TestWidgetCompletionBeamsSorting:
         # Sort frames
         widget.sort_beam_frames()
 
-        # Verify order: pinned beams first sorted by logprob, then unpinned
-        # Pinned: beam1 (-1.5) before beam2 (-0.5)
+        # Verify order: pinned beams first sorted by logprob (highest first), then unpinned
+        # Pinned: beam2 (-0.5) before beam1 (-1.5)
         # Unpinned: beam3 (-2.0)
         sorted_beams = [beam for beam, _frame in widget.beam_frames]
         assert len(sorted_beams) == 3
-        assert sorted_beams[0].completion_text == "Pinned beam 1"
-        assert sorted_beams[1].completion_text == "Pinned beam 2"
+        assert sorted_beams[0].completion_text == "Pinned beam 2"
+        assert sorted_beams[1].completion_text == "Pinned beam 1"
         assert sorted_beams[2].completion_text == "Unpinned beam"
 
     def test_sort_beams_without_logprobs_at_end(self, app_with_dataset):
@@ -261,18 +261,18 @@ class TestWidgetCompletionBeamsSorting:
 
         widget.beam_frames = [(beam1, frame1), (beam2, frame2)]
 
-        # Initially, beams should be sorted by logprob
+        # Initially, beams should be sorted by logprob (highest first)
         widget.sort_beam_frames()
         initial_order = [beam.completion_text for beam, _frame in widget.beam_frames]
-        assert initial_order == ["Beam 1", "Beam 2"]
+        assert initial_order == ["Beam 2", "Beam 1"]
 
-        # Pin beam2 (which has better logprob)
-        frame2.is_pinned = True
-        widget.on_beam_pinned(beam2, True)
+        # Pin beam1 (which has worse logprob)
+        frame1.is_pinned = True
+        widget.on_beam_pinned(beam1, True)
 
-        # After pinning, beam2 should still be first (now because it's pinned)
+        # After pinning, beam1 should be first (because it's pinned), then beam2
         new_order = [beam.completion_text for beam, _frame in widget.beam_frames]
-        assert new_order == ["Beam 2", "Beam 1"]
+        assert new_order == ["Beam 1", "Beam 2"]
 
     def test_sort_combined_pinned_and_logprobs(self, app_with_dataset):
         """
@@ -322,14 +322,14 @@ class TestWidgetCompletionBeamsSorting:
         widget.sort_beam_frames()
 
         # Expected order:
-        # 1. Pinned beams sorted by logprob (lowest first): Pinned -2.0, Pinned -1.0
-        # 2. Unpinned beams sorted by logprob (lowest first): Unpinned -3.0, Unpinned -0.5
+        # 1. Pinned beams sorted by logprob (highest/best first): Pinned -1.0, Pinned -2.0
+        # 2. Unpinned beams sorted by logprob (highest/best first): Unpinned -0.5, Unpinned -3.0
         # 3. Beams without logprobs: Unpinned no logprobs
         sorted_beams = [beam.completion_text for beam, _frame in widget.beam_frames]
         assert sorted_beams == [
-            "Pinned -2.0",
             "Pinned -1.0",
-            "Unpinned -3.0",
+            "Pinned -2.0",
             "Unpinned -0.5",
+            "Unpinned -3.0",
             "Unpinned no logprobs",
         ]
