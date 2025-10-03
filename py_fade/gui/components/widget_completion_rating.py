@@ -17,7 +17,6 @@ if TYPE_CHECKING:  # pragma: no cover - imports only used for type checking
     from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.dataset.facet import Facet
 
-
 EMPTY_STAR_COLOR = "#B0BEC5"
 LOW_RATING_COLOR = "#d84315"
 MID_RATING_COLOR = "#f9a825"
@@ -203,16 +202,38 @@ class CompletionRatingWidget(QWidget):
             return
 
         if self.rating_record and self.rating_record.rating == rating:
+            # Clicking on the same rating - offer to remove it
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Remove or change rating")
+            msg_box.setText(f"Current rating for facet '{self.facet.name}' is {self.rating_record.rating}/10.\n"
+                            f"What would you like to do?")
+            msg_box.setIcon(QMessageBox.Icon.Question)
+
+            remove_button = msg_box.addButton("Remove rating", QMessageBox.ButtonRole.DestructiveRole)
+            change_button = msg_box.addButton("Change rating", QMessageBox.ButtonRole.ActionRole)
+            cancel_button = msg_box.addButton(QMessageBox.StandardButton.Cancel)
+            msg_box.setDefaultButton(cancel_button)
+
+            msg_box.exec()
+            clicked_button = msg_box.clickedButton()
+
+            if clicked_button == remove_button:
+                self._remove_rating()
+            elif clicked_button == change_button:
+                # Allow changing to a different rating by resetting hover
+                self.hover_rating = 0
+                self._apply_rating_to_stars(0)
+            else:
+                # Cancel - restore current rating display
+                self._apply_rating_to_stars(self.current_rating)
             return
 
         if self.rating_record:
             answer = QMessageBox.question(
                 self,
                 "Update rating",
-                (
-                    f"Replace the existing rating ({self.rating_record.rating}/10) "
-                    f"for facet '{self.facet.name}' with {rating}/10?"
-                ),
+                (f"Replace the existing rating ({self.rating_record.rating}/10) "
+                 f"for facet '{self.facet.name}' with {rating}/10?"),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
@@ -243,6 +264,25 @@ class CompletionRatingWidget(QWidget):
         self._update_star_tooltips()
         self.rating_saved.emit(self.current_rating)
 
+    def _remove_rating(self) -> None:
+        """Remove the current rating from the database and reset UI state."""
+
+        if not self.rating_record:
+            return
+
+        try:
+            self.rating_record.delete(self.dataset)
+        except RuntimeError as exc:
+            self.log.error("Failed to delete rating: %s", exc)
+            return
+
+        self.rating_record = None
+        self.current_rating = 0
+        self.hover_rating = 0
+        self._apply_rating_to_stars(0)
+        self._update_star_tooltips()
+        self.rating_saved.emit(0)
+
     def _color_for_rating(self, rating: int) -> str:
         if rating >= 8:
             return HIGH_RATING_COLOR
@@ -257,17 +297,11 @@ class CompletionRatingWidget(QWidget):
         for index, button in enumerate(self.star_buttons, start=1):
             star_progress = rating - (index - 1) * 2
             if star_progress >= 2:
-                icon = google_icon_font.pixmap(
-                    "star_rate", size=self._star_icon_size, color=color, fill=1.0
-                )
+                icon = google_icon_font.pixmap("star_rate", size=self._star_icon_size, color=color, fill=1.0)
             elif star_progress == 1:
-                icon = google_icon_font.pixmap(
-                    "star_rate_half", size=self._star_icon_size, color=color, fill=1.0
-                )
+                icon = google_icon_font.pixmap("star_rate_half", size=self._star_icon_size, color=color, fill=1.0)
             else:
-                icon = google_icon_font.pixmap(
-                    "star_rate", size=self._star_icon_size, color=EMPTY_STAR_COLOR, fill=0.0
-                )
+                icon = google_icon_font.pixmap("star_rate", size=self._star_icon_size, color=EMPTY_STAR_COLOR, fill=0.0)
             # self.log.info("Set icon to %s, size %d, dpr %d", icon, self._star_icon_size, icon.devicePixelRatio())
             button.setIcon(QIcon(icon))
             # opt = QStyleOptionToolButton()

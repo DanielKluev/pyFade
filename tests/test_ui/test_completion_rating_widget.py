@@ -482,3 +482,254 @@ def test_evaluate_button_respects_logprob_availability(
 
     widget.deleteLater()
     qt_app.processEvents()
+
+
+def test_rating_can_be_removed(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+    ensure_google_icon_font: None,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A user can remove an existing rating by clicking on the same star."""
+
+    _ = ensure_google_icon_font
+    caplog.set_level(logging.DEBUG, logger="CompletionRatingWidget")
+
+    sample, completion = _build_sample_with_completion(temp_dataset)
+
+    widget = WidgetSample(None, app_with_dataset, sample)
+    qt_app.processEvents()
+
+    facet = Facet.create(temp_dataset, "Style", "Writing style assessment")
+    temp_dataset.commit()
+
+    widget.set_active_context(facet, None)
+    qt_app.processEvents()
+
+    frame = _first_completion_frame(widget)
+    rating_widget = frame.rating_widget
+
+    # First, save a rating
+    assert rating_widget.rating_record is None
+    rating_widget._on_star_clicked(7)
+    qt_app.processEvents()
+
+    saved_rating = PromptCompletionRating.get(temp_dataset, completion, facet)
+    assert saved_rating is not None and saved_rating.rating == 7
+    assert rating_widget.rating_record is not None
+    assert rating_widget.rating_record.rating == 7
+    assert rating_widget.current_rating == 7
+
+    # Mock the message box to simulate clicking "Remove rating"
+    def _mock_message_box(*_args, **_kwargs):  # pylint: disable=unused-argument
+        """Mock QMessageBox that simulates clicking remove button."""
+        mock_box = QMessageBox()
+        mock_box.clickedButton = lambda: mock_box._clicked_button
+        # Simulate that remove button was clicked (DestructiveRole)
+        mock_box._clicked_button = type('obj', (object,), {'text': lambda: 'Remove rating'})()
+        return mock_box
+
+    original_message_box = QMessageBox.__init__
+
+    def _new_init(self, *args, **kwargs):
+        original_message_box(self, *args, **kwargs)
+        # Set up the mock for the clicked button to be the remove button
+        self._remove_button = None
+
+    monkeypatch.setattr(QMessageBox, "__init__", _new_init)
+
+    # Track the buttons added to message box
+    added_buttons = []
+    original_add_button = QMessageBox.addButton
+
+    def _track_add_button(self, *args, **kwargs):
+        button = original_add_button(self, *args, **kwargs)
+        added_buttons.append(button)
+        if len(added_buttons) == 1:  # First button is "Remove rating"
+            self._remove_button = button
+        return button
+
+    monkeypatch.setattr(QMessageBox, "addButton", _track_add_button)
+
+    original_clicked_button = QMessageBox.clickedButton
+
+    def _mock_clicked_button(self):
+        if hasattr(self, '_remove_button'):
+            return self._remove_button
+        return original_clicked_button(self)
+
+    monkeypatch.setattr(QMessageBox, "clickedButton", _mock_clicked_button)
+
+    # Mock exec to avoid actual dialog showing
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: 0)
+
+    # Now click on the same rating (7) - should trigger removal dialog
+    rating_widget._on_star_clicked(7)
+    qt_app.processEvents()
+
+    # Verify rating was removed from database
+    removed_rating = PromptCompletionRating.get(temp_dataset, completion, facet)
+    assert removed_rating is None
+
+    # Verify widget state was reset
+    assert rating_widget.rating_record is None
+    assert rating_widget.current_rating == 0
+    tooltip_text = rating_widget.star_buttons[0].toolTip()
+    assert f"Click to rate {facet.name}" in tooltip_text
+
+    widget.deleteLater()
+    qt_app.processEvents()
+
+
+def test_rating_removal_can_be_cancelled(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+    ensure_google_icon_font: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A user can cancel the removal dialog and keep the existing rating."""
+
+    _ = ensure_google_icon_font
+
+    sample, completion = _build_sample_with_completion(temp_dataset)
+
+    widget = WidgetSample(None, app_with_dataset, sample)
+    qt_app.processEvents()
+
+    facet = Facet.create(temp_dataset, "Accuracy", "Factual accuracy check")
+    temp_dataset.commit()
+
+    widget.set_active_context(facet, None)
+    qt_app.processEvents()
+
+    frame = _first_completion_frame(widget)
+    rating_widget = frame.rating_widget
+
+    # First, save a rating
+    rating_widget._on_star_clicked(6)
+    qt_app.processEvents()
+
+    assert rating_widget.rating_record is not None
+    assert rating_widget.rating_record.rating == 6
+
+    # Mock message box to simulate clicking Cancel
+    original_message_box_init = QMessageBox.__init__
+
+    def _new_init(self, *args, **kwargs):
+        original_message_box_init(self, *args, **kwargs)
+        self._cancel_button = None
+
+    monkeypatch.setattr(QMessageBox, "__init__", _new_init)
+
+    added_buttons = []
+    original_add_button = QMessageBox.addButton
+
+    def _track_add_button(self, *args, **kwargs):
+        button = original_add_button(self, *args, **kwargs)
+        added_buttons.append(button)
+        if len(added_buttons) == 3:  # Third button is Cancel
+            self._cancel_button = button
+        return button
+
+    monkeypatch.setattr(QMessageBox, "addButton", _track_add_button)
+
+    def _mock_clicked_button(self):
+        if hasattr(self, '_cancel_button') and self._cancel_button:
+            return self._cancel_button
+        return None
+
+    monkeypatch.setattr(QMessageBox, "clickedButton", _mock_clicked_button)
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: 0)
+
+    # Click on same rating - should show dialog but cancel should keep rating
+    rating_widget._on_star_clicked(6)
+    qt_app.processEvents()
+
+    # Verify rating is still present
+    existing_rating = PromptCompletionRating.get(temp_dataset, completion, facet)
+    assert existing_rating is not None and existing_rating.rating == 6
+    assert rating_widget.rating_record is not None
+    assert rating_widget.current_rating == 6
+
+    widget.deleteLater()
+    qt_app.processEvents()
+
+
+def test_rating_can_be_changed_from_dialog(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+    ensure_google_icon_font: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A user can choose to change rating from the removal dialog."""
+
+    _ = ensure_google_icon_font
+
+    sample, completion = _build_sample_with_completion(temp_dataset)
+
+    widget = WidgetSample(None, app_with_dataset, sample)
+    qt_app.processEvents()
+
+    facet = Facet.create(temp_dataset, "Coherence", "Logical flow assessment")
+    temp_dataset.commit()
+
+    widget.set_active_context(facet, None)
+    qt_app.processEvents()
+
+    frame = _first_completion_frame(widget)
+    rating_widget = frame.rating_widget
+
+    # First, save a rating
+    rating_widget._on_star_clicked(8)
+    qt_app.processEvents()
+
+    assert rating_widget.rating_record is not None
+    assert rating_widget.rating_record.rating == 8
+
+    # Mock message box to simulate clicking "Change rating"
+    original_message_box_init = QMessageBox.__init__
+
+    def _new_init(self, *args, **kwargs):
+        original_message_box_init(self, *args, **kwargs)
+        self._change_button = None
+
+    monkeypatch.setattr(QMessageBox, "__init__", _new_init)
+
+    added_buttons = []
+    original_add_button = QMessageBox.addButton
+
+    def _track_add_button(self, *args, **kwargs):
+        button = original_add_button(self, *args, **kwargs)
+        added_buttons.append(button)
+        if len(added_buttons) == 2:  # Second button is "Change rating"
+            self._change_button = button
+        return button
+
+    monkeypatch.setattr(QMessageBox, "addButton", _track_add_button)
+
+    def _mock_clicked_button(self):
+        if hasattr(self, '_change_button') and self._change_button:
+            return self._change_button
+        return None
+
+    monkeypatch.setattr(QMessageBox, "clickedButton", _mock_clicked_button)
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: 0)
+
+    # Click on same rating - should show dialog and allow changing
+    rating_widget._on_star_clicked(8)
+    qt_app.processEvents()
+
+    # After clicking "Change rating", the widget should reset display to allow new selection
+    # The rating should still be in the database
+    existing_rating = PromptCompletionRating.get(temp_dataset, completion, facet)
+    assert existing_rating is not None and existing_rating.rating == 8
+
+    # The hover should be reset to allow new rating
+    assert rating_widget.hover_rating == 0
+
+    widget.deleteLater()
+    qt_app.processEvents()
