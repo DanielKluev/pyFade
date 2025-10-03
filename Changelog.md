@@ -20,6 +20,11 @@
   - Clear distinction between high probabilities (p=0.95 vs p=0.9) and tail probabilities (-20 vs -25)
   - Smooth linear interpolation between all threshold points
   - Maintains full backwards compatibility with existing code
+- **Rating Removal**: Added ability to remove completion ratings for facets
+  - Clicking on an already-rated star now shows a dialog with options to remove the rating, change it, or cancel
+  - New `_remove_rating()` method handles deletion and UI state reset
+  - UI properly updates to unrated state after removal (stars reset, tooltips update)
+  - Comprehensive test coverage for removal, cancellation, and change options
 
 ## Version 0.0.1 (to be released)
 
