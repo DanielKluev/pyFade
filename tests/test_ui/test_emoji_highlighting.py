@@ -16,6 +16,7 @@ from PyQt6.QtGui import QTextCursor
 
 from py_fade.gui.components.widget_completion import CompletionFrame
 from tests.helpers.data_helpers import (build_sample_with_completion, create_test_llm_response, create_test_single_position_token)
+from tests.helpers.ui_helpers import setup_completion_frame_with_heatmap
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -176,14 +177,7 @@ class TestEmojiHeatmapHighlighting:
 
         beam = create_test_llm_response(completion_text=completion_text, logprobs=logprobs)
 
-        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
-        text_edit = frame.text_edit
-
-        # Enable heatmap mode
-        text_edit.set_logprobs(beam.logprobs)
-        text_edit.set_heatmap_mode(True)
-        frame.show()
-        qt_app.processEvents()
+        _frame, text_edit = setup_completion_frame_with_heatmap(temp_dataset, beam, qt_app)
 
         # Check that cache is populated
         assert len(text_edit._token_positions_cache) > 0
@@ -229,13 +223,7 @@ class TestEmojiHeatmapHighlighting:
 
         beam = create_test_llm_response(completion_text=completion_text, logprobs=logprobs)
 
-        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
-        text_edit = frame.text_edit
-
-        text_edit.set_logprobs(beam.logprobs)
-        text_edit.set_heatmap_mode(True)
-        frame.show()
-        qt_app.processEvents()
+        _frame, text_edit = setup_completion_frame_with_heatmap(temp_dataset, beam, qt_app)
 
         cache = text_edit._token_positions_cache
         assert len(cache) >= 3  # At least the three emoji

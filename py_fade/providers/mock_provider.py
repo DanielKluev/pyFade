@@ -108,11 +108,17 @@ class _StreamingTokenSpec:
     true_index: int
 
 
-def _compute_seed(prompt_text: str, prefill: str, forced_response: str | None | "CompletionPrefill") -> int:
+def _compute_seed(prompt_text: str, prefill: str | "CompletionPrefill", forced_response: str | None | "CompletionPrefill") -> int:
     hasher = hashlib.sha256()
     hasher.update(prompt_text.encode("utf-8", "replace"))
     hasher.update(b"<prefill>")
-    hasher.update(prefill.encode("utf-8", "replace"))
+    # Handle both string and CompletionPrefill for prefill parameter
+    if isinstance(prefill, str):
+        prefill_text = prefill
+    else:
+        # CompletionPrefill object
+        prefill_text = getattr(prefill, "prefill_text", str(prefill))
+    hasher.update(prefill_text.encode("utf-8", "replace"))
     if forced_response is not None:
         hasher.update(b"<forced>")
         # Handle CompletionPrefill object
@@ -439,16 +445,24 @@ class MockLLMProvider(BasePrefillAwareProvider):
             default_max_tokens,
         )
 
-    def generate(self, model_id: str, prompt: CommonConversation, prefill: str | None = None, **kwargs) -> LLMResponse:
+    def generate(self, model_id: str, prompt: CommonConversation, prefill: CompletionPrefill | None = None, **kwargs) -> LLMResponse:
         temperature = kwargs.get("temperature", self.default_temperature)
         top_k = kwargs.get("top_k", self.default_top_k)
         context_length = kwargs.get("context_length", self.default_context_length)
         max_tokens = kwargs.get("max_tokens", self.default_max_tokens)
         top_logprobs = kwargs.get("top_logprobs", 0)
 
+        # Extract prefill text from CompletionPrefill if present
+        prefill_text = ""
+        if prefill is not None:
+            if isinstance(prefill, str):
+                prefill_text = prefill
+            else:
+                prefill_text = prefill.prefill_text
+
         generator = MockResponseGenerator(
             messages=prompt.as_list(),
-            prefill=prefill or "",
+            prefill=prefill_text,
             max_length=max_tokens,
             top_logprobs=top_logprobs,
         )
@@ -456,12 +470,12 @@ class MockLLMProvider(BasePrefillAwareProvider):
         response_tokens: list[str] = []
         sampled_logprobs = CompletionTokenLogprobs()
         alternative_logprobs = CompletionTopLogprobs()
-        
+
         # Iterate through generator and collect both sampled tokens and alternative logprobs
         for position, token_info in enumerate(generator):
             response_tokens.append(token_info.token_str)
             sampled_logprobs.append(token_info)
-            
+
             # Get alternative logprobs for this position from the generator's specs
             if position < len(generator._streaming_specs):  # pylint: disable=protected-access
                 spec = generator._streaming_specs[position]  # pylint: disable=protected-access
@@ -487,7 +501,7 @@ class MockLLMProvider(BasePrefillAwareProvider):
                 alternative_logprobs.append(SinglePositionTopLogprobs())
 
         response_text = "".join(response_tokens)
-        full_response_text = (prefill or "") + response_text
+        full_response_text = prefill_text + response_text
         is_truncated = generator.was_truncated or generator.has_more_tokens
 
         return LLMResponse(
@@ -497,7 +511,7 @@ class MockLLMProvider(BasePrefillAwareProvider):
             generated_part_text=response_text,
             temperature=temperature,
             top_k=top_k,
-            prefill=prefill,
+            prefill=prefill_text if prefill_text else None,
             context_length=context_length,
             max_tokens=max_tokens,
             logprobs=CommonCompletionLogprobs(

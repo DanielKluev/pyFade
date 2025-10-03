@@ -16,6 +16,7 @@ from py_fade.providers.providers_manager import MappedModel
 from py_fade.providers.mock_provider import MockLLMProvider
 from tests.helpers.data_helpers import (build_sample_with_completion, create_test_llm_response, setup_beam_heatmap_test,
                                         create_test_single_position_token)
+from tests.helpers.ui_helpers import setup_completion_frame_with_heatmap
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -204,14 +205,7 @@ class TestCompletionTextEditHeatmapMode:
             logprobs=[create_test_single_position_token("Hello", -0.1),
                       create_test_single_position_token(" world", -0.8)])
 
-        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
-        text_edit = frame.text_edit
-
-        # Enable heatmap mode with logprobs
-        text_edit.set_logprobs(beam.logprobs)
-        text_edit.set_heatmap_mode(True)
-        frame.show()
-        qt_app.processEvents()
+        _frame, text_edit = setup_completion_frame_with_heatmap(temp_dataset, beam, qt_app)
 
         # Check that cache is populated
         assert len(text_edit._token_positions_cache) > 0
@@ -246,14 +240,7 @@ class TestCompletionTextEditHeatmapMode:
                 create_test_single_position_token(" world", -0.9)
             ])
 
-        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
-        text_edit = frame.text_edit
-
-        # Enable heatmap mode
-        text_edit.set_logprobs(beam.logprobs)
-        text_edit.set_heatmap_mode(True)
-        frame.show()
-        qt_app.processEvents()
+        _frame, text_edit = setup_completion_frame_with_heatmap(temp_dataset, beam, qt_app)
 
         # Should still work but may have fewer cached positions
         assert len(text_edit._token_positions_cache) >= 1  # At least "Hello" should match
@@ -275,14 +262,7 @@ class TestCompletionTextEditMouseInteraction:
             logprobs=[create_test_single_position_token("Hello", -0.1),
                       create_test_single_position_token(" world", -0.8)])
 
-        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
-        text_edit = frame.text_edit
-
-        # Enable heatmap mode
-        text_edit.set_logprobs(beam.logprobs)
-        text_edit.set_heatmap_mode(True)
-        frame.show()
-        qt_app.processEvents()
+        _frame, text_edit = setup_completion_frame_with_heatmap(temp_dataset, beam, qt_app)
 
         # Simulate mouse move to first character (should be in "Hello" token)
         cursor = text_edit.textCursor()

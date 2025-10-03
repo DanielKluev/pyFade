@@ -22,6 +22,7 @@ def patch_message_boxes(monkeypatch: "pytest.MonkeyPatch", logger: logging.Logge
     This helper patches QMessageBox methods to log their calls instead of showing
     modal dialogs, making GUI tests run deterministically in headless environments.
     """
+
     def _info(*args, **kwargs):
         logger.debug("QMessageBox.information args=%s kwargs=%s", args, kwargs)
         return QMessageBox.StandardButton.Ok
@@ -73,3 +74,33 @@ def setup_dataset_session(dataset: "DatasetDatabase") -> None:
     assert session is not None
     session.flush()
     session.commit()
+
+
+def setup_completion_frame_with_heatmap(dataset: "DatasetDatabase", beam, qt_app, display_mode: str = "beam"):
+    """
+    Create and configure a CompletionFrame with heatmap mode enabled.
+
+    This helper reduces duplication in tests that need to verify heatmap
+    and token position cache functionality.
+
+    Args:
+        dataset: The dataset database to use
+        beam: The LLMResponse object to display
+        qt_app: The Qt application instance for processing events
+        display_mode: Display mode for the frame (default: "beam")
+
+    Returns:
+        tuple: (frame, text_edit) - The configured CompletionFrame and its text_edit widget
+    """
+    from py_fade.gui.components.widget_completion import CompletionFrame  # pylint: disable=import-outside-toplevel
+
+    frame = CompletionFrame(dataset, beam, display_mode=display_mode)
+    text_edit = frame.text_edit
+
+    # Enable heatmap mode with logprobs
+    text_edit.set_logprobs(beam.logprobs)
+    text_edit.set_heatmap_mode(True)
+    frame.show()
+    qt_app.processEvents()
+
+    return frame, text_edit
