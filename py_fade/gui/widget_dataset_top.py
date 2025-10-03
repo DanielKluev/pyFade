@@ -790,7 +790,11 @@ class WidgetDatasetTop(QMainWindow):
         facet_widget = WidgetFacet(self, self.app, self.dataset, facet)
         facet_id = facet.id if facet else 0
         title = f"F: {facet.name}" if facet else "New Facet"
-        return self._register_tab(facet_widget, title, "facet", facet_id, focus=focus)
+        widget_id = self._register_tab(facet_widget, title, "facet", facet_id, focus=focus)
+        facet_widget.facet_saved.connect(lambda saved, wid=widget_id: self._on_facet_saved(wid, saved))
+        facet_widget.facet_deleted.connect(lambda deleted, wid=widget_id: self._on_facet_deleted(wid, deleted))
+        facet_widget.facet_cancelled.connect(lambda wid=widget_id: self._on_facet_cancelled(wid))
+        return widget_id
 
     def create_tag_tab(self, tag: Tag | None, *, focus: bool = True) -> int:
         """Create a new tab for editing or creating a tag."""
@@ -830,6 +834,42 @@ class WidgetDatasetTop(QMainWindow):
         new_sample = sample.new_copy()
         new_tab_id = self.create_sample_tab(new_sample, focus=True)
         self._focus_widget(self.tabs[new_tab_id]["widget"])
+
+    def _on_facet_saved(self, widget_id: int, facet: Facet) -> None:
+        """Handle facet save event: update tab, refresh sidebar and facet combobox."""
+        tab_info = self.tabs.get(widget_id)
+        if not tab_info:
+            return
+        tab_info["id"] = facet.id
+        self._set_tab_title(widget_id, f"F: {facet.name}")
+        # Refresh navigation sidebar to show updated facet list
+        if hasattr(self.sidebar, "refresh"):
+            self.sidebar.refresh()
+        # Refresh facet combobox to include the new/updated facet
+        self.set_facets()
+
+    def _on_facet_deleted(self, widget_id: int, _facet: Facet) -> None:
+        """Handle facet deletion: refresh sidebar and facet combobox, close tab."""
+        # Refresh navigation sidebar to remove deleted facet
+        if hasattr(self.sidebar, "refresh"):
+            self.sidebar.refresh()
+        # Refresh facet combobox to remove deleted facet
+        self.set_facets()
+        # Close the facet tab
+        index = self._tab_index(widget_id)
+        if index >= 0:
+            self.close_tab(index)
+
+    def _on_facet_cancelled(self, widget_id: int) -> None:
+        """Handle facet editing cancellation: close tab if it was a new unsaved facet."""
+        tab_info = self.tabs.get(widget_id)
+        if not tab_info:
+            return
+        # Close the tab if it was for a new unsaved facet
+        if tab_info.get("id") == 0:
+            index = self._tab_index(widget_id)
+            if index >= 0:
+                self.close_tab(index)
 
     def _on_tag_saved(self, widget_id: int, tag: Tag) -> None:
         tab_info = self.tabs.get(widget_id)
