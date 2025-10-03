@@ -6,7 +6,7 @@ from __future__ import annotations
 from PyQt6.QtWidgets import QCheckBox, QPushButton
 
 from py_fade.gui.components.widget_token_picker import WidgetTokenPicker
-from py_fade.data_formats.base_data_classes import SinglePositionTopLogprobs
+from py_fade.data_formats.base_data_classes import SinglePositionTopLogprobs, SinglePositionToken
 from tests.helpers.data_helpers import create_test_single_position_token
 
 

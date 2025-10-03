@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from py_fade.dataset.completion import PromptCompletion
-from py_fade.dataset.completion_rating import PromptCompletionRating
+from py_fade.dataset.completion_pairwise_ranks import PromptCompletionPairwiseRanking
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow, EditorMode
@@ -107,10 +107,9 @@ def test_manual_edit_saves_new_completion_with_pairwise_preference(
     assert new_completion.completion_text.endswith("Rewritten for clarity.")
     assert original.is_archived is True
 
-    preferred_rating = PromptCompletionRating.get(temp_dataset, new_completion, facet)
-    assert preferred_rating is not None and preferred_rating.rating == 10
-    discouraged_rating = PromptCompletionRating.get(temp_dataset, original, facet)
-    assert discouraged_rating is not None and discouraged_rating.rating == 2
+    # Check that pairwise ranking was created (new API uses pairwise rankings instead of ratings)
+    pairwise_ranking = PromptCompletionPairwiseRanking.get(temp_dataset, new_completion, original, facet)
+    assert pairwise_ranking is not None
 
     window.deleteLater()
     qt_app.processEvents()

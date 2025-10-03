@@ -11,7 +11,7 @@ from py_fade.providers.mock_provider import (
 )
 
 from py_fade.providers.flat_prefix_template import apply_flat_prefix_template, parse_flat_prefix_string
-from py_fade.data_formats.base_data_classes import CommonConversation
+from py_fade.data_formats.base_data_classes import CommonConversation, CompletionPrefill
 
 
 def _logprob_signature(sequence):
@@ -158,8 +158,6 @@ def test_mock_provider_evaluate_completion_matches_completion():
     Verifies that when evaluating a completion, the mock provider returns
     logprobs that match the structure and content of the original completion.
     """
-    from py_fade.data_formats.base_data_classes import CompletionPrefill
-    
     provider = MockLLMProvider()
     completion_text = "Sure, this is a tiny completion."
     completion = CompletionPrefill(prefill_text=completion_text, prefill_tokenized=None)
