@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QPlainTextEdit,
     QScrollArea,
     QSizePolicy,
     QSpinBox,
@@ -152,6 +153,17 @@ class WidgetSample(QWidget):
         group_row_layout.addWidget(group_label)
         group_row_layout.addWidget(self.group_field)
 
+        # Notes row (label and field on same line)
+        notes_row_layout = QHBoxLayout()
+        notes_label = QLabel("Notes:", self)
+        notes_label.setMinimumWidth(80)
+        notes_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.notes_field = QPlainTextEdit(self)
+        self.notes_field.setPlaceholderText("Add notes for annotators (not visible to models)...")
+        self.notes_field.setMaximumHeight(60)  # About 2 lines high
+        notes_row_layout.addWidget(notes_label)
+        notes_row_layout.addWidget(self.notes_field)
+
         # Context length and max tokens on same row
         tokens_row_layout = QHBoxLayout()
         context_label = QLabel("Context:", self)
@@ -201,6 +213,7 @@ class WidgetSample(QWidget):
         controls_layout.addLayout(id_row_layout)
         controls_layout.addLayout(title_row_layout)
         controls_layout.addLayout(group_row_layout)
+        controls_layout.addLayout(notes_row_layout)
         controls_layout.addLayout(tokens_row_layout)
         controls_layout.addLayout(buttons_row_layout)
         controls_layout.addWidget(self.show_archived_checkbox)
@@ -288,6 +301,7 @@ class WidgetSample(QWidget):
             self.id_field.setText(str(self.sample.id))
             self.title_field.setText(self.sample.title or "")
             self.group_field.setCurrentText(self.sample.group_path or "")
+            self.notes_field.setPlainText(self.sample.notes or "")
 
             # Set prompt text from prompt_revision
             if self.sample.prompt_revision:
@@ -304,6 +318,7 @@ class WidgetSample(QWidget):
             self.id_field.setText("New Sample")
             self.title_field.clear()
             self.group_field.setCurrentText("")
+            self.notes_field.clear()
             self.prompt_area.clear()
             self.context_length_field.setValue(self.app.config.default_context_length)
             self.max_tokens_field.setValue(self.app.config.default_max_tokens)
@@ -480,6 +495,7 @@ class WidgetSample(QWidget):
         if self.sample and self.sample.id:
             self.sample.title = self.title_field.text().strip()
             self.sample.group_path = self.group_field.currentText().strip() or None
+            self.sample.notes = self.notes_field.toPlainText().strip() or None
             self.sample.prompt_revision.context_length = self.context_length_field.value()
             self.sample.prompt_revision.max_tokens = self.max_tokens_field.value()
             self.dataset.session.commit()
@@ -500,6 +516,7 @@ class WidgetSample(QWidget):
                 self.title_field.text().strip() or "Untitled Sample",
                 prompt_revision,
                 self.group_field.currentText().strip() or None,
+                self.notes_field.toPlainText().strip() or None,
             )
             if not new_sample:
                 # Sample with this prompt already exists, do not create duplicate

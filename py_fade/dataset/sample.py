@@ -23,15 +23,10 @@ class Sample(dataset_base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
     group_path: Mapped[str | None] = mapped_column(String, nullable=True)
-    date_created: Mapped[datetime.datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.datetime.now
-    )
-    prompt_revision_id: Mapped[int] = mapped_column(
-        ForeignKey("prompt_revisions.id"), nullable=True
-    )
-    prompt_revision: Mapped["PromptRevision"] = relationship(
-        "PromptRevision", back_populates="samples", lazy="joined"
-    )
+    notes: Mapped[str | None] = mapped_column(String, nullable=True)
+    date_created: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=datetime.datetime.now)
+    prompt_revision_id: Mapped[int] = mapped_column(ForeignKey("prompt_revisions.id"), nullable=True)
+    prompt_revision: Mapped["PromptRevision"] = relationship("PromptRevision", back_populates="samples", lazy="joined")
 
     @classmethod
     def create_if_unique(
@@ -40,14 +35,13 @@ class Sample(dataset_base):
         title: str,
         prompt_revision: PromptRevision,
         group_path: str | None = None,
+        notes: str | None = None,
     ) -> "Sample | None":
         """
         Create new Sample instance if there's no existing sample for same prompt.
         """
         if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         existing = dataset.session.query(cls).filter_by(prompt_revision=prompt_revision).first()
         if existing:
@@ -56,6 +50,7 @@ class Sample(dataset_base):
         new_sample = cls(
             title=title,
             group_path=group_path,
+            notes=notes,
             date_created=datetime.datetime.now(),
             prompt_revision=prompt_revision,
         )
@@ -64,16 +59,12 @@ class Sample(dataset_base):
         return new_sample
 
     @classmethod
-    def fetch_with_filter(
-        cls, dataset: "DatasetDatabase", data_filter: "DataFilter | None" = None
-    ) -> list["Sample"]:
+    def fetch_with_filter(cls, dataset: "DatasetDatabase", data_filter: "DataFilter | None" = None) -> list["Sample"]:
         """
         Fetch samples from the database, optionally applying a DataFilter.
         """
         if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         query = dataset.session.query(Sample)
         if data_filter:
@@ -89,22 +80,19 @@ class Sample(dataset_base):
         return self.__class__(
             title=f"{self.title} (Copy)",
             group_path=self.group_path,
+            notes=self.notes,
             date_created=datetime.datetime.now(),
             prompt_revision=self.prompt_revision,
         )
 
     @classmethod
-    def from_prompt_revision(
-        cls, dataset: "DatasetDatabase", prompt_revision: PromptRevision
-    ) -> "Sample":
+    def from_prompt_revision(cls, dataset: "DatasetDatabase", prompt_revision: PromptRevision) -> "Sample":
         """
         If there's sample for the given prompt revision, return it. Otherwise,
         Create a new unsaved Sample instance from a given PromptRevision.
         """
         if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
         existing = dataset.session.query(cls).filter_by(prompt_revision=prompt_revision).first()
         if existing:
             return existing
