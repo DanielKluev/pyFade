@@ -1,11 +1,12 @@
 """
 Unit tests for WidgetCompletionBeams sorting by pinned status and scored_logprob.
 """
+# pylint: disable=duplicate-code  # Test helpers intentionally similar between test files
 import logging
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-from py_fade.dataset.dataset import DatasetDatabase
+import pytest
+
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.providers.llm_response import LLMResponse
@@ -25,8 +26,8 @@ def create_beam_with_logprobs(model_id, completion_text, scored_logprob_value):
 
     # Use the actual completion text as the token to avoid validation errors
     sampled_logprobs = CompletionTokenLogprobs([
-        SinglePositionToken(token_id=0, token_str=completion_text, token_bytes=completion_text.encode('utf-8'),
-                           logprob=target_logprob, span=1),
+        SinglePositionToken(token_id=0, token_str=completion_text, token_bytes=completion_text.encode('utf-8'), logprob=target_logprob,
+                            span=1),
     ])
     alternative_logprobs = CompletionTopLogprobs([[]])
 
@@ -55,9 +56,9 @@ class TestWidgetCompletionBeamsSorting:
     @pytest.fixture(autouse=True)
     def _setup_font(self, ensure_google_icon_font):
         """Auto-use the ensure_google_icon_font fixture."""
-        pass
+        _ = ensure_google_icon_font
 
-    def test_sort_by_scored_logprob_unpinned(self,  app_with_dataset):
+    def test_sort_by_scored_logprob_unpinned(self, app_with_dataset):
         """
         Test unpinned beams are sorted by scored_logprob (lowest first).
         """
@@ -66,7 +67,6 @@ class TestWidgetCompletionBeamsSorting:
         mapped_model.model_id = "test-model"
         mapped_model.path = "test-model"
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
-        
 
         # Create beams with different logprobs
         beam1 = create_beam_with_logprobs("test-model", "Beam 1", -1.5)
@@ -90,7 +90,7 @@ class TestWidgetCompletionBeamsSorting:
         assert sorted_beams[1].completion_text == "Beam 1"
         assert sorted_beams[2].completion_text == "Beam 2"
 
-    def test_sort_pinned_before_unpinned(self,  app_with_dataset):
+    def test_sort_pinned_before_unpinned(self, app_with_dataset):
         """
         Test pinned beams appear before unpinned beams.
         """
@@ -99,7 +99,6 @@ class TestWidgetCompletionBeamsSorting:
         mapped_model.model_id = "test-model"
         mapped_model.path = "test-model"
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
-        
 
         # Create beams with different logprobs
         beam1 = create_beam_with_logprobs("test-model", "Unpinned beam 1", -1.5)
@@ -126,7 +125,7 @@ class TestWidgetCompletionBeamsSorting:
         assert sorted_beams[1].completion_text == "Unpinned beam 1"
         assert sorted_beams[2].completion_text == "Unpinned beam 2"
 
-    def test_sort_multiple_pinned_by_logprob(self,  app_with_dataset):
+    def test_sort_multiple_pinned_by_logprob(self, app_with_dataset):
         """
         Test multiple pinned beams are sorted by scored_logprob (lowest first).
         """
@@ -135,7 +134,6 @@ class TestWidgetCompletionBeamsSorting:
         mapped_model.model_id = "test-model"
         mapped_model.path = "test-model"
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
-        
 
         # Create beams with different logprobs
         beam1 = create_beam_with_logprobs("test-model", "Pinned beam 1", -1.5)
@@ -165,7 +163,7 @@ class TestWidgetCompletionBeamsSorting:
         assert sorted_beams[1].completion_text == "Pinned beam 2"
         assert sorted_beams[2].completion_text == "Unpinned beam"
 
-    def test_sort_beams_without_logprobs_at_end(self,  app_with_dataset):
+    def test_sort_beams_without_logprobs_at_end(self, app_with_dataset):
         """
         Test beams without logprobs appear at the end.
         """
@@ -174,7 +172,6 @@ class TestWidgetCompletionBeamsSorting:
         mapped_model.model_id = "test-model"
         mapped_model.path = "test-model"
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
-        
 
         # Create beams: some with logprobs, some without
         beam_with_logprobs = create_beam_with_logprobs("test-model", "With logprobs", -1.5)
@@ -204,7 +201,7 @@ class TestWidgetCompletionBeamsSorting:
         assert sorted_beams[0].completion_text == "With logprobs"
         assert sorted_beams[1].completion_text == "Without logprobs"
 
-    def test_sort_pinned_without_logprobs_before_unpinned_with_logprobs(self,  app_with_dataset):
+    def test_sort_pinned_without_logprobs_before_unpinned_with_logprobs(self, app_with_dataset):
         """
         Test pinned beams without logprobs still appear before unpinned beams with logprobs.
         """
@@ -213,7 +210,6 @@ class TestWidgetCompletionBeamsSorting:
         mapped_model.model_id = "test-model"
         mapped_model.path = "test-model"
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
-        
 
         # Create beams
         pinned_beam_no_logprobs = LLMResponse(
@@ -245,7 +241,7 @@ class TestWidgetCompletionBeamsSorting:
         assert sorted_beams[0].completion_text == "Pinned no logprobs"
         assert sorted_beams[1].completion_text == "Unpinned with logprobs"
 
-    def test_on_beam_pinned_triggers_resort(self,  app_with_dataset):
+    def test_on_beam_pinned_triggers_resort(self, app_with_dataset):
         """
         Test that on_beam_pinned triggers re-sorting of frames.
         """
@@ -254,7 +250,6 @@ class TestWidgetCompletionBeamsSorting:
         mapped_model.model_id = "test-model"
         mapped_model.path = "test-model"
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
-        
 
         # Create beams
         beam1 = create_beam_with_logprobs("test-model", "Beam 1", -1.5)
@@ -279,7 +274,7 @@ class TestWidgetCompletionBeamsSorting:
         new_order = [beam.completion_text for beam, _frame in widget.beam_frames]
         assert new_order == ["Beam 2", "Beam 1"]
 
-    def test_sort_combined_pinned_and_logprobs(self,  app_with_dataset):
+    def test_sort_combined_pinned_and_logprobs(self, app_with_dataset):
         """
         Test comprehensive sorting with multiple pinned and unpinned beams with various logprobs.
         """
@@ -288,7 +283,6 @@ class TestWidgetCompletionBeamsSorting:
         mapped_model.model_id = "test-model"
         mapped_model.path = "test-model"
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
-        
 
         # Create beams with different states
         pinned_beam1 = create_beam_with_logprobs("test-model", "Pinned -2.0", -2.0)

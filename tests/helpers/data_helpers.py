@@ -183,3 +183,37 @@ def setup_beam_heatmap_test(dataset: "DatasetDatabase", qt_app) -> Tuple["Comple
     qt_app.processEvents()
 
     return frame, mock_provider
+
+
+def create_llm_response_with_logprobs(model_id: str, completion_text: str, scored_logprob_value: float) -> LLMResponse:
+    """
+    Create a LLMResponse with specific scored_logprob value.
+
+    Helper to reduce code duplication in sorting tests.
+    Scored logprob is calculated as: min_logprob + avg_logprob * 2
+    """
+    # Create minimal logprobs that result in the desired scored_logprob
+    target_logprob = scored_logprob_value / 3.0
+
+    # Use the actual completion text as the token to avoid validation errors
+    sampled_logprobs = CompletionTokenLogprobs([
+        SinglePositionToken(token_id=0, token_str=completion_text, token_bytes=completion_text.encode('utf-8'), logprob=target_logprob,
+                            span=1),
+    ])
+    alternative_logprobs = CompletionTopLogprobs([[]])
+
+    return LLMResponse(
+        model_id=model_id, prompt_conversation=[], completion_text=completion_text, generated_part_text=completion_text, temperature=0.7,
+        top_k=40, context_length=1024, max_tokens=128, logprobs=CommonCompletionLogprobs(logprobs_model_id=model_id,
+                                                                                         sampled_logprobs=sampled_logprobs,
+                                                                                         alternative_logprobs=alternative_logprobs))
+
+
+def create_simple_llm_response(model_id: str, completion_text: str) -> LLMResponse:
+    """
+    Create a simple LLMResponse without logprobs.
+
+    Helper for sorting tests when logprobs are not needed.
+    """
+    return LLMResponse(model_id=model_id, prompt_conversation=[], completion_text=completion_text, generated_part_text=completion_text,
+                       temperature=0.7, top_k=40, context_length=1024, max_tokens=128)
