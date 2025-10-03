@@ -227,6 +227,8 @@ class CompletionRatingWidget(QWidget):
                 # Cancel - restore current rating display
                 self._apply_rating_to_stars(self.current_rating)
             return
+        else:
+            self._persist_rating(rating)
 
     def _persist_rating(self, rating: int) -> None:
         if not self.completion or not self.facet:
