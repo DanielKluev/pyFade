@@ -168,6 +168,10 @@ class CompletionTextEdit(QTextEdit):
         """
         Highlight prefill and beam token sections in the text.
 
+        The beam token should overlap and be at the end of the prefill.
+        Only the non-overlapping part of prefill is highlighted as PREFILL_COLOR,
+        while the overlapping part (beam token) is highlighted as BEAM_TOKEN_COLOR.
+
         Uses Qt's text search to properly handle UTF-16 positioning for emoji and multi-byte characters.
         """
         if not self._completion:
@@ -195,17 +199,46 @@ class CompletionTextEdit(QTextEdit):
         prefill = self._completion.prefill
         beam_token = self._completion.beam_token
 
-        if prefill:
-            prefill_end = apply_highlight_by_search(prefill, PREFILL_COLOR)
-            if prefill_end >= 0:
-                if beam_token:
-                    # Search for beam token starting after prefill
-                    beam_end = apply_highlight_by_search(beam_token, BEAM_TOKEN_COLOR, prefill_end)
+        if prefill and beam_token:
+            # Beam token should be at the end of prefill, overlapping with it
+            # Check if beam_token is at the end of prefill
+            if prefill.endswith(beam_token):
+                # Split highlighting: non-overlapping prefill part + beam token part
+                # Calculate the non-overlapping part of prefill
+                prefill_only_part = prefill[:-len(beam_token)] if len(beam_token) < len(prefill) else ""
+
+                if prefill_only_part:
+                    # Highlight the non-overlapping part of prefill
+                    prefill_only_end = apply_highlight_by_search(prefill_only_part, PREFILL_COLOR)
+                    if prefill_only_end < 0:
+                        self.log.debug("Non-overlapping prefill part '%s' not found in completion text.", prefill_only_part)
+                        return
+
+                    # Highlight beam token starting from the end of non-overlapping part
+                    beam_end = apply_highlight_by_search(beam_token, BEAM_TOKEN_COLOR, prefill_only_end)
                     if beam_end < 0:
-                        self.log.debug("Beam token '%s' not found within completion text.", beam_token)
+                        self.log.debug("Beam token '%s' not found after prefill in completion text.", beam_token)
+                else:
+                    # Entire prefill is the beam token (no non-overlapping part)
+                    beam_end = apply_highlight_by_search(beam_token, BEAM_TOKEN_COLOR)
+                    if beam_end < 0:
+                        self.log.debug("Beam token '%s' not found in completion text.", beam_token)
             else:
+                # Beam token not at end of prefill - this shouldn't happen in normal usage
+                self.log.warning("Beam token '%s' is not at the end of prefill '%s'. Highlighting separately.", beam_token, prefill)
+                # Fallback: highlight prefill and beam token separately
+                prefill_end = apply_highlight_by_search(prefill, PREFILL_COLOR)
+                if prefill_end >= 0 and beam_token:
+                    beam_end = apply_highlight_by_search(beam_token, BEAM_TOKEN_COLOR)
+                    if beam_end < 0:
+                        self.log.debug("Beam token '%s' not found in completion text.", beam_token)
+        elif prefill:
+            # Only prefill, no beam token
+            prefill_end = apply_highlight_by_search(prefill, PREFILL_COLOR)
+            if prefill_end < 0:
                 self.log.debug("Prefill '%s' not found in completion text.", prefill)
         elif beam_token:
+            # Only beam token, no prefill
             beam_end = apply_highlight_by_search(beam_token, BEAM_TOKEN_COLOR)
             if beam_end < 0:
                 self.log.debug("Beam token '%s' not found in completion text.", beam_token)

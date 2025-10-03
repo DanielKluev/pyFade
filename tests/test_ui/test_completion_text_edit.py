@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QMouseEvent
 
 from py_fade.gui.components.widget_completion import CompletionFrame
-from py_fade.gui.components.widget_completion_text_editor import CompletionTextEdit
+from py_fade.gui.components.widget_completion_text_editor import CompletionTextEdit, PREFILL_COLOR, BEAM_TOKEN_COLOR
 from py_fade.providers.providers_manager import MappedModel
 from py_fade.providers.mock_provider import MockLLMProvider
 from tests.helpers.data_helpers import (build_sample_with_completion, create_test_llm_response, setup_beam_heatmap_test,
@@ -142,6 +142,116 @@ class TestCompletionTextEditPrefillHighlighting:
 
         assert text_edit.toPlainText() == "Prefilled token and more content"
         assert not text_edit.is_heatmap_mode
+
+    def test_beam_token_must_overlap_prefill_end(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """
+        Beam token must be at the end of prefill, overlapping with it.
+
+        When prefill="Prefilled token" and beam_token="token", the beam token
+        should be highlighted at the END of the prefill, not anywhere else in the text.
+        """
+        _ = ensure_google_icon_font
+        # Test case: completion has "token" both at end of prefill AND later in text
+        beam = _create_test_llm_response(completion_text="Prefilled token and token again", prefill="Prefilled token", beam_token="token")
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+        text_edit = frame.text_edit
+        frame.show()
+        qt_app.processEvents()
+
+        # Verify text is correct
+        assert text_edit.toPlainText() == "Prefilled token and token again"
+
+        # Check that beam token highlighting is applied to the FIRST occurrence (at end of prefill)
+        # not the second occurrence later in text
+        cursor = text_edit.textCursor()
+
+        # Position 10 is in "token" at end of prefill (positions 10-14)
+        cursor.setPosition(12)
+        format_at_prefill_token = cursor.charFormat()
+        prefill_token_bg = format_at_prefill_token.background().color()
+
+        # Position 20 is in "token" later in text (positions 20-24)
+        cursor.setPosition(22)
+        format_at_later_token = cursor.charFormat()
+        later_token_bg = format_at_later_token.background().color()
+
+        # The first "token" (at end of prefill) should be highlighted as beam token (green)
+        assert prefill_token_bg == BEAM_TOKEN_COLOR, f"Expected beam token color at position 12, got {prefill_token_bg.name()}"
+
+        # The second "token" should NOT be highlighted
+        # It should either have no background or a different color (not beam token color)
+        assert later_token_bg != BEAM_TOKEN_COLOR, "Second 'token' should not be highlighted as beam token"
+
+    def test_prefill_non_overlapping_part_highlighted_separately(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """
+        Non-overlapping part of prefill should be highlighted with PREFILL_COLOR.
+
+        When prefill="Prefilled token" and beam_token="token":
+        - "Prefilled " (non-overlapping) should be highlighted as PREFILL_COLOR
+        - "token" (overlapping) should be highlighted as BEAM_TOKEN_COLOR
+        """
+        _ = ensure_google_icon_font
+        beam = _create_test_llm_response(completion_text="Prefilled token and more", prefill="Prefilled token", beam_token="token")
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+        text_edit = frame.text_edit
+        frame.show()
+        qt_app.processEvents()
+
+        cursor = text_edit.textCursor()
+
+        # Check "Prefilled " part (position 5 is in the middle of "Prefilled")
+        cursor.setPosition(5)
+        format_at_prefill_only = cursor.charFormat()
+        prefill_only_bg = format_at_prefill_only.background().color()
+
+        # Check "token" part (position 12 is in the middle of "token")
+        cursor.setPosition(12)
+        format_at_beam = cursor.charFormat()
+        beam_bg = format_at_beam.background().color()
+
+        assert prefill_only_bg == PREFILL_COLOR, f"Expected prefill color at position 5, got {prefill_only_bg.name()}"
+        assert beam_bg == BEAM_TOKEN_COLOR, f"Expected beam token color at position 12, got {beam_bg.name()}"
+
+    def test_beam_token_at_prefill_start_edge_case(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """
+        Edge case: beam token is at the start of prefill (entire prefill is beam token).
+
+        When prefill="token" and beam_token="token", the entire prefill should be
+        highlighted as beam token only (no separate prefill highlighting).
+        """
+        _ = ensure_google_icon_font
+        beam = _create_test_llm_response(completion_text="token continuation", prefill="token", beam_token="token")
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+        text_edit = frame.text_edit
+        frame.show()
+        qt_app.processEvents()
+
+        cursor = text_edit.textCursor()
+
+        # Check the "token" part - should be beam token color
+        cursor.setPosition(2)
+        format_at_token = cursor.charFormat()
+        token_bg = format_at_token.background().color()
+
+        assert token_bg == BEAM_TOKEN_COLOR, f"Expected beam token color, got {token_bg.name()}"
 
 
 class TestCompletionTextEditHeatmapMode:
