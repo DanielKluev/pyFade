@@ -18,6 +18,7 @@ from py_fade.dataset.dataset_base import dataset_base
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.dataset.completion_rating import PromptCompletionRating
+    from py_fade.dataset.sample import Sample
 
 
 class Facet(dataset_base):

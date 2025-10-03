@@ -136,7 +136,6 @@ class ExportTemplate(dataset_base):
         Update the template with the provided values after validation.
         """
 
-        session = dataset.get_session()
         if name is not None:
             trimmed = name.strip()
             if not trimmed:
