@@ -71,6 +71,35 @@ class Facet(dataset_base):
 
         return query.all()
 
+    @staticmethod
+    def get_samples_without_facet(dataset: "DatasetDatabase") -> list["Sample"]:
+        """
+        Retrieve all samples that are not associated with any facet.
+
+        A sample is not associated with any facet if none of its completions have ratings.
+
+        Args:
+            dataset: The dataset database instance
+
+        Returns:
+            List of Sample objects not associated with any facet
+        """
+        from py_fade.dataset.sample import Sample  # pylint: disable=import-outside-toplevel
+        from py_fade.dataset.prompt import PromptRevision  # pylint: disable=import-outside-toplevel
+        from py_fade.dataset.completion import PromptCompletion  # pylint: disable=import-outside-toplevel
+        from sqlalchemy import select  # pylint: disable=import-outside-toplevel
+
+        session = dataset.get_session()
+
+        # Get all samples that have at least one rating
+        samples_with_ratings = (select(Sample.id).join(Sample.prompt_revision).join(PromptRevision.completions).join(
+            PromptCompletion.ratings).distinct())
+
+        # Get all samples that are NOT in the above set
+        samples_without_facet = session.query(Sample).filter(~Sample.id.in_(samples_with_ratings)).all()
+
+        return samples_without_facet
+
     @classmethod
     def create(cls, dataset: "DatasetDatabase", name: str, description: str) -> "Facet":
         """
@@ -126,6 +155,32 @@ class Facet(dataset_base):
 
         if description is not None:
             self.description = description.strip()
+
+    def get_samples(self, dataset: "DatasetDatabase") -> list["Sample"]:
+        """
+        Retrieve all samples associated with this facet.
+
+        A sample is associated with a facet if any of its completions have been rated for this facet.
+
+        Args:
+            dataset: The dataset database instance
+
+        Returns:
+            List of Sample objects associated with this facet
+        """
+        from py_fade.dataset.sample import Sample  # pylint: disable=import-outside-toplevel
+        from py_fade.dataset.prompt import PromptRevision  # pylint: disable=import-outside-toplevel
+        from py_fade.dataset.completion import PromptCompletion  # pylint: disable=import-outside-toplevel
+        from py_fade.dataset.completion_rating import PromptCompletionRating  # pylint: disable=import-outside-toplevel
+
+        session = dataset.get_session()
+
+        # Query to get all samples that have completions rated for this facet
+        # Join: Sample -> PromptRevision -> PromptCompletion -> PromptCompletionRating (filtered by facet_id)
+        samples = (session.query(Sample).join(Sample.prompt_revision).join(PromptRevision.completions).join(
+            PromptCompletion.ratings).filter(PromptCompletionRating.facet_id == self.id).distinct().all())
+
+        return samples
 
     def delete(self, dataset: "DatasetDatabase"):
         """
