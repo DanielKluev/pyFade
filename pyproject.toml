@@ -83,6 +83,7 @@ disable = [
     "R0915",  # too-many-statements
     "R0917",  # too-many-positional-arguments
     "R0903",  # too-few-public-methods
+    "R0801",  # duplicate-code - common test setup patterns cause false positives
 ]
 
 [tool.pylint.REPORTS]

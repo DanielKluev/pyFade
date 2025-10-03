@@ -439,9 +439,11 @@ def test_evaluate_button_respects_logprob_availability(
     qt_app.processEvents()
 
     evaluate_events: list[tuple[PromptCompletion, str]] = []
-    widget.completion_evaluate_requested.connect(lambda completion_obj, model_name: evaluate_events.append((completion_obj, model_name)))
 
     frame = _first_completion_frame(widget)
+    # Connect to the frame's evaluate_requested signal, not widget's
+    frame.evaluate_requested.connect(lambda completion_obj, model, _frame: evaluate_events.append((completion_obj, model.model_id)))
+
     assert frame.evaluate_button is not None
     assert not frame.evaluate_button.isHidden()
 
