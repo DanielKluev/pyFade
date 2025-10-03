@@ -483,8 +483,8 @@ class WidgetCompletionBeams(QWidget):
         
         Beams are sorted by:
         1. Pinned beams first
-        2. Within pinned beams, by scored_logprob (lowest to highest)
-        3. Within unpinned beams, by scored_logprob (lowest to highest)
+        2. Within pinned beams, by scored_logprob (highest to lowest, best scores first)
+        3. Within unpinned beams, by scored_logprob (highest to lowest, best scores first)
         4. Beams without logprobs appear last
         """
 

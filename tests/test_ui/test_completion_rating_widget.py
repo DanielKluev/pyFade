@@ -115,18 +115,34 @@ def test_rating_saved_and_updated(
     assert rating_widget.rating_record.rating == 8
     assert rating_widget.current_rating == 8
 
-    questions: list[tuple] = []
+    # Track message box buttons to simulate user choosing "Change rating"
+    added_buttons = []
+    original_add_button = QMessageBox.addButton
 
-    def _confirm(*args, **kwargs):
-        questions.append((args, kwargs))
-        return QMessageBox.StandardButton.Yes
+    def _track_add_button(self, *args, **kwargs):
+        button = original_add_button(self, *args, **kwargs)
+        added_buttons.append(button)
+        return button
 
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(_confirm))
+    monkeypatch.setattr(QMessageBox, "addButton", _track_add_button)
+
+    original_clicked_button = QMessageBox.clickedButton
+
+    def _mock_clicked_button(self):
+        # Return the second button (Change rating) when clicked
+        if len(added_buttons) >= 2:
+            return added_buttons[1]
+        return original_clicked_button(self)
+
+    monkeypatch.setattr(QMessageBox, "clickedButton", _mock_clicked_button)
+
+    # Mock exec to avoid actual dialog showing
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: 0)
 
     rating_widget._on_star_clicked(5)
     qt_app.processEvents()
 
-    assert questions, "Expected confirmation prompt when updating existing rating"
+    assert len(added_buttons) > 0, "Expected confirmation prompt when updating existing rating"
     updated_rating = PromptCompletionRating.get(temp_dataset, completion, facet)
     assert updated_rating is not None and updated_rating.rating == 5
     assert rating_widget.rating_record is not None

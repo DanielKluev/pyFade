@@ -1,9 +1,11 @@
 """
 Unit tests for WidgetSample completion sorting by rating and scored_logprob.
 """
+# pylint: disable=duplicate-code  # Test helpers intentionally similar between test files
 import logging
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.prompt import PromptRevision
@@ -29,8 +31,8 @@ def create_completion_with_logprobs(dataset, prompt_revision, model_id, completi
 
     # Use the actual completion text as the token to avoid validation errors
     sampled_logprobs = CompletionTokenLogprobs([
-        SinglePositionToken(token_id=0, token_str=completion_text, token_bytes=completion_text.encode('utf-8'),
-                           logprob=target_logprob, span=1),
+        SinglePositionToken(token_id=0, token_str=completion_text, token_bytes=completion_text.encode('utf-8'), logprob=target_logprob,
+                            span=1),
     ])
     alternative_logprobs = CompletionTopLogprobs([[]])
 
@@ -65,7 +67,7 @@ class TestWidgetSampleSorting:
     @pytest.fixture(autouse=True)
     def _setup_font(self, ensure_google_icon_font):
         """Auto-use the ensure_google_icon_font fixture."""
-        pass
+        _ = ensure_google_icon_font
 
     def test_sort_by_rating_only(self, app_with_dataset):
         """
@@ -116,7 +118,7 @@ class TestWidgetSampleSorting:
 
         _pr1, completion1 = dataset.add_response_as_prompt_and_completion(prompt_revision.prompt_text, response1)
         _pr2, completion2 = dataset.add_response_as_prompt_and_completion(prompt_revision.prompt_text, response2)
-        _pr3, completion3 = dataset.add_response_as_prompt_and_completion(prompt_revision.prompt_text, response3)
+        _pr3, _completion3 = dataset.add_response_as_prompt_and_completion(prompt_revision.prompt_text, response3)
 
         # Set ratings: completion2=5, completion1=3, completion3=no rating
         PromptCompletionRating.set_rating(dataset, completion2, facet, 5)
@@ -124,7 +126,6 @@ class TestWidgetSampleSorting:
         # Refresh sample to get updated completions
         dataset.session.refresh(sample)
         dataset.session.refresh(sample.prompt_revision)
-
 
         # Create widget
         widget = WidgetSample(None, app_with_dataset, sample)
@@ -140,7 +141,7 @@ class TestWidgetSampleSorting:
         assert sorted_completions[1].completion_text == "Completion 1"
         assert sorted_completions[2].completion_text == "Completion 3"
 
-    def test_sort_by_logprob_within_same_rating(self,  app_with_dataset):
+    def test_sort_by_logprob_within_same_rating(self, app_with_dataset):
         """
         Test completions are sorted by scored_logprob within same rating group.
         """
@@ -173,10 +174,8 @@ class TestWidgetSampleSorting:
         dataset.session.refresh(sample)
         dataset.session.refresh(sample.prompt_revision)
 
-
         # Create widget and set active model
         widget = WidgetSample(None, app_with_dataset, sample)
-        
 
         # Mock mapped model
         mapped_model = MagicMock()
@@ -194,7 +193,7 @@ class TestWidgetSampleSorting:
         assert sorted_completions[1].completion_text == "Completion 1"
         assert sorted_completions[2].completion_text == "Completion 3"
 
-    def test_sort_completions_with_logprobs_before_without(self,  app_with_dataset):
+    def test_sort_completions_with_logprobs_before_without(self, app_with_dataset):
         """
         Test completions with logprobs appear before those without logprobs within same rating group.
         """
@@ -234,10 +233,8 @@ class TestWidgetSampleSorting:
         dataset.session.refresh(sample)
         dataset.session.refresh(sample.prompt_revision)
 
-
         # Create widget and set active model
         widget = WidgetSample(None, app_with_dataset, sample)
-        
 
         # Mock mapped model
         mapped_model = MagicMock()
@@ -254,7 +251,7 @@ class TestWidgetSampleSorting:
         assert sorted_completions[0].completion_text == "With logprobs"
         assert sorted_completions[1].completion_text == "Without logprobs"
 
-    def test_sort_combined_rating_and_logprob(self,  app_with_dataset):
+    def test_sort_combined_rating_and_logprob(self, app_with_dataset):
         """
         Test combined sorting by rating and scored_logprob.
         """
@@ -285,10 +282,8 @@ class TestWidgetSampleSorting:
         dataset.session.refresh(sample)
         dataset.session.refresh(sample.prompt_revision)
 
-
         # Create widget and set active model
         widget = WidgetSample(None, app_with_dataset, sample)
-        
 
         # Mock mapped model
         mapped_model = MagicMock()
@@ -311,7 +306,7 @@ class TestWidgetSampleSorting:
         assert sorted_completions[2].completion_text == "Rating 3, logprob -0.5"
         assert sorted_completions[3].completion_text == "Rating 3, logprob -1.5"
 
-    def test_sort_no_active_facet(self,  app_with_dataset):
+    def test_sort_no_active_facet(self, app_with_dataset):
         """
         Test sorting when no active facet is set (all treated as rating=0).
         """
@@ -327,16 +322,14 @@ class TestWidgetSampleSorting:
 
         model_id = "test-model"
         # Create completions with logprobs
-        comp1 = create_completion_with_logprobs(dataset, sample.prompt_revision, model_id, "Logprob -1.5", -1.5)
-        comp2 = create_completion_with_logprobs(dataset, sample.prompt_revision, model_id, "Logprob -0.5", -0.5)
+        _comp1 = create_completion_with_logprobs(dataset, sample.prompt_revision, model_id, "Logprob -1.5", -1.5)
+        _comp2 = create_completion_with_logprobs(dataset, sample.prompt_revision, model_id, "Logprob -0.5", -0.5)
         # Refresh sample to get updated completions
         dataset.session.refresh(sample)
         dataset.session.refresh(sample.prompt_revision)
 
-
         # Create widget without active facet
         widget = WidgetSample(None, app_with_dataset, sample)
-        
 
         # Mock mapped model
         mapped_model = MagicMock()
@@ -353,7 +346,7 @@ class TestWidgetSampleSorting:
         assert sorted_completions[0].completion_text == "Logprob -0.5"
         assert sorted_completions[1].completion_text == "Logprob -1.5"
 
-    def test_sort_no_active_model(self,  app_with_dataset):
+    def test_sort_no_active_model(self, app_with_dataset):
         """
         Test sorting when no active model is set (all logprobs ignored).
         """
@@ -380,10 +373,9 @@ class TestWidgetSampleSorting:
         dataset.session.refresh(sample)
         dataset.session.refresh(sample.prompt_revision)
 
-
         # Create widget without active model
         widget = WidgetSample(None, app_with_dataset, sample)
-        
+
         widget.set_active_context(facet, None)
 
         # Get sorted completions
