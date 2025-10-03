@@ -52,17 +52,15 @@ class WidgetNavigationFilterPanel(QWidget):
         # Show selector
         show_label = QLabel("Show:")
         self.show_combo = QComboBox()
-        self.show_combo.addItems(
-            [
-                "Samples by Group",
-                "Samples by Facet",
-                "Samples by Tag",
-                "Facets",
-                "Tags",
-                "Prompts",
-                "Export Templates",
-            ]
-        )
+        self.show_combo.addItems([
+            "Samples by Group",
+            "Samples by Facet",
+            "Samples by Tag",
+            "Facets",
+            "Tags",
+            "Prompts",
+            "Export Templates",
+        ])
         self.show_combo.currentTextChanged.connect(self.filter_changed.emit)
 
         # Text search
@@ -101,12 +99,8 @@ class WidgetNavigationTree(QWidget):
     Also has "New <X>" button to create new samples, facets, tags, prompts, completions, export templates.
     """
 
-    item_selected = pyqtSignal(
-        str, int
-    )  # Signal emitted when item is selected (item_type, item_id)
-    new_item_requested = pyqtSignal(
-        str
-    )  # Signal emitted when new item of type is requested (item_type)
+    item_selected = pyqtSignal(str, int)  # Signal emitted when item is selected (item_type, item_id)
+    new_item_requested = pyqtSignal(str)  # Signal emitted when new item of type is requested (item_type)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -122,9 +116,7 @@ class WidgetNavigationTree(QWidget):
         self.new_element_button = QPushButtonWithIcon("add", "New")
         self.new_element_button.setToolTip("Create new element of the selected type")
         self.new_element_button.setVisible(False)  # Hidden by default, shown when applicable
-        self.new_element_button.clicked.connect(
-            lambda: self.new_item_requested.emit(self.current_item_type)
-        )
+        self.new_element_button.clicked.connect(lambda: self.new_item_requested.emit(self.current_item_type))
 
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
@@ -155,6 +147,9 @@ class WidgetNavigationTree(QWidget):
         if show == "Samples by Group":
             self.current_item_type = "Sample"
             self._populate_samples(data_filter, dataset)
+        elif show == "Samples by Facet":
+            self.current_item_type = "Sample"
+            self._populate_samples_by_facet(data_filter, dataset)
         elif show == "Facets":
             self.current_item_type = "Facet"
             self._populate_facets(data_filter, dataset)
@@ -201,12 +196,108 @@ class WidgetNavigationTree(QWidget):
             item.setData(0, Qt.ItemDataRole.UserRole, "sample")
             item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
 
+    def _populate_samples_by_facet(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
+        """
+        Populate tree with samples grouped by facet.
+
+        Root nodes are facets and "No Facet" node.
+        Under each facet, samples are grouped by their group_path.
+        Samples without any facet ratings go under "No Facet" node.
+        """
+        if not dataset.session:
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+
+        # Get all facets
+        facets = dataset.session.query(Facet).all()
+
+        # Apply search filter to facets if present
+        search_value: str | None = None
+        for criteria in getattr(data_filter, "filters", []):
+            if criteria.get("type") == "text_search":
+                probe = str(criteria.get("value", "")).strip().lower()
+                if probe:
+                    search_value = probe
+                    break
+
+        if search_value:
+            facets = [facet for facet in facets if search_value in facet.name.lower() or search_value in facet.description.lower()]
+
+        # Create facet nodes and populate with samples
+        for facet in facets:
+            samples = facet.get_samples(dataset)
+
+            # Apply search filter to samples if present
+            if search_value:
+                samples = [
+                    sample for sample in samples
+                    if search_value in sample.title.lower() or (sample.group_path and search_value in sample.group_path.lower())
+                ]
+
+            if not samples:
+                continue  # Skip facets with no matching samples
+
+            # Create facet root node
+            facet_item = QTreeWidgetItem(self.tree, [facet.name])
+            facet_item.setExpanded(False)  # Collapse by default
+
+            # Group samples by group_path under this facet
+            group_roots = {}
+            for sample in samples:
+                group_path = sample.group_path or "Ungrouped"
+                group_parts = group_path.split("/")
+                current_parent = facet_item
+                current_path = ""
+                for part in group_parts:
+                    current_path = f"{current_path}/{part}" if current_path else part
+                    # Use facet_id prefix to ensure unique keys per facet
+                    group_key = f"{facet.id}:{current_path}"
+                    if group_key not in group_roots:
+                        group_roots[group_key] = QTreeWidgetItem(current_parent, [part])
+                    current_parent = group_roots[group_key]
+
+                # Add sample under the group
+                sample_item = QTreeWidgetItem(current_parent, [sample.title])
+                sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+                sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+
+        # Add "No Facet" node for samples without any ratings
+        samples_without_facet = Facet.get_samples_without_facet(dataset)
+
+        # Apply search filter to samples without facet
+        if search_value:
+            samples_without_facet = [
+                sample for sample in samples_without_facet
+                if search_value in sample.title.lower() or (sample.group_path and search_value in sample.group_path.lower())
+            ]
+
+        if samples_without_facet:
+            no_facet_item = QTreeWidgetItem(self.tree, ["No Facet"])
+            no_facet_item.setExpanded(False)  # Collapse by default
+
+            # Group samples by group_path under "No Facet"
+            group_roots = {}
+            for sample in samples_without_facet:
+                group_path = sample.group_path or "Ungrouped"
+                group_parts = group_path.split("/")
+                current_parent = no_facet_item
+                current_path = ""
+                for part in group_parts:
+                    current_path = f"{current_path}/{part}" if current_path else part
+                    # Use "no_facet" prefix for unique keys
+                    group_key = f"no_facet:{current_path}"
+                    if group_key not in group_roots:
+                        group_roots[group_key] = QTreeWidgetItem(current_parent, [part])
+                    current_parent = group_roots[group_key]
+
+                # Add sample under the group
+                sample_item = QTreeWidgetItem(current_parent, [sample.title])
+                sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+                sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+
     def _populate_facets(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
         """Populate tree with facets."""
         if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
         facets = dataset.session.query(Facet).all()
 
         search_value: str | None = None
@@ -218,12 +309,7 @@ class WidgetNavigationTree(QWidget):
                     break
 
         if search_value:
-            facets = [
-                facet
-                for facet in facets
-                if search_value in facet.name.lower()
-                or search_value in facet.description.lower()
-            ]
+            facets = [facet for facet in facets if search_value in facet.name.lower() or search_value in facet.description.lower()]
 
         if not facets:
             placeholder = QTreeWidgetItem(self.tree, ["No facets available"])
@@ -238,9 +324,7 @@ class WidgetNavigationTree(QWidget):
     def _populate_tags(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
         """Populate tree with tags."""
         if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         tags = Tag.get_all(dataset)
 
@@ -253,11 +337,7 @@ class WidgetNavigationTree(QWidget):
                     break
 
         if search_value:
-            tags = [
-                tag
-                for tag in tags
-                if search_value in tag.name.lower() or search_value in tag.description.lower()
-            ]
+            tags = [tag for tag in tags if search_value in tag.name.lower() or search_value in tag.description.lower()]
 
         if not tags:
             placeholder = QTreeWidgetItem(self.tree, ["No tags available"])
@@ -291,15 +371,11 @@ class WidgetNavigationTree(QWidget):
         root_used.setExpanded(False)
         root_orphaned.setExpanded(True)
 
-    def _populate_export_templates(
-        self, data_filter: DataFilter, dataset: "DatasetDatabase"
-    ) -> None:
+    def _populate_export_templates(self, data_filter: DataFilter, dataset: "DatasetDatabase") -> None:
         """Populate tree with export templates stored in the dataset."""
 
         if not dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         templates = ExportTemplate.get_all(dataset)
 
@@ -313,10 +389,7 @@ class WidgetNavigationTree(QWidget):
 
         if search_value:
             templates = [
-                template
-                for template in templates
-                if search_value in template.name.lower()
-                or search_value in template.description.lower()
+                template for template in templates if search_value in template.name.lower() or search_value in template.description.lower()
             ]
 
         if not templates:
@@ -325,11 +398,7 @@ class WidgetNavigationTree(QWidget):
             return
 
         for template in templates:
-            label = (
-                f"{template.name} — {template.training_type}"
-                if template.training_type
-                else template.name
-            )
+            label = (f"{template.name} — {template.training_type}" if template.training_type else template.name)
             item = QTreeWidgetItem(self.tree, [label])
             item.setData(0, Qt.ItemDataRole.UserRole, "export_template")
             item.setData(1, Qt.ItemDataRole.UserRole, template.id)
@@ -342,10 +411,7 @@ class WidgetNavigationTree(QWidget):
             item = iterator.value()
             if item is None:
                 break
-            if (
-                item.data(0, Qt.ItemDataRole.UserRole) == item_type
-                and item.data(1, Qt.ItemDataRole.UserRole) == item_id
-            ):
+            if (item.data(0, Qt.ItemDataRole.UserRole) == item_type and item.data(1, Qt.ItemDataRole.UserRole) == item_id):
                 self.tree.setCurrentItem(item)
                 self.tree.scrollToItem(item)
                 break
@@ -361,12 +427,8 @@ class WidgetNavigationSidebar(QWidget):
     - Tree view of selected items (e.g. samples, facets, etc.)
     """
 
-    item_selected = pyqtSignal(
-        str, int
-    )  # Signal emitted when item is selected (item_type, item_id)
-    new_item_requested = pyqtSignal(
-        str
-    )  # Signal emitted when new item of type is requested (item_type)
+    item_selected = pyqtSignal(str, int)  # Signal emitted when item is selected (item_type, item_id)
+    new_item_requested = pyqtSignal(str)  # Signal emitted when new item of type is requested (item_type)
     app: "pyFadeApp"
     dataset: "DatasetDatabase"
 
@@ -374,9 +436,7 @@ class WidgetNavigationSidebar(QWidget):
         super().__init__(parent)
         self.app = app
         if not app.current_dataset:
-            raise RuntimeError(
-                "App does not have a current dataset set. Should open a dataset first."
-            )
+            raise RuntimeError("App does not have a current dataset set. Should open a dataset first.")
         self.dataset = app.current_dataset
         self._current_facet_id = None
         self._previous_show_value = None

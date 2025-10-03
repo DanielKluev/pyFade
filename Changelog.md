@@ -15,6 +15,13 @@
 
 ### Added
 - `PlainTextEdit` widget component for plain text only editing with rich text rejection
+- **Samples By Facet Navigation**: Added new navigation view to browse samples grouped by their associated facets
+  - Root nodes are facets with "No Facet" node for unassociated samples
+  - Samples are organized hierarchically under each facet by their group path
+  - Samples can appear under multiple facets if rated for multiple facets
+  - Search filter works across facet names, descriptions, sample titles, and group paths
+  - Added `Facet.get_samples()` and `Facet.get_samples_without_facet()` methods
+  - Comprehensive test coverage with 9 new tests
 - **Improved Logprob Coloring**: Enhanced visual distinction for token probability heatmaps with new Dark Green → Orange → Red → Purple spectrum
   - 18 precisely specified color thresholds for better visual discrimination
   - Clear distinction between high probabilities (p=0.95 vs p=0.9) and tail probabilities (-20 vs -25)
