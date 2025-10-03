@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Fixed
+- **Emoji Highlighting Bug**: Fixed highlighting issues with emoji and multi-byte Unicode characters in completion text editor
+  - Replaced Python string indexing with Qt's UTF-16-aware text positioning methods
+  - Fixed prefill, beam token, and heatmap highlighting to properly handle surrogate pairs
+  - All text positioning now uses `QTextDocument.find()` and `QTextCursor` for correct UTF-16 code unit handling
+  - Added comprehensive test coverage for emoji highlighting scenarios
 - **Prompt Editor Rich Text Bug**: Fixed issue where prompt editor allowed rich markup from copy-paste operations. The prompt editor now enforces plain text only while preserving programmed formatting markers (flat prefix templates).
   - Created `PlainTextEdit` component that extends `QTextEdit` with plain text enforcement
   - Replaced `QTextEdit` with `PlainTextEdit` in `WidgetSample` prompt area
