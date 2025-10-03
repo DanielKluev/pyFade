@@ -76,7 +76,7 @@ class WidgetDatasetTop(QMainWindow):
         self.overview_widget: QWidget | None = None
         self.current_facet_id: int | None = None
         self.current_facet: Facet | None = None
-        self.current_model_name: str | None = None
+        self.current_model_path: str | None = None
         self._facet_map: dict[int, Facet] = {}
         self._updating_context = False
         self._sidebar_previous_show_value: str | None = None
@@ -639,18 +639,18 @@ class WidgetDatasetTop(QMainWindow):
 
         self.model_combo.blockSignals(True)
         self.model_combo.clear()
-        if not self.current_model_name:
+        if not self.current_model_path:
             dataset_prefs = self.app.config.dataset_preferences.get(self._dataset_pref_key(), {})
             if isinstance(dataset_prefs, dict):
                 name = dataset_prefs.get("model_name")
                 if isinstance(name, str):
-                    self.current_model_name = name
+                    self.current_model_path = name
 
         for model in self.app.available_models:
             self.model_combo.addItem(model)
 
-        if self.current_model_name:
-            index = self.model_combo.findText(self.current_model_name)
+        if self.current_model_path:
+            index = self.model_combo.findText(self.current_model_path)
             if index >= 0:
                 self.model_combo.setCurrentIndex(index)
         self.model_combo.blockSignals(False)
@@ -660,9 +660,9 @@ class WidgetDatasetTop(QMainWindow):
             return
         normalized = model_name.strip()
         if normalized and normalized in self.app.available_models:
-            self.current_model_name = normalized
+            self.current_model_path = normalized
         else:
-            self.current_model_name = None
+            self.current_model_path = None
         self._persist_context()
         self._propagate_context_to_samples()
         self._refresh_menu_state()
@@ -692,7 +692,7 @@ class WidgetDatasetTop(QMainWindow):
         if not isinstance(dataset_prefs, dict):
             dataset_prefs = {}
         dataset_prefs["facet_id"] = self.current_facet.id if self.current_facet else None
-        dataset_prefs["model_name"] = self.current_model_name
+        dataset_prefs["model_name"] = self.current_model_path
         preferences[dataset_key] = dataset_prefs
         self.app.config.dataset_preferences = preferences
         self.app.config.save()
@@ -705,7 +705,7 @@ class WidgetDatasetTop(QMainWindow):
         self._update_sidebar_for_facet()
 
     def _apply_context_to_sample(self, sample_widget: WidgetSample) -> None:
-        sample_widget.set_active_context(self.current_facet, self.current_model_name)
+        sample_widget.set_active_context(self.current_facet, self.current_model_path)
 
     def _update_sidebar_for_facet(self) -> None:
         if hasattr(self.sidebar, "set_current_facet"):
@@ -776,7 +776,10 @@ class WidgetDatasetTop(QMainWindow):
 
     def create_sample_tab(self, sample: Sample | None, *, focus: bool = True) -> int:
         """Create a new tab for editing/viewing a sample."""
-        sample_widget = WidgetSample(self, self.app, sample=sample)
+        mapped_model = None
+        if self.current_model_path:
+            mapped_model = self.app.providers_manager.get_mapped_model(self.current_model_path)
+        sample_widget = WidgetSample(self, self.app, sample=sample, active_facet=self.current_facet, active_model=mapped_model)
         sample_id = sample.id if sample and getattr(sample, "id", None) else 0
         title = f"S: {sample.title}" if sample else "New Sample"
         widget_id = self._register_tab(sample_widget, title, "sample", sample_id, focus=focus)

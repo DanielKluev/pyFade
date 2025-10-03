@@ -44,23 +44,20 @@ def test_context_selection_persisted_and_reloaded(
         assert facet_index >= 0
         widget.facet_combo.setCurrentIndex(facet_index)
         widget._on_facet_selection_changed(  # pylint: disable=protected-access
-            facet_index
-        )
+            facet_index)
         qt_app.processEvents()
 
         key = str(temp_dataset.db_path.resolve())
         prefs = app_with_dataset.config.dataset_preferences.get(key, {})
         assert prefs.get("facet_id") == facet.id
-        assert prefs.get("model_name") == widget.current_model_name
+        assert prefs.get("model_name") == widget.current_model_path
 
-        sample_widgets = [
-            info["widget"] for info in widget.tabs.values() if info["type"] == "sample"
-        ]
+        sample_widgets = [info["widget"] for info in widget.tabs.values() if info["type"] == "sample"]
         assert sample_widgets
         sample_widget = sample_widgets[0]
         assert sample_widget.active_facet is not None
         assert sample_widget.active_facet.id == facet.id
-        assert (sample_widget.active_model.path if sample_widget.active_model else None) == widget.current_model_name
+        assert (sample_widget.active_model.path if sample_widget.active_model else None) == widget.current_model_path
     finally:
         widget.deleteLater()
         qt_app.processEvents()
@@ -69,7 +66,7 @@ def test_context_selection_persisted_and_reloaded(
     try:
         assert widget_reloaded.facet_combo is not None
         assert widget_reloaded.facet_combo.currentData() == facet.id
-        assert widget_reloaded.current_model_name == prefs.get("model_name")
+        assert widget_reloaded.current_model_path == prefs.get("model_name")
     finally:
         widget_reloaded.deleteLater()
         qt_app.processEvents()

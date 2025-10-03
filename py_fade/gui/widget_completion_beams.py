@@ -501,10 +501,10 @@ class WidgetCompletionBeams(QWidget):
                 scored_logprob = _beam.logprobs.scored_logprob
                 has_logprobs = 0.0
 
-            # Return tuple: (negative is_pinned for descending, has_logprobs for ascending, scored_logprob for ascending)
+            # Return tuple: (negative is_pinned for descending, has_logprobs for ascending, scored_logprob for descending)
             # Negative is_pinned because we want pinned first (1 -> -1 comes before 0 -> 0)
-            # scored_logprob ascending because we want lowest first
-            return (-is_pinned, has_logprobs, scored_logprob)
+            # scored_logprob descending
+            return (-is_pinned, has_logprobs, -scored_logprob)
 
         self.beam_frames.sort(key=sort_key)
 

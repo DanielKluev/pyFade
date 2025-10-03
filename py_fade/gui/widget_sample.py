@@ -74,14 +74,19 @@ class WidgetSample(QWidget):
     completion_archive_toggled = pyqtSignal(object, bool)
     completion_resume_requested = pyqtSignal(object)
 
-    def __init__(self, parent: QWidget | None, app: "pyFadeApp", sample: Sample | None = None):
+    def __init__(self, parent: QWidget | None, app: "pyFadeApp", sample: Sample | None = None, active_facet: Facet | None = None,
+                 active_model: MappedModel | None = None):
+        """
+        Initialize the widget.
+        """
         super().__init__(parent)
         if not app.current_dataset:
             raise RuntimeError("App does not have a current dataset set. Should open a dataset first.")
-
+        self.log = logging.getLogger("WidgetSample")
         self.app = app
         self.dataset = app.current_dataset
-        self.log = logging.getLogger("WidgetSample")
+        self.active_facet = active_facet
+        self.active_model = active_model
         self.beam_search_widget: WidgetCompletionBeams | None = None
 
         self.setup_ui()
@@ -374,6 +379,8 @@ class WidgetSample(QWidget):
         2. Within each rating group, by scored_logprob for active model (higher scores first)
         3. Completions without logprobs appear after those with logprobs
         """
+        self.log.info("Sorting %d completions by rating and scored_logprob, active_facet=%s, active_model=%s", len(completions),
+                      self.active_facet, self.active_model)
 
         def sort_key(completion: "PromptCompletion") -> tuple[int, float, float]:
             # Get rating for active facet (default to 0 if no rating or no facet)
@@ -431,15 +438,13 @@ class WidgetSample(QWidget):
             self.output_layout.addWidget(frame)
 
     def _on_show_archived_toggled(self, checked: bool) -> None:  # pylint: disable=unused-argument
-        """Repopulate completions when the archived toggle changes."""
+        """
+        Repopulate completions when the archived toggle changes.
+        """
 
         self.populate_outputs()
 
-    def _on_completion_archive_toggled(
-        self,
-        completion: "PromptCompletion",
-        archived: bool,
-    ) -> None:
+    def _on_completion_archive_toggled(self, completion: "PromptCompletion", archived: bool) -> None:
         """Forward archive events and refresh visible completions."""
 
         self.completion_archive_toggled.emit(completion, archived)
