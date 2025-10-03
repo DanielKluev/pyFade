@@ -201,11 +201,12 @@ class CompletionRatingWidget(QWidget):
         if not self.completion or not self.facet:
             return
 
-        if self.rating_record and self.rating_record.rating == rating:
-            # Clicking on the same rating - offer to remove it
+        if self.rating_record:
+            # Offer to remove or change existing rating
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle("Remove or change rating")
             msg_box.setText(f"Current rating for facet '{self.facet.name}' is {self.rating_record.rating}/10.\n"
+                            f"You are trying to set it to {rating}/10.\n\n"
                             f"What would you like to do?")
             msg_box.setIcon(QMessageBox.Icon.Question)
 
@@ -221,27 +222,11 @@ class CompletionRatingWidget(QWidget):
                 self._remove_rating()
             elif clicked_button == change_button:
                 # Allow changing to a different rating by resetting hover
-                self.hover_rating = 0
-                self._apply_rating_to_stars(0)
+                self._persist_rating(rating)
             else:
                 # Cancel - restore current rating display
                 self._apply_rating_to_stars(self.current_rating)
             return
-
-        if self.rating_record:
-            answer = QMessageBox.question(
-                self,
-                "Update rating",
-                (f"Replace the existing rating ({self.rating_record.rating}/10) "
-                 f"for facet '{self.facet.name}' with {rating}/10?"),
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if answer != QMessageBox.StandardButton.Yes:
-                self._apply_rating_to_stars(self.current_rating)
-                return
-
-        self._persist_rating(rating)
 
     def _persist_rating(self, rating: int) -> None:
         if not self.completion or not self.facet:
