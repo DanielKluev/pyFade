@@ -56,8 +56,8 @@ class CompletionPrefix:
 
         sampled_logprobs = CompletionTokenLogprobs(response.logprobs.sampled_logprobs[0:prefix_tokens_count])
         alternative_logprobs = None
-        if response.logprobs.alternative_logprobs:
-            alternative_logprobs = CompletionTopLogprobs(response.logprobs.alternative_logprobs[0:prefix_tokens_count])
+        if response.logprobs.alternative_logprobs and len(response.logprobs.alternative_logprobs) >= prefix_tokens_count + 1:
+            alternative_logprobs = CompletionTopLogprobs(response.logprobs.alternative_logprobs[0:prefix_tokens_count + 1])
 
         # Successfully matched full prefix with logprobs, return slice of logprobs
         return cls(
@@ -271,7 +271,9 @@ class TextGenerationController:
             beam_prefix = self._find_beam_prefix(beam_prefix)
 
         # Check if we already have them
-        if beam_prefix.alternative_logprobs and len(beam_prefix.alternative_logprobs[-1]) >= width:
+        # Make sure alternative_logprobs is longer than sampled_logprobs, so we have **NEXT** token alternative logprobs
+        if (beam_prefix.alternative_logprobs and len(beam_prefix.alternative_logprobs) > len(beam_prefix.sampled_logprobs) and
+                len(beam_prefix.alternative_logprobs[-1]) >= width):
             return beam_prefix.alternative_logprobs[-1]
 
         result = self.evaluate_beam_prefix(beam_prefix)
@@ -360,11 +362,11 @@ class TextGenerationController:
 
         self.log.warning("High-fidelity continuation not possible, re-generating full completion from previous prefill.")
 
-        # When high-fidelity continuation is not possible, use the original completion text as prefill
-        # to ensure the continuation extends the original text
+        # When high-fidelity continuation is not possible, use the original prefill, we have to re-create entire completion text.
+        prefill = self.construct_completion_prefill(original_completion.prefill)
         generation_kwargs = {
             "prompt": self.prompt_conversation,
-            "prefill": original_completion.completion_text,
+            "prefill": prefill,
             "temperature": original_completion.temperature,
             "top_k": original_completion.top_k,
             "context_length": context_length,
@@ -433,12 +435,14 @@ class TextGenerationController:
             context_length=max(self.default_context_length, beam_prefix.prefix_token_size))
         return eval_logprobs
 
-    def construct_completion_prefill(self, completion: PromptCompletion | CompletionPrefix | str) -> CompletionPrefill:
+    def construct_completion_prefill(self, completion: PromptCompletion | CompletionPrefix | str | None) -> CompletionPrefill:
         """
         Construct a CompletionPrefill object from given PromptCompletion or raw text.
 
         Most important is to be faithful to original tokenization if tokenization data is available.
         """
+        if completion is None:
+            return CompletionPrefill(prefill_text="", prefill_tokenized=None)
         if isinstance(completion, str):
             # For now, simple solution. But actually we have to go through cache to see if this string was tokenized before.
             return CompletionPrefill(prefill_text=completion, prefill_tokenized=None)

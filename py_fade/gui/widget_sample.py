@@ -72,7 +72,6 @@ class WidgetSample(QWidget):
     sample_copied = pyqtSignal(object)  # Signal emitted when sample is copied
     completion_archive_toggled = pyqtSignal(object, bool)
     completion_resume_requested = pyqtSignal(object)
-    completion_evaluate_requested = pyqtSignal(object, object)
 
     def __init__(self, parent: QWidget | None, app: "pyFadeApp", sample: Sample | None = None):
         super().__init__(parent)
@@ -410,8 +409,6 @@ class WidgetSample(QWidget):
         """
         if not self.app:
             return
-        # Emit the signal for external listeners
-        self.completion_evaluate_requested.emit(completion, mapped_model.model_id)
 
         current_context_length = self.context_length_field.value()
         max_context_length = max(current_context_length, completion.prompt_revision.context_length)
