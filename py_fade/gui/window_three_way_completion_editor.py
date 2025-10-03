@@ -319,7 +319,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
         column_layout.addWidget(label)
 
         editor = QPlainTextEdit(column)
-        editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
         editor.setFont(font)
         editor.setReadOnly(read_only)
         editor.setStyleSheet(f"QPlainTextEdit {{ background-color: {background}; }}")
