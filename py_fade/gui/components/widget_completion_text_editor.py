@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor, QMouseEvent
 from PyQt6.QtWidgets import QTextEdit, QToolTip, QWidget
 
@@ -95,7 +96,7 @@ class CompletionTextEdit(QTextEdit):
         """Handle mouse move events to show tooltips in heatmap mode."""
         super().mouseMoveEvent(event)
 
-        if not self.completion_frame.is_heatmap_mode or not self._token_positions_cache:
+        if not self.is_heatmap_mode or not self._token_positions_cache:
             return
 
         # Get cursor position at mouse location
@@ -112,6 +113,28 @@ class CompletionTextEdit(QTextEdit):
 
         # Hide tooltip if not over a token
         QToolTip.hideText()
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # pylint: disable=invalid-name
+        """Handle mouse press events to trigger beam-out from heatmap token clicks."""
+        super().mousePressEvent(event)
+
+        # Only handle left clicks in heatmap mode
+        if not self.is_heatmap_mode or not self._token_positions_cache:
+            return
+
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
+
+        # Get cursor position at click location
+        cursor = self.cursorForPosition(event.pos())
+        cursor_pos = cursor.position()
+
+        # Find which token was clicked
+        for idx, (start_pos, end_pos, _token_data) in enumerate(self._token_positions_cache):
+            if start_pos <= cursor_pos < end_pos:
+                # Token clicked - emit signal with token index
+                self.completion_frame.on_heatmap_token_clicked(idx)
+                return
 
     def set_completion(self, completion: CommonCompletionProtocol) -> None:
         """
