@@ -76,7 +76,19 @@ class TestFacetBackupFormat:
         assert len(backup_data.tags) == 0
 
     def test_create_backup_with_sample_and_completion(self, temp_dataset: "DatasetDatabase"):
-        """Test creating backup with sample, completion, and rating data."""
+        """
+        Test creating backup with sample, completion, and rating data.
+
+        Flow:
+        1. Create facet with sample, completion, and rating using helper
+        2. Create backup from facet
+        3. Verify all data is correctly captured in backup
+
+        Edge cases tested:
+        - Sample with prompt revision is exported
+        - Completion with model_id is exported
+        - Rating with facet_id association is preserved
+        """
         # Create test facet with data using helper
         facet = create_test_facet_with_data(temp_dataset, "Test Facet", "Test facet for backup")
 
@@ -106,7 +118,20 @@ class TestFacetBackupFormat:
         assert rating_data['facet_id'] == facet.id
 
     def test_save_and_load_round_trip(self, temp_dataset: "DatasetDatabase"):
-        """Test saving and loading a backup file."""
+        """
+        Test saving and loading a backup file maintains data integrity.
+
+        Flow:
+        1. Create facet with test data
+        2. Export to backup file
+        3. Load backup from file
+        4. Verify loaded data matches original
+
+        Edge cases tested:
+        - Round-trip consistency (save → load → verify)
+        - File I/O with temporary files
+        - Data serialization/deserialization preserves all fields
+        """
         # Create test facet with sample and completion using helper
         facet = create_test_facet_with_data(temp_dataset, "Round Trip Facet", "Test round trip")
 

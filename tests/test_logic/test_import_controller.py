@@ -94,21 +94,49 @@ class TestImportController:
         assert controller.filters[0]["config"] == config
 
     def test_set_group_path(self):
-        """Test that set_group_path stores the group path."""
+        """
+        Test that set_group_path stores the group path.
+
+        Flow:
+        1. Create controller
+        2. Set custom group path
+        3. Verify path is stored
+
+        Edge cases tested:
+        - Custom path storage
+        """
         controller = ImportController(MagicMock(), MagicMock())
 
         controller.set_group_path("custom_group")
         assert controller.group_path == "custom_group"
 
     def test_get_group_path_with_custom_path(self):
-        """Test that _get_group_path returns custom path when set."""
+        """
+        Test that _get_group_path returns custom path when set.
+
+        Flow:
+        1. Set custom group path
+        2. Verify _get_group_path returns custom path
+
+        Edge cases tested:
+        - Custom path takes precedence over inference
+        """
         controller = ImportController(MagicMock(), MagicMock())
         controller.set_group_path("my_custom_group")
 
         assert controller._get_group_path() == "my_custom_group"
 
     def test_get_group_path_infers_from_source_origin(self):
-        """Test that _get_group_path infers from source origin name."""
+        """
+        Test that _get_group_path infers from source origin name.
+
+        Flow:
+        1. Add source with origin name
+        2. Verify _get_group_path uses origin name
+
+        Edge cases tested:
+        - Inference from source origin_name when custom path not set
+        """
         controller = ImportController(MagicMock(), MagicMock())
 
         # Mock source with origin name
@@ -119,7 +147,16 @@ class TestImportController:
         assert controller._get_group_path() == "gsm8k"
 
     def test_get_group_path_fallback_to_filename(self):
-        """Test that _get_group_path falls back to filename stem."""
+        """
+        Test that _get_group_path falls back to filename stem.
+
+        Flow:
+        1. Add source without origin name but with file path
+        2. Verify _get_group_path uses filename stem
+
+        Edge cases tested:
+        - Fallback to filename when origin_name is None
+        """
         controller = ImportController(MagicMock(), MagicMock())
 
         # Mock source without origin name but with result_json_path
@@ -132,7 +169,16 @@ class TestImportController:
         assert controller._get_group_path() == "results_test_file"
 
     def test_get_group_path_default_fallback(self):
-        """Test that _get_group_path provides default fallback."""
+        """
+        Test that _get_group_path provides default fallback.
+
+        Flow:
+        1. Create controller with no sources
+        2. Verify _get_group_path returns default "import"
+
+        Edge cases tested:
+        - Default fallback when no sources exist
+        """
         controller = ImportController(MagicMock(), MagicMock())
         # No sources, should use default
         assert controller._get_group_path() == "import"
