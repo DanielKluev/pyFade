@@ -172,21 +172,30 @@ class CompletionTextEdit(QTextEdit):
         Only the non-overlapping part of prefill is highlighted as PREFILL_COLOR,
         while the overlapping part (beam token) is highlighted as BEAM_TOKEN_COLOR.
 
-        Uses Qt's text search to properly handle UTF-16 positioning for emoji and multi-byte characters.
+        Uses manual string search with QTextCursor positioning to handle multi-line text and UTF-16 properly.
         """
         if not self._completion:
             return
 
         def apply_highlight_by_search(search_text: str, color: QColor, start_pos: int = 0) -> int:
             """
-            Find and highlight text using Qt's search, returning the end position or -1 if not found.
+            Find and highlight text using manual string search, returning the end position or -1 if not found.
 
             Returns the UTF-16 position after the found text, or -1 if not found.
+            Uses manual string search instead of Qt's document.find() to support multi-line text (newlines).
             """
-            # Use Qt's document find method which handles UTF-16 properly
-            cursor = self.document().find(search_text, start_pos)
-            if cursor.isNull():
+            # Get the plain text for string searching
+            plain_text = self.toPlainText()
+
+            # Find the search text in the plain text
+            search_pos = plain_text.find(search_text, start_pos)
+            if search_pos == -1:
                 return -1
+
+            # Create cursor and select the found text
+            cursor = self.textCursor()
+            cursor.setPosition(search_pos)
+            cursor.setPosition(search_pos + len(search_text), QTextCursor.MoveMode.KeepAnchor)
 
             # Apply highlighting
             highlight_format = QTextCharFormat()
@@ -194,7 +203,7 @@ class CompletionTextEdit(QTextEdit):
             cursor.mergeCharFormat(highlight_format)
 
             # Return position after the found text
-            return cursor.position()
+            return search_pos + len(search_text)
 
         prefill = self._completion.prefill
         beam_token = self._completion.beam_token
