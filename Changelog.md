@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### Added
+- **Prompt Role Tag Insert**: Added UI controls for inserting multi-turn conversation role tags in prompts
+  - Right-click context menu in prompt editor with options to insert system/user/assistant tags at cursor or end
+  - Three buttons (S, U, A) in prompt control panel for quick tag insertion at end of prompt
+  - System tag validation: only one system tag allowed and must be at beginning of prompt
+  - User and assistant tags can be inserted multiple times at any position
+  - Tags use flat prefix template format (`<|system|>`, `<|user|>`, `<|assistant|>`)
+  - Comprehensive test coverage with 26 new tests for PlainTextEdit and WidgetSample
 - **Beam search: truncated Completion continuation**: Both transient and persisted completions in beam search window now show continuation button if truncated. For persistent completions, the same 3-way editor flow is used as in WidgetSample. For transient completions, continuation is generated in place without additional user input, keeping current context size and replacing the completion frame with the expanded completion.
 
 ### Fixed
