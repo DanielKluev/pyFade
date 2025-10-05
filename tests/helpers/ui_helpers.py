@@ -104,3 +104,81 @@ def setup_completion_frame_with_heatmap(dataset: "DatasetDatabase", beam, qt_app
     qt_app.processEvents()
 
     return frame, text_edit
+
+
+def mock_three_way_editor(monkeypatch: "pytest.MonkeyPatch"):
+    """
+    Mock ThreeWayCompletionEditorWindow to avoid showing modal dialogs in tests.
+
+    This helper reduces code duplication in tests that need to verify behavior
+    involving the three-way completion editor without actually showing the dialog.
+
+    Args:
+        monkeypatch: Pytest monkeypatch fixture
+
+    Returns:
+        list: A list that will be populated with editor instances when the editor is instantiated
+    """
+    from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow  # pylint: disable=import-outside-toplevel
+
+    editor_instances = []
+    original_init = ThreeWayCompletionEditorWindow.__init__
+
+    def mock_init(self, *args, **kwargs):
+        editor_instances.append(self)
+        original_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(ThreeWayCompletionEditorWindow, "__init__", mock_init)
+
+    # Mock exec to avoid actual dialog showing
+    monkeypatch.setattr(ThreeWayCompletionEditorWindow, "exec", lambda self: 0)
+
+    return editor_instances
+
+
+def create_mock_mapped_model(model_id: str = "test-model", path: str = "test-model"):
+    """
+    Create a mock MappedModel for testing.
+
+    This helper reduces code duplication in tests that need a mock MappedModel
+    with standard test values.
+
+    Args:
+        model_id: Model identifier (default: "test-model")
+        path: Model path (default: "test-model")
+
+    Returns:
+        MagicMock: A mock MappedModel with model_id and path attributes set
+    """
+    from unittest.mock import MagicMock  # pylint: disable=import-outside-toplevel
+
+    mapped_model = MagicMock()
+    mapped_model.model_id = model_id
+    mapped_model.path = path
+    return mapped_model
+
+
+def setup_completion_frame_basic(dataset: "DatasetDatabase", beam, qt_app, display_mode: str = "beam"):
+    """
+    Create and show a CompletionFrame with basic setup.
+
+    This helper reduces duplication in tests that need to create a CompletionFrame
+    and verify basic text display without additional configuration.
+
+    Args:
+        dataset: The dataset database to use
+        beam: The LLMResponse object to display
+        qt_app: The Qt application instance for processing events
+        display_mode: Display mode for the frame (default: "beam")
+
+    Returns:
+        tuple: (frame, text_edit) - The CompletionFrame and its text_edit widget
+    """
+    from py_fade.gui.components.widget_completion import CompletionFrame  # pylint: disable=import-outside-toplevel
+
+    frame = CompletionFrame(dataset, beam, display_mode=display_mode)
+    text_edit = frame.text_edit
+    frame.show()
+    qt_app.processEvents()
+
+    return frame, text_edit

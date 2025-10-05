@@ -3,13 +3,13 @@ Unit tests for WidgetCompletionBeams sorting by pinned status and scored_logprob
 """
 
 import logging
-from unittest.mock import MagicMock
 
 import pytest
 
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from py_fade.gui.components.widget_completion import CompletionFrame
 from tests.helpers.data_helpers import create_llm_response_with_logprobs, create_simple_llm_response
+from tests.helpers.ui_helpers import create_mock_mapped_model
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +29,7 @@ class TestWidgetCompletionBeamsSorting:
         Test unpinned beams are sorted by scored_logprob (highest/best scores first).
         """
         # Create widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
+        mapped_model = create_mock_mapped_model()
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create beams with different logprobs
@@ -61,9 +59,7 @@ class TestWidgetCompletionBeamsSorting:
         Test pinned beams appear before unpinned beams.
         """
         # Create widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
+        mapped_model = create_mock_mapped_model()
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create beams with different logprobs
@@ -96,9 +92,7 @@ class TestWidgetCompletionBeamsSorting:
         Test multiple pinned beams are sorted by scored_logprob (highest/best scores first).
         """
         # Create widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
+        mapped_model = create_mock_mapped_model()
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create beams with different logprobs
@@ -134,9 +128,7 @@ class TestWidgetCompletionBeamsSorting:
         Test beams without logprobs appear at the end.
         """
         # Create widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
+        mapped_model = create_mock_mapped_model()
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create beams: some with logprobs, some without
@@ -163,9 +155,7 @@ class TestWidgetCompletionBeamsSorting:
         Test pinned beams without logprobs still appear before unpinned beams with logprobs.
         """
         # Create widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
+        mapped_model = create_mock_mapped_model()
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create beams
@@ -194,9 +184,7 @@ class TestWidgetCompletionBeamsSorting:
         Test that on_beam_pinned triggers re-sorting of frames.
         """
         # Create widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
+        mapped_model = create_mock_mapped_model()
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create beams
@@ -227,9 +215,7 @@ class TestWidgetCompletionBeamsSorting:
         Test comprehensive sorting with multiple pinned and unpinned beams with various logprobs.
         """
         # Create widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
+        mapped_model = create_mock_mapped_model()
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create beams with different states

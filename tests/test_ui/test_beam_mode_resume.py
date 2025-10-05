@@ -18,8 +18,8 @@ from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
-from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow
 from tests.helpers.data_helpers import create_simple_llm_response, create_test_completion
+from tests.helpers.ui_helpers import mock_three_way_editor, create_mock_mapped_model
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -138,10 +138,7 @@ class TestBeamModeResumeHandlers:
         Test that resuming a transient beam generates continuation and updates the frame in place.
         """
         # Create widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
-
+        mapped_model = create_mock_mapped_model()
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create a truncated transient beam
@@ -280,17 +277,7 @@ class TestBeamModeResumeHandlers:
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", sample_widget, mapped_model)
 
         # Track if ThreeWayCompletionEditorWindow is created
-        editor_instances = []
-        original_init = ThreeWayCompletionEditorWindow.__init__
-
-        def mock_init(self, *args, **kwargs):
-            editor_instances.append(self)
-            original_init(self, *args, **kwargs)
-
-        monkeypatch.setattr(ThreeWayCompletionEditorWindow, "__init__", mock_init)
-
-        # Mock exec to avoid actual dialog showing
-        monkeypatch.setattr(ThreeWayCompletionEditorWindow, "exec", lambda self: 0)
+        editor_instances = mock_three_way_editor(monkeypatch)
 
         # Trigger resume for persisted completion
         widget.on_beam_resume_requested(completion)
@@ -327,7 +314,9 @@ class TestBeamModeResumeHandlers:
 
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", sample_widget, mapped_model)
 
-        # Mock exec to simulate success (return 1)
+        # Mock the editor and simulate success (return 1)
+        _ = mock_three_way_editor(monkeypatch)
+        from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow  # pylint: disable=import-outside-toplevel
         monkeypatch.setattr(ThreeWayCompletionEditorWindow, "exec", lambda self: 1)
 
         # Trigger resume for persisted completion

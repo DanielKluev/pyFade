@@ -24,9 +24,8 @@ from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_dataset_top import WidgetDatasetTop
 from py_fade.gui.widget_sample import WidgetSample
 from py_fade.data_formats.base_data_classes import CompletionTopLogprobs
-from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow
 from tests.helpers.data_helpers import create_test_single_position_token, create_test_completion
-from tests.helpers.ui_helpers import setup_test_app_with_fake_home
+from tests.helpers.ui_helpers import setup_test_app_with_fake_home, mock_three_way_editor
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -374,7 +373,7 @@ def test_resume_button_emits_signal_for_truncated_completion(
     qt_app.processEvents()
 
     # Mock exec to avoid actual dialog showing
-    monkeypatch.setattr(ThreeWayCompletionEditorWindow, "exec", lambda self: 0)
+    _ = mock_three_way_editor(monkeypatch)
 
     resume_events: list[PromptCompletion] = []
     widget.completion_resume_requested.connect(resume_events.append)
@@ -409,17 +408,7 @@ def test_resume_button_should_open_three_way_editor(
     qt_app.processEvents()
 
     # Track if ThreeWayCompletionEditorWindow is created
-    editor_instances: list[ThreeWayCompletionEditorWindow] = []
-    original_init = ThreeWayCompletionEditorWindow.__init__
-
-    def mock_init(self, *args, **kwargs):
-        editor_instances.append(self)
-        original_init(self, *args, **kwargs)
-
-    monkeypatch.setattr(ThreeWayCompletionEditorWindow, "__init__", mock_init)
-
-    # Mock exec to avoid actual dialog showing
-    monkeypatch.setattr(ThreeWayCompletionEditorWindow, "exec", lambda self: 0)
+    editor_instances = mock_three_way_editor(monkeypatch)
 
     frame = _first_completion_frame(widget)
     assert frame.resume_button is not None
