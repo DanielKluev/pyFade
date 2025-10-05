@@ -1,6 +1,19 @@
 """LLM chat template formatting functions for various model families."""
 
-from py_fade.data_formats.base_data_classes import CommonConversation
+from py_fade.data_formats.base_data_classes import CommonConversation, CommonMessage
+
+
+def merge_system_and_user(messages: CommonConversation) -> CommonConversation:
+    """
+    Merge system message into the first user message if present.
+    """
+    raw_messages = messages.messages.copy()
+    if len(raw_messages) >= 2 and raw_messages[0].role == "system" and raw_messages[1].role == "user":
+        system_msg = raw_messages.pop(0)
+        user_msg = raw_messages.pop(0)
+        merged_user_msg = CommonMessage(role="user", content=system_msg.content + "\n" + user_msg.content)
+        return CommonConversation(messages=[merged_user_msg] + raw_messages)
+    return messages
 
 
 def apply_template_gemma3(messages: CommonConversation) -> str:
@@ -63,6 +76,29 @@ def apply_template_qwen3(messages: CommonConversation) -> str:
     return prompt
 
 
+def apply_template_mistral(messages: CommonConversation) -> str:
+    """
+    Apply the Mistral chat template to the given messages.
+
+    Mistral uses only 'user' and 'assistant' roles, system role is treated as user.
+    Each turn looks like this:
+        user: [INST] {content} [/INST]
+        assistant: {content}</s>
+    """
+    messages = merge_system_and_user(messages)
+    prompt = ""
+    for i, message in enumerate(messages.messages):
+        role = message.role
+        content = message.content
+        if role not in ("user", "assistant"):
+            raise ValueError(f"Unsupported role '{role}' for Mistral template.")
+        if role == "user":
+            prompt += f"[INST] {content} [/INST]"
+        else:  # assistant
+            prompt += f"{content}</s>"
+    return prompt.strip()
+
+
 def get_template_function(model_id: str):
     """
     Get the template function by model ID.
@@ -71,4 +107,6 @@ def get_template_function(model_id: str):
         return apply_template_gemma3
     if "qwen3" in model_id.lower():
         return apply_template_qwen3
+    if "mistral" in model_id.lower():
+        return apply_template_mistral
     return None
