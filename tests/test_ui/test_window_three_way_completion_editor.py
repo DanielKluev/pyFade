@@ -102,7 +102,8 @@ def test_manual_edit_saves_new_completion_with_pairwise_preference(
     assert len(children) == 1
 
     new_completion = children[0]
-    assert new_completion.model_id == "manual"
+    assert new_completion.model_id == "mock-echo-model"  # Keep original model id
+    assert new_completion.is_manual is True
     assert new_completion.parent_completion_id == original.id
     assert new_completion.completion_text.endswith("Rewritten for clarity.")
     assert original.is_archived is True
