@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt, QPointF
-from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtGui import QMouseEvent, QTextCursor
 
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.components.widget_completion_text_editor import CompletionTextEdit, PREFILL_COLOR, BEAM_TOKEN_COLOR
@@ -671,6 +671,45 @@ class TestCompletionTextEditMultilinePrefillHighlighting:
 
         assert prefill_bg == PREFILL_COLOR
         assert beam_bg == BEAM_TOKEN_COLOR
+
+    def test_emoji_as_prefill_and_beam(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """Emoji can be used as both prefill and beam token (UTF-16 surrogate pair handling)."""
+        _ = ensure_google_icon_font
+        emoji = "😊"
+        completion_text = "😊 more text"
+
+        beam = _create_test_llm_response(completion_text=completion_text, prefill=emoji, beam_token=emoji)
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+        text_edit = frame.text_edit
+        frame.show()
+        qt_app.processEvents()
+
+        # The emoji should be highlighted as beam token
+        # Qt uses UTF-16 encoding where emoji is a surrogate pair (2 code units)
+        # To check the format, we need to select the character, not just position at it
+        cursor = text_edit.textCursor()
+
+        # Select the emoji character (positions 0-2 in UTF-16)
+        cursor.setPosition(0)
+        cursor.setPosition(2, QTextCursor.MoveMode.KeepAnchor)
+        selected_text = cursor.selectedText()
+        emoji_bg = cursor.charFormat().background().color()
+
+        # The emoji should be selected and highlighted as beam token
+        assert selected_text == emoji, f"Expected to select emoji {repr(emoji)}, got {repr(selected_text)}"
+        assert emoji_bg == BEAM_TOKEN_COLOR, f"Expected beam token color for emoji, got {emoji_bg.name()}"
+
+        # Position 2 (space after emoji) should NOT be highlighted
+        cursor.setPosition(2)
+        cursor.setPosition(3, QTextCursor.MoveMode.KeepAnchor)
+        space_bg = cursor.charFormat().background().color()
+        assert space_bg != BEAM_TOKEN_COLOR, "Space after emoji should not be highlighted"
 
 
 class TestCompletionTextEditIntegrationWithCompletionFrame:
