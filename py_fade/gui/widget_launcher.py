@@ -65,7 +65,7 @@ class LauncherWidget(QWidget):
         self.app = app
         self.setObjectName("launcher-widget")
         self.setWindowTitle("pyFADE Launcher")
-        self.resize(720, 520)
+        self.resize(800, 900)
 
         self.setup_ui()
         self.connect_signals()
@@ -106,13 +106,11 @@ class LauncherWidget(QWidget):
 
         list_frame = QFrame(self)
         list_frame.setObjectName("launcher-recents-frame")
-        list_frame.setStyleSheet(
-            "#launcher-recents-frame {"
-            "    border: 1px solid #d0d5dd;"
-            "    border-radius: 12px;"
-            "    background-color: #f8fafc;"
-            "}"
-        )
+        list_frame.setStyleSheet("#launcher-recents-frame {"
+                                 "    border: 1px solid #d0d5dd;"
+                                 "    border-radius: 12px;"
+                                 "    background-color: #f8fafc;"
+                                 "}")
 
         list_layout = QVBoxLayout(list_frame)
         list_layout.setContentsMargins(16, 16, 16, 16)
@@ -138,22 +136,22 @@ class LauncherWidget(QWidget):
         self.list_widget.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
         self.list_widget.setUniformItemSizes(False)
         self.list_widget.setSpacing(4)
-        self.list_widget.setStyleSheet(
-            "QListWidget#launcher-recents-list {"
-            "    background: transparent;"
-            "    border: none;"
-            "    font-size: 12px;"
-            "}"
-            "QListWidget#launcher-recents-list::item {"
-            "    padding: 10px 12px;"
-            "    margin: 2px 0;"
-            "    border-radius: 8px;"
-            "}"
-            "QListWidget#launcher-recents-list::item:selected {"
-            "    background: #e0f2fe;"
-            "}"
-        )
+        self.list_widget.setStyleSheet("QListWidget#launcher-recents-list {"
+                                       "    background: transparent;"
+                                       "    border: none;"
+                                       "    font-size: 12px;"
+                                       "}"
+                                       "QListWidget#launcher-recents-list::item {"
+                                       "    padding: 10px 12px;"
+                                       "    margin: 2px 0;"
+                                       "    border-radius: 8px;"
+                                       "}"
+                                       "QListWidget#launcher-recents-list::item:selected {"
+                                       "    background: #e0f2fe;"
+                                       "}")
         list_layout.addWidget(self.list_widget)
+        ## Set a minimum height to avoid looking too empty
+        self.list_widget.setMinimumHeight(400)
 
         layout.addWidget(list_frame)
 
@@ -168,9 +166,7 @@ class LauncherWidget(QWidget):
         self.new_btn = QPushButton("Create new dataset", self)
         controls_row.addWidget(self.new_btn)
 
-        controls_row.addItem(
-            QSpacerItem(24, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        )
+        controls_row.addItem(QSpacerItem(24, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
         layout.addLayout(controls_row)
 
         password_frame = QFrame(self)
@@ -197,7 +193,7 @@ class LauncherWidget(QWidget):
 
         layout.addWidget(password_frame)
 
-        layout.addStretch()
+        #layout.addStretch()
 
         password_frame.hide()
         self.password_frame = password_frame
@@ -265,9 +261,7 @@ class LauncherWidget(QWidget):
         exists = path.exists()
         if not exists:
             tooltip = f"{path}\nFile not found."
-            return RecentDatasetInfo(
-                path=path, db_type="missing", exists=False, icon_name="inventory_2", tooltip=tooltip
-            )
+            return RecentDatasetInfo(path=path, db_type="missing", exists=False, icon_name="inventory_2", tooltip=tooltip)
 
         db_type = DatasetDatabase.check_db_type(path)
         if db_type == "sqlcipher":
@@ -280,9 +274,7 @@ class LauncherWidget(QWidget):
             icon_name = "inventory_2"
             tooltip = f"{path}\nUnknown database format."
 
-        return RecentDatasetInfo(
-            path=path, db_type=db_type, exists=True, icon_name=icon_name, tooltip=tooltip
-        )
+        return RecentDatasetInfo(path=path, db_type=db_type, exists=True, icon_name=icon_name, tooltip=tooltip)
 
     def _apply_logo_pixmap(self) -> None:
         root_dir = pathlib.Path(__file__).resolve().parents[2]
@@ -335,9 +327,7 @@ class LauncherWidget(QWidget):
     def create_new_dataset(self) -> None:
         """Open a file dialog to create a new dataset and refresh the recents list."""
 
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Create New Dataset", "", "SQLite DB (*.db)"
-        )
+        file_path, _ = QFileDialog.getSaveFileName(self, "Create New Dataset", "", "SQLite DB (*.db)")
         if not file_path:
             self.log.info("Create new dataset cancelled by user.")
             return
@@ -349,9 +339,7 @@ class LauncherWidget(QWidget):
             QMessageBox.critical(self, "Create dataset", f"Failed to create dataset:\n{exc}")
             return
         if not created_path:
-            QMessageBox.warning(
-                self, "Create dataset", "Dataset was not created. Please pick a new location."
-            )
+            QMessageBox.warning(self, "Create dataset", "Dataset was not created. Please pick a new location.")
             return
         self.set_recent_datasets()
         self.open_dataset(pathlib.Path(created_path), "")
@@ -364,9 +352,7 @@ class LauncherWidget(QWidget):
             QMessageBox.warning(self, "Select dataset", "Please select a dataset from the list.")
             return
         if not info.exists:
-            QMessageBox.warning(
-                self, "Dataset missing", "The dataset file no longer exists on disk."
-            )
+            QMessageBox.warning(self, "Dataset missing", "The dataset file no longer exists on disk.")
             return
         if info.db_type == "sqlcipher" and not SUPPORTED_FEATURES.get("sqlcipher3", False):
             self._show_sqlcipher_missing_warning(info.path)
@@ -376,9 +362,7 @@ class LauncherWidget(QWidget):
         if info.db_type == "sqlcipher":
             password = self.pw_input.text()
             if not password:
-                QMessageBox.warning(
-                    self, "Password required", "Enter the password to unlock this dataset."
-                )
+                QMessageBox.warning(self, "Password required", "Enter the password to unlock this dataset.")
                 self.pw_input.setFocus()
                 return
             if not DatasetDatabase.check_password(info.path, password):
@@ -410,9 +394,7 @@ class LauncherWidget(QWidget):
             return
         self.open_selected()
 
-    def _on_current_item_changed(
-        self, current: QListWidgetItem | None, _previous: QListWidgetItem | None
-    ) -> None:
+    def _on_current_item_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
         info = current.data(Qt.ItemDataRole.UserRole) if current else None
         if isinstance(info, RecentDatasetInfo):
             dataset_info = info
@@ -426,12 +408,10 @@ class LauncherWidget(QWidget):
         QMessageBox.warning(
             self,
             "SQLCipher support required",
-            (
-                "The dataset at\n"
-                f"{path}\n"
-                "is encrypted with SQLCipher, but the sqlcipher3 package is not installed."
-                "\nInstall sqlcipher3 to unlock encrypted datasets."
-            ),
+            ("The dataset at\n"
+             f"{path}\n"
+             "is encrypted with SQLCipher, but the sqlcipher3 package is not installed."
+             "\nInstall sqlcipher3 to unlock encrypted datasets."),
         )
 
 
