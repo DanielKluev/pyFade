@@ -50,7 +50,6 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QComboBox,
-    QLineEdit,
     QSpinBox,
     QTextEdit,
     QProgressBar,
@@ -387,8 +386,14 @@ class ImportWizard(BaseWizard):  # pylint: disable=too-many-public-methods
         group_group = QGroupBox("Group Path (Optional)", widget)
         group_layout = QVBoxLayout(group_group)
 
-        self.group_path_edit = QLineEdit(group_group)
-        self.group_path_edit.setPlaceholderText("e.g., GSM8K/Math Problems")
+        self.group_path_edit = QComboBox(group_group)
+        self.group_path_edit.setEditable(True)
+        group_line_edit = self.group_path_edit.lineEdit()
+        if group_line_edit is not None:
+            group_line_edit.setPlaceholderText("e.g., GSM8K/Math Problems")
+        # Populate with existing group paths
+        group_paths = self.dataset.list_unique_group_paths()
+        self.group_path_edit.addItems([""] + group_paths)
         group_layout.addWidget(self.group_path_edit)
 
         group_help = QLabel("Specify a group path to organize imported samples. Leave empty to use auto-generated path.", group_group)
@@ -445,6 +450,7 @@ class ImportWizard(BaseWizard):  # pylint: disable=too-many-public-methods
 
         if step == self.STEP_RESULTS:
             self.next_button.setText("Close")
+            self.next_button.setEnabled(True)
             self.cancel_button.setVisible(False)
         elif step == self.STEP_IMPORT_PROGRESS:
             self.next_button.setEnabled(False)
@@ -671,7 +677,7 @@ class ImportWizard(BaseWizard):  # pylint: disable=too-many-public-methods
                                                    chosen=self.chosen_rating_spin.value(), rejected=self.rejected_rating_spin.value())
 
             # Set group path if specified
-            group_path = self.group_path_edit.text().strip()
+            group_path = self.group_path_edit.currentText().strip()
             if group_path:
                 self.import_controller.set_group_path(group_path)
 
@@ -710,7 +716,7 @@ class ImportWizard(BaseWizard):  # pylint: disable=too-many-public-methods
         else:
             summary_parts.append("  • Target Facet: None (no ratings will be applied)")
 
-        group_path = self.group_path_edit.text().strip()
+        group_path = self.group_path_edit.currentText().strip()
         if group_path:
             summary_parts.append(f"  • Group Path: {group_path}")
         else:

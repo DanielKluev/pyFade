@@ -2,6 +2,8 @@
 Test Import Wizard menu integration with pytest-qt.
 """
 
+from unittest.mock import Mock, patch
+
 from py_fade.gui.widget_dataset_top import WidgetDatasetTop
 from py_fade.gui.window_import_wizard import ImportWizard, ImportWorkerThread
 
@@ -64,3 +66,51 @@ def test_import_worker_thread_creation():
     assert hasattr(worker, 'import_failed')
     assert hasattr(worker, 'run')
     assert worker.import_controller == import_controller
+
+
+def test_import_wizard_triggers_sidebar_refresh(app_with_dataset, temp_dataset, qtbot, ensure_google_icon_font):
+    """
+    Test that the sidebar refresh method is called when import wizard completes successfully.
+    """
+    # Note: ensure_google_icon_font is used for side effect
+    _ = ensure_google_icon_font
+
+    # Create the dataset top widget
+    widget = WidgetDatasetTop(None, app_with_dataset, temp_dataset)
+    qtbot.addWidget(widget)
+
+    # Mock the sidebar refresh method
+    sidebar_refresh_mock = Mock()
+    widget.sidebar.refresh = sidebar_refresh_mock
+
+    # Create a wizard and mock its exec to return Accepted
+    with patch.object(ImportWizard, 'exec', return_value=ImportWizard.DialogCode.Accepted):
+        # Trigger the import wizard handler
+        widget._handle_import_wizard()  # pylint: disable=protected-access
+
+        # Verify that sidebar.refresh was called
+        sidebar_refresh_mock.assert_called_once()
+
+
+def test_import_wizard_no_refresh_on_cancel(app_with_dataset, temp_dataset, qtbot, ensure_google_icon_font):
+    """
+    Test that the sidebar refresh method is NOT called when import wizard is cancelled.
+    """
+    # Note: ensure_google_icon_font is used for side effect
+    _ = ensure_google_icon_font
+
+    # Create the dataset top widget
+    widget = WidgetDatasetTop(None, app_with_dataset, temp_dataset)
+    qtbot.addWidget(widget)
+
+    # Mock the sidebar refresh method
+    sidebar_refresh_mock = Mock()
+    widget.sidebar.refresh = sidebar_refresh_mock
+
+    # Create a wizard and mock its exec to return Rejected (cancelled)
+    with patch.object(ImportWizard, 'exec', return_value=ImportWizard.DialogCode.Rejected):
+        # Trigger the import wizard handler
+        widget._handle_import_wizard()  # pylint: disable=protected-access
+
+        # Verify that sidebar.refresh was NOT called
+        sidebar_refresh_mock.assert_not_called()

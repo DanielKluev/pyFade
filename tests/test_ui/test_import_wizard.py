@@ -6,6 +6,8 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from py_fade.dataset.facet import Facet
+from py_fade.dataset.prompt import PromptRevision
+from py_fade.dataset.sample import Sample
 from py_fade.gui.window_import_wizard import ImportWizard, ImportWorkerThread
 from py_fade.controllers.import_controller import ImportController
 
@@ -132,10 +134,53 @@ def test_import_wizard_configuration_step(app_with_dataset, temp_dataset, qtbot)
     assert wizard.correct_rating_spin.value() == 9
     assert wizard.incorrect_rating_spin.value() == 1
 
-    # Test group path field
-    wizard.group_path_edit.setText("Test Group Path")
+    # Test group path field (now a combobox)
+    wizard.group_path_edit.setCurrentText("Test Group Path")
 
-    assert wizard.group_path_edit.text() == "Test Group Path"
+    assert wizard.group_path_edit.currentText() == "Test Group Path"
+
+
+def test_import_wizard_group_path_prepopulation(app_with_dataset, temp_dataset, qtbot):
+    """
+    Test that group path combobox is prepopulated with existing paths from the dataset.
+    """
+    # Create prompt revisions and samples with different group paths
+    prompt_rev_1 = PromptRevision.get_or_create(temp_dataset, "Test prompt 1", 2048, 512)
+    prompt_rev_2 = PromptRevision.get_or_create(temp_dataset, "Test prompt 2", 2048, 512)
+    prompt_rev_3 = PromptRevision.get_or_create(temp_dataset, "Test prompt 3", 2048, 512)
+    temp_dataset.commit()
+
+    Sample.create_if_unique(temp_dataset, "Test Sample 1", prompt_rev_1, group_path="GSM8K/Math")
+    Sample.create_if_unique(temp_dataset, "Test Sample 2", prompt_rev_2, group_path="HumanEval/Python")
+    Sample.create_if_unique(temp_dataset, "Test Sample 3", prompt_rev_3, group_path="GSM8K/Math")  # Duplicate to test uniqueness
+    temp_dataset.commit()
+
+    wizard = ImportWizard(None, app_with_dataset, temp_dataset)
+    qtbot.addWidget(wizard)
+
+    # Navigate to configuration step
+    wizard.show_step(ImportWizard.STEP_CONFIGURATION)
+
+    # Test that group_path_edit is a QComboBox and is editable
+    assert wizard.group_path_edit.isEditable()
+
+    # Test that combobox is populated with existing paths
+    # Should have empty string + unique group paths
+    items = [wizard.group_path_edit.itemText(i) for i in range(wizard.group_path_edit.count())]
+
+    assert "" in items  # Empty option should be present
+    assert "GSM8K/Math" in items
+    assert "HumanEval/Python" in items
+    # Check that there are no duplicates (count should be 3: "", "GSM8K/Math", "HumanEval/Python")
+    assert len(items) == 3
+
+    # Test that user can select from dropdown
+    wizard.group_path_edit.setCurrentText("GSM8K/Math")
+    assert wizard.group_path_edit.currentText() == "GSM8K/Math"
+
+    # Test that user can type custom value
+    wizard.group_path_edit.setCurrentText("Custom/Path")
+    assert wizard.group_path_edit.currentText() == "Custom/Path"
 
 
 def test_import_wizard_format_detection_display(app_with_dataset, temp_dataset, qtbot):
@@ -241,6 +286,9 @@ def test_import_wizard_results_display(app_with_dataset, temp_dataset, qtbot):
     assert "✓" in wizard.results_label.text()
     assert "Successfully" in wizard.results_label.text()
     assert "5" in wizard.results_text.toPlainText()
+    # Verify Close button is enabled after import completes
+    assert wizard.next_button.isEnabled()
+    assert wizard.next_button.text() == "Close"
 
 
 def test_import_wizard_results_display_failure(app_with_dataset, temp_dataset, qtbot):
@@ -257,6 +305,9 @@ def test_import_wizard_results_display_failure(app_with_dataset, temp_dataset, q
     assert "✗" in wizard.results_label.text()
     assert "Failed" in wizard.results_label.text()
     assert "Test error message" in wizard.results_text.toPlainText()
+    # Verify Close button is enabled after import fails
+    assert wizard.next_button.isEnabled()
+    assert wizard.next_button.text() == "Close"
 
 
 def test_import_worker_thread_functionality(app_with_dataset, temp_dataset, qtbot):
