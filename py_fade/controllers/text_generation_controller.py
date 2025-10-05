@@ -431,8 +431,8 @@ class TextGenerationController:
         """
         completion_prefill = self.construct_completion_prefill(beam_prefix)
         eval_logprobs = self.mapped_model.evaluate_completion(
-            prompt=self.prompt_revision.prompt_conversation, completion=completion_prefill,
-            context_length=max(self.default_context_length, beam_prefix.prefix_token_size))
+            prompt=self.prompt_conversation, completion=completion_prefill, context_length=max(self.default_context_length,
+                                                                                               beam_prefix.prefix_token_size))
         return eval_logprobs
 
     def construct_completion_prefill(self, completion: PromptCompletion | CompletionPrefix | str | None) -> CompletionPrefill:
