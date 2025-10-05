@@ -16,7 +16,7 @@ from PyQt6.QtGui import QTextCursor
 
 from py_fade.gui.components.widget_completion import CompletionFrame
 from tests.helpers.data_helpers import (build_sample_with_completion, create_test_llm_response, create_test_single_position_token)
-from tests.helpers.ui_helpers import setup_completion_frame_with_heatmap
+from tests.helpers.ui_helpers import setup_completion_frame_with_heatmap, setup_completion_frame_basic
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -46,10 +46,7 @@ class TestEmojiPrefillHighlighting:
 
         beam = create_test_llm_response(completion_text=completion_text, prefill=prefill_text)
 
-        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
-        text_edit = frame.text_edit
-        frame.show()
-        qt_app.processEvents()
+        _, text_edit = setup_completion_frame_basic(temp_dataset, beam, qt_app)
 
         # Verify text is set correctly
         assert text_edit.toPlainText() == completion_text

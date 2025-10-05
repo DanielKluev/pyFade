@@ -19,7 +19,7 @@ from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from tests.helpers.data_helpers import create_simple_llm_response, create_test_completion
-from tests.helpers.ui_helpers import mock_three_way_editor
+from tests.helpers.ui_helpers import mock_three_way_editor, create_mock_mapped_model
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -138,10 +138,7 @@ class TestBeamModeResumeHandlers:
         Test that resuming a transient beam generates continuation and updates the frame in place.
         """
         # Create widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
-
+        mapped_model = create_mock_mapped_model()
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create a truncated transient beam
@@ -318,7 +315,7 @@ class TestBeamModeResumeHandlers:
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", sample_widget, mapped_model)
 
         # Mock the editor and simulate success (return 1)
-        editor_instances = mock_three_way_editor(monkeypatch)
+        _ = mock_three_way_editor(monkeypatch)
         from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow  # pylint: disable=import-outside-toplevel
         monkeypatch.setattr(ThreeWayCompletionEditorWindow, "exec", lambda self: 1)
 
