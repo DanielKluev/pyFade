@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Fixed
+- **Beam Completion Widget Update Bug**: Fixed issue where CompletionFrame in beam search window was not updated after saving a beam
+  - Modified `WidgetSample.add_completion()` to return the created `PromptCompletion`
+  - Updated `WidgetCompletionBeams.on_beam_accepted()` to update frame with persisted completion
+  - Frame now correctly shows saved state (archive button visible, save/pin buttons hidden)
+  - Model info header now becomes visible for saved beams
+  - Added 3 comprehensive unit tests to verify fix
 - **Emoji Highlighting Bug**: Fixed highlighting issues with emoji and multi-byte Unicode characters in completion text editor
   - Replaced Python string indexing with Qt's UTF-16-aware text positioning methods
   - Fixed prefill, beam token, and heatmap highlighting to properly handle surrogate pairs
