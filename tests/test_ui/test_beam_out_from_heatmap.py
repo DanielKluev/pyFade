@@ -16,7 +16,7 @@ from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from py_fade.providers.mock_provider import MockLLMProvider
 from py_fade.providers.providers_manager import MappedModel
 from tests.helpers.data_helpers import create_test_llm_response, create_test_single_position_token
-from tests.helpers.ui_helpers import setup_completion_frame_with_heatmap
+from tests.helpers.ui_helpers import setup_completion_frame_with_heatmap, setup_completion_frame_basic
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -84,10 +84,7 @@ class TestHeatmapTokenClick:
         _ = ensure_google_icon_font
         beam = create_test_llm_response(completion_text="Hello world")
 
-        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
-        text_edit = frame.text_edit
-        frame.show()
-        qt_app.processEvents()
+        frame, text_edit = setup_completion_frame_basic(temp_dataset, beam, qt_app)
 
         # Not in heatmap mode
         assert not text_edit.is_heatmap_mode
