@@ -1,7 +1,7 @@
 """
 Unit tests for WidgetCompletionBeams sorting by pinned status and scored_logprob.
 """
-# pylint: disable=duplicate-code  # Test helpers intentionally similar between test files
+
 import logging
 from unittest.mock import MagicMock
 

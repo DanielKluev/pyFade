@@ -1,7 +1,7 @@
 """
 Unit tests for WidgetSample completion sorting by rating and scored_logprob.
 """
-# pylint: disable=duplicate-code  # Test helpers intentionally similar between test files
+# pylint: disable=protected-access
 import logging
 from unittest.mock import MagicMock
 
