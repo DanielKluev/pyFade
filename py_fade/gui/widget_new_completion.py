@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPlainTextEdit,
-    QPushButton,
     QScrollArea,
     QSpinBox,
     QTextEdit,
@@ -23,7 +22,6 @@ from PyQt6.QtWidgets import (
 )
 
 from py_fade.data_formats.base_data_classes import SinglePositionToken
-from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
 from py_fade.gui.components.widget_token_picker import WidgetTokenPicker
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.providers.providers_manager import MappedModel
@@ -422,14 +420,14 @@ class NewCompletionFrame(QFrame):
 
     def _handle_manual_mode(self) -> None:
         """Handle manual completion input mode."""
+        # Import here to avoid circular imports
+        from py_fade.providers.llm_response import LLMResponse  # pylint: disable=import-outside-toplevel
+
         # In manual mode, just enable save button if there's text
         completion_text = self.completion_area.toPlainText().strip()
         if not completion_text:
             self.status_label.setText("Error: No completion text entered")
             return
-
-        # Create a manual LLMResponse
-        from py_fade.providers.llm_response import LLMResponse
 
         model_id = self.manual_model_id_edit.text().strip() or "manual"
 
@@ -574,7 +572,8 @@ class NewCompletionFrame(QFrame):
 
         try:
             # Use the accumulated tokens as prefill
-            from py_fade.data_formats.base_data_classes import CompletionPrefill, CompletionTokenLogprobs
+            # Import here to avoid circular imports
+            from py_fade.data_formats.base_data_classes import CompletionPrefill, CompletionTokenLogprobs  # pylint: disable=import-outside-toplevel
 
             prefill_text = self.prefill_edit.toPlainText().strip()
             completion_prefill = CompletionPrefill.from_tokens(CompletionTokenLogprobs(self.token_by_token_tokens))

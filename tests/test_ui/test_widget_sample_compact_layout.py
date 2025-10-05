@@ -96,22 +96,30 @@ class TestWidgetSampleCompactLayout:
 
     def test_icon_only_buttons_with_tooltips(self, qt_app, app_with_dataset, ensure_google_icon_font):
         """
-        Test that action buttons are icon-only with informative tooltips.
+        Test that action buttons in WidgetSample controls are icon-only with informative tooltips.
+
+        Note: NewCompletionFrame buttons are excluded as they use text labels for clarity.
         """
+        # Import here to avoid circular imports
+        from py_fade.gui.widget_new_completion import NewCompletionFrame  # pylint: disable=import-outside-toplevel
+
         _ = ensure_google_icon_font  # Ensure Google icon font is loaded
         app = app_with_dataset
         widget = WidgetSample(None, app, None)
         widget.show()
         qt_app.processEvents()
 
-        # Check for QPushButtonWithIcon instances
+        # Check for QPushButtonWithIcon instances, excluding NewCompletionFrame buttons
         icon_buttons = widget.findChildren(QPushButtonWithIcon)
 
-        # Should have at least 3 icon buttons (save, copy, beam search)
-        assert len(icon_buttons) >= 3, "Should have at least 3 icon-only buttons"
+        # Filter out NewCompletionFrame buttons
+        widget_sample_buttons = [btn for btn in icon_buttons if not isinstance(btn.parent(), NewCompletionFrame)]
+
+        # Should have at least 3 icon buttons (save, copy, beam search) in WidgetSample controls
+        assert len(widget_sample_buttons) >= 3, "Should have at least 3 icon-only buttons in WidgetSample controls"
 
         # Check that buttons have tooltips and no text (or minimal text)
-        for button in icon_buttons:
+        for button in widget_sample_buttons:
             # Icon buttons should have tooltips
             assert button.toolTip(), f"Button {button} should have a tooltip"
 
