@@ -3,6 +3,18 @@
 ## [Unreleased]
 
 ### Added
+- **Extended New Completion Widget**: Enhanced the new completion widget with four generation modes and comprehensive UI improvements
+  - **Mode Selector**: Switch between Regular, Continue Truncated, Manual Input, and Token-by-Token generation modes
+  - **Regular Mode**: Generate completions from prompt with optional prefill (existing behavior)
+  - **Continuation Mode**: Continue truncated completions with high-fidelity token sequence preservation
+  - **Manual Mode**: Manually input completion text with custom model ID for cloud provider completions
+  - **Token-by-Token Mode**: Interactive token selection with real-time token picker showing next token candidates
+    - Displays up to 100 token candidates sorted by logprob with color-coded probabilities
+    - Manual token selection builds completion prefix step-by-step
+    - "Continue" button allows switching from token-by-token to regular generation mid-sequence
+  - Icon buttons with readable labels (Generate, Continue, Save) for clarity
+  - Adaptive UI that shows/hides controls based on selected mode
+  - Comprehensive test coverage with 16 new tests covering all modes and edge cases
 - **Prompt Role Tag Insert**: Added UI controls for inserting multi-turn conversation role tags in prompts
   - Right-click context menu in prompt editor with options to insert system/user/assistant tags at cursor or end
   - Three buttons (S, U, A) in prompt control panel for quick tag insertion at end of prompt
