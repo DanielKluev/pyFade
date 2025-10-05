@@ -18,7 +18,16 @@ if TYPE_CHECKING:
 
 
 def test_completion_prefix_creation():
-    """Test CompletionPrefix creation and validation."""
+    """
+    Test CompletionPrefix creation and validation.
+
+    Flow:
+    1. Create CompletionPrefix with text, token size, and logprobs
+    2. Verify all attributes are correctly set
+
+    Edge cases tested:
+    - None alternative_logprobs is handled correctly
+    """
     prefix_text = "Hello world"
     prefix_token_size = 2
     sampled_logprobs = CompletionTokenLogprobs(
@@ -37,7 +46,18 @@ def test_completion_prefix_creation():
 
 
 def test_completion_prefix_from_response():
-    """Test extracting CompletionPrefix from LLMResponse."""
+    """
+    Test extracting CompletionPrefix from LLMResponse.
+
+    Flow:
+    1. Create LLMResponse with completion text and full logprobs
+    2. Extract prefix substring from response
+    3. Verify prefix text and token logprobs are correctly extracted
+
+    Edge cases tested:
+    - Prefix is a substring of full completion (not full match)
+    - Token boundaries are correctly identified
+    """
     # Create a mock LLMResponse with proper logprobs
     response = MagicMock(spec=LLMResponse)
     response.completion_text = "Hello world and more"
@@ -66,7 +86,18 @@ def test_completion_prefix_from_response():
 
 
 def test_completion_prefix_from_response_mismatch():
-    """Test that CompletionPrefix extraction fails with mismatched prefix."""
+    """
+    Test that CompletionPrefix extraction fails with mismatched prefix.
+
+    Flow:
+    1. Create LLMResponse with completion text
+    2. Attempt to extract prefix that doesn't match actual text
+    3. Verify extraction returns None
+
+    Edge cases tested:
+    - Prefix text doesn't match response completion text
+    - Graceful failure without exceptions
+    """
     response = MagicMock(spec=LLMResponse)
     response.completion_text = "Hello world"
     response.check_full_response_logprobs.return_value = True
@@ -87,7 +118,18 @@ def test_completion_prefix_from_response_mismatch():
 
 
 def test_completion_prefix_from_response_no_logprobs():
-    """Test that CompletionPrefix extraction fails without logprobs."""
+    """
+    Test that CompletionPrefix extraction fails without logprobs.
+
+    Flow:
+    1. Create LLMResponse without logprobs
+    2. Attempt to extract prefix
+    3. Verify extraction returns None
+
+    Edge cases tested:
+    - Missing logprobs (None) is handled gracefully
+    - Response with check_full_response_logprobs=False
+    """
     response = MagicMock(spec=LLMResponse)
     response.completion_text = "Hello world"
     response.check_full_response_logprobs.return_value = False

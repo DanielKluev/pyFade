@@ -104,3 +104,33 @@ def setup_completion_frame_with_heatmap(dataset: "DatasetDatabase", beam, qt_app
     qt_app.processEvents()
 
     return frame, text_edit
+
+
+def mock_three_way_editor(monkeypatch: "pytest.MonkeyPatch"):
+    """
+    Mock ThreeWayCompletionEditorWindow to avoid showing modal dialogs in tests.
+
+    This helper reduces code duplication in tests that need to verify behavior
+    involving the three-way completion editor without actually showing the dialog.
+
+    Args:
+        monkeypatch: Pytest monkeypatch fixture
+
+    Returns:
+        list: A list that will be populated with editor instances when the editor is instantiated
+    """
+    from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow  # pylint: disable=import-outside-toplevel
+
+    editor_instances = []
+    original_init = ThreeWayCompletionEditorWindow.__init__
+
+    def mock_init(self, *args, **kwargs):
+        editor_instances.append(self)
+        original_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(ThreeWayCompletionEditorWindow, "__init__", mock_init)
+
+    # Mock exec to avoid actual dialog showing
+    monkeypatch.setattr(ThreeWayCompletionEditorWindow, "exec", lambda self: 0)
+
+    return editor_instances
