@@ -68,6 +68,7 @@ class WidgetSample(QWidget):
     last_prompt_revision: "PromptRevision | None" = None
     active_facet: Facet | None = None
     active_model: MappedModel | None = None
+    completion_frames: list[tuple["PromptCompletion", CompletionFrame]] = []
 
     sample_saved = pyqtSignal(object)  # Signal emitted when sample is saved
     sample_copied = pyqtSignal(object)  # Signal emitted when sample is copied
@@ -88,6 +89,7 @@ class WidgetSample(QWidget):
         self.active_facet = active_facet
         self.active_model = active_model
         self.beam_search_widget: WidgetCompletionBeams | None = None
+        self.completion_frames = []
 
         self.setup_ui()
         self.set_sample(sample)
@@ -351,6 +353,9 @@ class WidgetSample(QWidget):
                 widget.setParent(None)
                 widget.deleteLater()
 
+        # Clear the completion frames list
+        self.completion_frames.clear()
+
     def _create_completion_frame(self, completion: "PromptCompletion") -> CompletionFrame:
         """Instantiate a completion frame wired with the current context."""
 
@@ -367,6 +372,10 @@ class WidgetSample(QWidget):
         # Connect new signals
         frame.edit_requested.connect(self._on_completion_edit_requested)
         frame.discard_requested.connect(self._on_completion_discard_requested)
+
+        # Connect rating_saved signal to trigger re-sorting
+        if hasattr(frame, "rating_widget"):
+            frame.rating_widget.rating_saved.connect(self._on_rating_changed)
 
         return frame
 
@@ -405,6 +414,59 @@ class WidgetSample(QWidget):
 
         return sorted(completions, key=sort_key)
 
+    def sort_completion_frames(self):
+        """
+        Sort completion frames by rating and scored_logprob without recreating widgets.
+        
+        Frames are sorted by:
+        1. Rating for active facet (higher rated completions first)
+        2. Within each rating group, by scored_logprob for active model (higher scores first)
+        3. Completions without logprobs appear after those with logprobs
+        
+        This method reorders existing widgets in the layout instead of recreating them,
+        making it more efficient than populate_outputs().
+        """
+        self.log.debug("Sorting %d completion frames by rating and scored_logprob", len(self.completion_frames))
+
+        if not self.completion_frames:
+            return
+
+        def sort_key(frame_tuple: tuple["PromptCompletion", CompletionFrame]) -> tuple[int, float, float]:
+            completion, _frame = frame_tuple
+
+            # Get rating for active facet (default to 0 if no rating or no facet)
+            rating = 0
+            if self.active_facet:
+                rating_record = completion.rating_for_facet(self.active_facet)
+                if rating_record:
+                    rating = rating_record.rating
+
+            # Get scored_logprob for active model (default to -inf if no logprobs or no model)
+            scored_logprob = -float("inf")
+            has_logprobs = 0.0  # Used to sort completions with logprobs before those without
+            if self.active_model:
+                logprobs = completion.get_logprobs_for_model_id(self.active_model.model_id)
+                if logprobs and logprobs.scored_logprob is not None:
+                    scored_logprob = logprobs.scored_logprob
+                    has_logprobs = 1.0
+
+            # Return tuple: (negative rating for descending, has_logprobs for descending, scored_logprob for descending)
+            return (-rating, -has_logprobs, -scored_logprob)
+
+        self.completion_frames.sort(key=sort_key)
+
+        # Remove all widgets from layout except NewCompletionFrame
+        for i in reversed(range(self.output_layout.count())):
+            item = self.output_layout.itemAt(i)
+            if item:
+                widget = item.widget()
+                if widget is not self.new_completion_frame:
+                    self.output_layout.removeItem(item)
+
+        # Re-add frames in sorted order (NewCompletionFrame should still be at index 0)
+        for _completion, frame in self.completion_frames:
+            self.output_layout.addWidget(frame)
+
     def populate_outputs(self):
         """
         Populate the scroll area with completion frames from the sample.
@@ -435,6 +497,7 @@ class WidgetSample(QWidget):
 
         for completion in sorted_completions:
             frame = self._create_completion_frame(completion)
+            self.completion_frames.append((completion, frame))
             self.output_layout.addWidget(frame)
 
     def _on_show_archived_toggled(self, checked: bool) -> None:  # pylint: disable=unused-argument
@@ -488,6 +551,16 @@ class WidgetSample(QWidget):
         completion_frame._update_status_icons()  # pylint: disable=protected-access
         completion_frame._update_action_buttons()  # pylint: disable=protected-access
 
+        # Re-sort after logprobs change
+        self.sort_completion_frames()
+
+    def _on_rating_changed(self, rating: int) -> None:  # pylint: disable=unused-argument
+        """
+        Handle rating change event - re-sort completion frames.
+        """
+        self.log.debug("Rating changed to %d, re-sorting completion frames", rating)
+        self.sort_completion_frames()
+
     def _on_completion_edit_requested(self, completion: "PromptCompletion") -> None:
         """Handle edit request for a completion - open ThreeWayCompletionEditorWindow."""
         if not self.app:
@@ -532,8 +605,12 @@ class WidgetSample(QWidget):
         if completion.is_archived and not self.show_archived_checkbox.isChecked():
             frame.deleteLater()
             return
+        # Add to completion_frames list
+        self.completion_frames.append((completion, frame))
         # Insert it after the NewCompletionFrame (index 1)
         self.output_layout.insertWidget(1, frame)
+        # Re-sort to place it in the correct position
+        self.sort_completion_frames()
 
     def save_sample(self):
         """
@@ -607,11 +684,21 @@ class WidgetSample(QWidget):
 
     def set_active_context(self, facet: Facet | None, model_path: str | None) -> None:
         """Update widget state to reflect currently selected facet and model."""
+        # Track if facet or model changed
+        facet_changed = self.active_facet != facet
+        model_changed = False
+
         self.active_facet = facet
         if model_path:
             mapped_model = self.app.providers_manager.get_mapped_model(model_path)
         else:
             mapped_model = None
+
+        # Check if model changed
+        old_model_id = self.active_model.model_id if self.active_model else None
+        new_model_id = mapped_model.model_id if mapped_model else None
+        model_changed = old_model_id != new_model_id
+
         self.active_model = mapped_model
         if hasattr(self, "new_completion_frame"):
             self.new_completion_frame.set_selected_model(self.active_model)
@@ -621,3 +708,7 @@ class WidgetSample(QWidget):
             if isinstance(widget, CompletionFrame):
                 widget.set_facet(self.active_facet)
                 widget.set_target_model(self.active_model)
+
+        # Re-sort if facet or model changed
+        if facet_changed or model_changed:
+            self.sort_completion_frames()
