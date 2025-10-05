@@ -9,43 +9,9 @@ import pytest
 
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from py_fade.gui.components.widget_completion import CompletionFrame
-from py_fade.providers.llm_response import LLMResponse
-from py_fade.data_formats.base_data_classes import CommonCompletionLogprobs, CompletionTokenLogprobs, CompletionTopLogprobs
-from py_fade.data_formats.base_data_classes import SinglePositionToken
+from tests.helpers.data_helpers import create_llm_response_with_logprobs, create_simple_llm_response
 
 logger = logging.getLogger(__name__)
-
-
-def create_beam_with_logprobs(model_id, completion_text, scored_logprob_value):
-    """
-    Helper to create a beam (LLMResponse) with specific scored_logprob value.
-    """
-    # Create minimal logprobs that result in the desired scored_logprob
-    # scored_logprob = min_logprob + avg_logprob * 2
-    target_logprob = scored_logprob_value / 3.0
-
-    # Use the actual completion text as the token to avoid validation errors
-    sampled_logprobs = CompletionTokenLogprobs([
-        SinglePositionToken(token_id=0, token_str=completion_text, token_bytes=completion_text.encode('utf-8'), logprob=target_logprob,
-                            span=1),
-    ])
-    alternative_logprobs = CompletionTopLogprobs([[]])
-
-    return LLMResponse(
-        model_id=model_id,
-        prompt_conversation=[],
-        completion_text=completion_text,
-        generated_part_text=completion_text,
-        temperature=0.7,
-        top_k=40,
-        context_length=1024,
-        max_tokens=128,
-        logprobs=CommonCompletionLogprobs(
-            logprobs_model_id=model_id,
-            sampled_logprobs=sampled_logprobs,
-            alternative_logprobs=alternative_logprobs,
-        ),
-    )
 
 
 class TestWidgetCompletionBeamsSorting:
@@ -69,9 +35,9 @@ class TestWidgetCompletionBeamsSorting:
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create beams with different logprobs
-        beam1 = create_beam_with_logprobs("test-model", "Beam 1", -1.5)
-        beam2 = create_beam_with_logprobs("test-model", "Beam 2", -0.5)
-        beam3 = create_beam_with_logprobs("test-model", "Beam 3", -2.0)
+        beam1 = create_llm_response_with_logprobs("test-model", "Beam 1", -1.5)
+        beam2 = create_llm_response_with_logprobs("test-model", "Beam 2", -0.5)
+        beam3 = create_llm_response_with_logprobs("test-model", "Beam 3", -2.0)
 
         # Add beam frames manually
         frame1 = CompletionFrame(app_with_dataset.current_dataset, beam1, parent=widget, display_mode="beam")
@@ -101,9 +67,9 @@ class TestWidgetCompletionBeamsSorting:
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create beams with different logprobs
-        beam1 = create_beam_with_logprobs("test-model", "Unpinned beam 1", -1.5)
-        beam2 = create_beam_with_logprobs("test-model", "Pinned beam", -2.0)
-        beam3 = create_beam_with_logprobs("test-model", "Unpinned beam 2", -0.5)
+        beam1 = create_llm_response_with_logprobs("test-model", "Unpinned beam 1", -1.5)
+        beam2 = create_llm_response_with_logprobs("test-model", "Pinned beam", -2.0)
+        beam3 = create_llm_response_with_logprobs("test-model", "Unpinned beam 2", -0.5)
 
         # Add beam frames manually
         frame1 = CompletionFrame(app_with_dataset.current_dataset, beam1, parent=widget, display_mode="beam")
@@ -136,9 +102,9 @@ class TestWidgetCompletionBeamsSorting:
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create beams with different logprobs
-        beam1 = create_beam_with_logprobs("test-model", "Pinned beam 1", -1.5)
-        beam2 = create_beam_with_logprobs("test-model", "Pinned beam 2", -0.5)
-        beam3 = create_beam_with_logprobs("test-model", "Unpinned beam", -2.0)
+        beam1 = create_llm_response_with_logprobs("test-model", "Pinned beam 1", -1.5)
+        beam2 = create_llm_response_with_logprobs("test-model", "Pinned beam 2", -0.5)
+        beam3 = create_llm_response_with_logprobs("test-model", "Unpinned beam", -2.0)
 
         # Add beam frames manually
         frame1 = CompletionFrame(app_with_dataset.current_dataset, beam1, parent=widget, display_mode="beam")
@@ -174,17 +140,8 @@ class TestWidgetCompletionBeamsSorting:
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create beams: some with logprobs, some without
-        beam_with_logprobs = create_beam_with_logprobs("test-model", "With logprobs", -1.5)
-        beam_without_logprobs = LLMResponse(
-            model_id="test-model",
-            prompt_conversation=[],
-            completion_text="Without logprobs",
-            generated_part_text="Without logprobs",
-            temperature=0.7,
-            top_k=40,
-            context_length=1024,
-            max_tokens=128,
-        )
+        beam_with_logprobs = create_llm_response_with_logprobs("test-model", "With logprobs", -1.5)
+        beam_without_logprobs = create_simple_llm_response("test-model", "Without logprobs")
 
         # Add beam frames manually
         frame_with = CompletionFrame(app_with_dataset.current_dataset, beam_with_logprobs, parent=widget, display_mode="beam")
@@ -212,17 +169,8 @@ class TestWidgetCompletionBeamsSorting:
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create beams
-        pinned_beam_no_logprobs = LLMResponse(
-            model_id="test-model",
-            prompt_conversation=[],
-            completion_text="Pinned no logprobs",
-            generated_part_text="Pinned no logprobs",
-            temperature=0.7,
-            top_k=40,
-            context_length=1024,
-            max_tokens=128,
-        )
-        unpinned_beam_with_logprobs = create_beam_with_logprobs("test-model", "Unpinned with logprobs", -1.5)
+        pinned_beam_no_logprobs = create_simple_llm_response("test-model", "Pinned no logprobs")
+        unpinned_beam_with_logprobs = create_llm_response_with_logprobs("test-model", "Unpinned with logprobs", -1.5)
 
         # Add beam frames manually
         frame_pinned = CompletionFrame(app_with_dataset.current_dataset, pinned_beam_no_logprobs, parent=widget, display_mode="beam")
@@ -252,8 +200,8 @@ class TestWidgetCompletionBeamsSorting:
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create beams
-        beam1 = create_beam_with_logprobs("test-model", "Beam 1", -1.5)
-        beam2 = create_beam_with_logprobs("test-model", "Beam 2", -0.5)
+        beam1 = create_llm_response_with_logprobs("test-model", "Beam 1", -1.5)
+        beam2 = create_llm_response_with_logprobs("test-model", "Beam 2", -0.5)
 
         # Add beam frames manually
         frame1 = CompletionFrame(app_with_dataset.current_dataset, beam1, parent=widget, display_mode="beam")
@@ -285,20 +233,11 @@ class TestWidgetCompletionBeamsSorting:
         widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
 
         # Create beams with different states
-        pinned_beam1 = create_beam_with_logprobs("test-model", "Pinned -2.0", -2.0)
-        pinned_beam2 = create_beam_with_logprobs("test-model", "Pinned -1.0", -1.0)
-        unpinned_beam1 = create_beam_with_logprobs("test-model", "Unpinned -0.5", -0.5)
-        unpinned_beam2 = create_beam_with_logprobs("test-model", "Unpinned -3.0", -3.0)
-        unpinned_beam_no_logprobs = LLMResponse(
-            model_id="test-model",
-            prompt_conversation=[],
-            completion_text="Unpinned no logprobs",
-            generated_part_text="Unpinned no logprobs",
-            temperature=0.7,
-            top_k=40,
-            context_length=1024,
-            max_tokens=128,
-        )
+        pinned_beam1 = create_llm_response_with_logprobs("test-model", "Pinned -2.0", -2.0)
+        pinned_beam2 = create_llm_response_with_logprobs("test-model", "Pinned -1.0", -1.0)
+        unpinned_beam1 = create_llm_response_with_logprobs("test-model", "Unpinned -0.5", -0.5)
+        unpinned_beam2 = create_llm_response_with_logprobs("test-model", "Unpinned -3.0", -3.0)
+        unpinned_beam_no_logprobs = create_simple_llm_response("test-model", "Unpinned no logprobs")
 
         # Add beam frames manually
         frame_p1 = CompletionFrame(app_with_dataset.current_dataset, pinned_beam1, parent=widget, display_mode="beam")
