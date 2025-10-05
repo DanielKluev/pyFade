@@ -217,3 +217,30 @@ def create_simple_llm_response(model_id: str, completion_text: str) -> LLMRespon
     """
     return LLMResponse(model_id=model_id, prompt_conversation=[], completion_text=completion_text, generated_part_text=completion_text,
                        temperature=0.7, top_k=40, context_length=1024, max_tokens=128)
+
+
+def create_mock_widget_sample(app, dataset):
+    """
+    Create a mock WidgetSample for testing NewCompletionFrame.
+    
+    This helper creates a minimal mock that has the required attributes
+    (prompt_area, context_length_field, max_tokens_field) for NewCompletionFrame tests.
+    """
+    from PyQt6.QtWidgets import QWidget, QSpinBox  # pylint: disable=import-outside-toplevel
+    from py_fade.gui.components.widget_plain_text_edit import PlainTextEdit  # pylint: disable=import-outside-toplevel
+
+    mock_widget = QWidget()
+    mock_widget.app = app
+    mock_widget.dataset = dataset
+
+    # Create required attributes
+    mock_widget.prompt_area = PlainTextEdit(mock_widget)
+    mock_widget.prompt_area.setPlainText("Test prompt for completion generation")
+
+    mock_widget.context_length_field = QSpinBox(mock_widget)
+    mock_widget.context_length_field.setValue(2048)
+
+    mock_widget.max_tokens_field = QSpinBox(mock_widget)
+    mock_widget.max_tokens_field.setValue(128)
+
+    return mock_widget
