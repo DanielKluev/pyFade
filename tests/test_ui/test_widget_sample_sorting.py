@@ -12,9 +12,7 @@ from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.gui.widget_sample import WidgetSample
-from py_fade.providers.llm_response import LLMResponse
-from py_fade.data_formats.base_data_classes import CommonCompletionLogprobs, CompletionTokenLogprobs, CompletionTopLogprobs
-from py_fade.data_formats.base_data_classes import SinglePositionToken
+from tests.helpers.data_helpers import create_llm_response_with_logprobs, create_simple_llm_response
 
 logger = logging.getLogger(__name__)
 
@@ -22,36 +20,10 @@ logger = logging.getLogger(__name__)
 def create_completion_with_logprobs(dataset, prompt_revision, model_id, completion_text, scored_logprob_value):
     """
     Helper to create a completion with specific scored_logprob value.
+
+    Wraps create_llm_response_with_logprobs and adds it to the dataset.
     """
-    # Create minimal logprobs that result in the desired scored_logprob
-    # scored_logprob = min_logprob + avg_logprob * 2
-    # Let's use: min_logprob = scored_logprob_value / 3, avg_logprob = scored_logprob_value / 3
-    # This gives: scored_logprob = scored_logprob_value / 3 + (scored_logprob_value / 3) * 2 = scored_logprob_value
-    target_logprob = scored_logprob_value / 3.0
-
-    # Use the actual completion text as the token to avoid validation errors
-    sampled_logprobs = CompletionTokenLogprobs([
-        SinglePositionToken(token_id=0, token_str=completion_text, token_bytes=completion_text.encode('utf-8'), logprob=target_logprob,
-                            span=1),
-    ])
-    alternative_logprobs = CompletionTopLogprobs([[]])
-
-    response = LLMResponse(
-        model_id=model_id,
-        prompt_conversation=[],
-        completion_text=completion_text,
-        generated_part_text=completion_text,
-        temperature=0.7,
-        top_k=40,
-        context_length=1024,
-        max_tokens=128,
-        logprobs=CommonCompletionLogprobs(
-            logprobs_model_id=model_id,
-            sampled_logprobs=sampled_logprobs,
-            alternative_logprobs=alternative_logprobs,
-        ),
-    )
-
+    response = create_llm_response_with_logprobs(model_id, completion_text, scored_logprob_value)
     _prompt_revision, completion = dataset.add_response_as_prompt_and_completion(
         prompt_revision.prompt_text,
         response,
@@ -85,36 +57,9 @@ class TestWidgetSampleSorting:
             dataset.session.commit()
 
         # Create completions without logprobs
-        response1 = LLMResponse(
-            model_id="test-model",
-            prompt_conversation=[],
-            completion_text="Completion 1",
-            generated_part_text="Completion 1",
-            temperature=0.7,
-            top_k=40,
-            context_length=1024,
-            max_tokens=128,
-        )
-        response2 = LLMResponse(
-            model_id="test-model",
-            prompt_conversation=[],
-            completion_text="Completion 2",
-            generated_part_text="Completion 2",
-            temperature=0.7,
-            top_k=40,
-            context_length=1024,
-            max_tokens=128,
-        )
-        response3 = LLMResponse(
-            model_id="test-model",
-            prompt_conversation=[],
-            completion_text="Completion 3",
-            generated_part_text="Completion 3",
-            temperature=0.7,
-            top_k=40,
-            context_length=1024,
-            max_tokens=128,
-        )
+        response1 = create_simple_llm_response("test-model", "Completion 1")
+        response2 = create_simple_llm_response("test-model", "Completion 2")
+        response3 = create_simple_llm_response("test-model", "Completion 3")
 
         _pr1, completion1 = dataset.add_response_as_prompt_and_completion(prompt_revision.prompt_text, response1)
         _pr2, completion2 = dataset.add_response_as_prompt_and_completion(prompt_revision.prompt_text, response2)
@@ -213,16 +158,7 @@ class TestWidgetSampleSorting:
         completion_with_logprobs = create_completion_with_logprobs(dataset, sample.prompt_revision, model_id, "With logprobs", -1.5)
 
         # Create completion without logprobs
-        response_without = LLMResponse(
-            model_id=model_id,
-            prompt_conversation=[],
-            completion_text="Without logprobs",
-            generated_part_text="Without logprobs",
-            temperature=0.7,
-            top_k=40,
-            context_length=1024,
-            max_tokens=128,
-        )
+        response_without = create_simple_llm_response(model_id, "Without logprobs")
         _pr, completion_without_logprobs = dataset.add_response_as_prompt_and_completion(sample.prompt_revision.prompt_text,
                                                                                          response_without)
 
