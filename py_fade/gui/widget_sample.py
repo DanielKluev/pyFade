@@ -594,9 +594,11 @@ class WidgetSample(QWidget):
             if self.dataset.session:
                 self.dataset.session.rollback()
 
-    def add_completion(self, response: "LLMResponse"):
+    def add_completion(self, response: "LLMResponse") -> "PromptCompletion":
         """
         Add new accepted response to sample and then add completion to the scroll area.
+
+        Returns the created PromptCompletion for UI updates.
         """
         prompt_revision, completion = self.dataset.add_response_as_prompt_and_completion(self.prompt_area.toPlainText(), response)
         self.last_prompt_revision = prompt_revision
@@ -604,13 +606,14 @@ class WidgetSample(QWidget):
         frame = self._create_completion_frame(completion)
         if completion.is_archived and not self.show_archived_checkbox.isChecked():
             frame.deleteLater()
-            return
+            return completion
         # Add to completion_frames list
         self.completion_frames.append((completion, frame))
         # Insert it after the NewCompletionFrame (index 1)
         self.output_layout.insertWidget(1, frame)
         # Re-sort to place it in the correct position
         self.sort_completion_frames()
+        return completion
 
     def save_sample(self):
         """

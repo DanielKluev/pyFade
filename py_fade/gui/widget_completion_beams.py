@@ -543,7 +543,13 @@ class WidgetCompletionBeams(QWidget):
         """Handle beam acceptance - add as completion to sample."""
         if self.sample_widget:
             # Add to sample widget - completion here is LLMResponse from beam mode
-            self.sample_widget.add_completion(completion)
+            saved_completion = self.sample_widget.add_completion(completion)
+
+            # Update the beam frame with the saved completion
+            for _beam, frame in self.beam_frames:
+                if frame.completion is completion:
+                    frame.set_completion(saved_completion)
+                    break
 
     @pyqtSlot(object, bool)
     def on_beam_pinned(self, completion, is_pinned):  # pylint: disable=unused-argument

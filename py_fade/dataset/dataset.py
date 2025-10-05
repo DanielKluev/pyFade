@@ -254,7 +254,9 @@ class DatasetDatabase:
             raise RuntimeError("Session is not initialized. Call initialize() first.")
 
         results = self.session.query(Sample.group_path).distinct().all()
-        return [r[0] for r in results if r[0] is not None]
+        results = [r[0] for r in results if r[0] is not None]
+        results = sorted(results)
+        return results
 
     def get_prompts(self, data_filter: DataFilter | None = None) -> list[PromptRevision]:
         """
