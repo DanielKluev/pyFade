@@ -3,7 +3,6 @@ Unit tests for WidgetCompletionBeams sorting by pinned status and scored_logprob
 """
 
 import logging
-from unittest.mock import MagicMock
 
 import pytest
 
