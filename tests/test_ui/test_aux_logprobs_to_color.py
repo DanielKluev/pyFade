@@ -7,7 +7,7 @@ from Dark Green → Orange → Red → Purple.
 
 from PyQt6.QtGui import QColor
 
-from py_fade.gui.auxillary.aux_logprobs_to_color import logprob_to_qcolor
+from py_fade.gui.auxillary.aux_logprobs_to_color import logprob_to_qcolor, hsv_to_rgb
 
 
 class TestLogprobToQColor:
@@ -149,8 +149,7 @@ class TestLogprobToQColor:
         assert min(color_before.red(), color_after.red()) <= intermediate_color.red() <= max(color_before.red(), color_after.red())
         assert min(color_before.green(), color_after.green()) <= intermediate_color.green() <= max(
             color_before.green(), color_after.green())
-        assert min(color_before.blue(), color_after.blue()) <= intermediate_color.blue() <= max(
-            color_before.blue(), color_after.blue())
+        assert min(color_before.blue(), color_after.blue()) <= intermediate_color.blue() <= max(color_before.blue(), color_after.blue())
 
     def test_backwards_compatibility_function_signature(self):
         """
@@ -205,3 +204,134 @@ class TestLogprobToQColor:
             result = logprob_to_qcolor(logprob)
             assert isinstance(result, QColor), f"Result for logprob {logprob} should be QColor"
             assert result.isValid(), f"QColor for logprob {logprob} should be valid"
+
+
+class TestHsvToRgb:
+    """
+    Test the hsv_to_rgb utility function.
+    
+    Tests conversion of HSV color space values to RGB color space,
+    covering all 6 segments of the HSV color wheel.
+    """
+
+    def test_hsv_to_rgb_segment_0_red(self):
+        """
+        Test HSV to RGB conversion for hue segment 0 (red region).
+        
+        Covers the case where i % 6 == 0, returning (v, t, p).
+        """
+        # h=0.0 should give pure red with full saturation and value
+        r, g, b = hsv_to_rgb(0.0, 1.0, 1.0)
+        assert r == 1.0, "Red component should be 1.0"
+        assert 0.0 <= g < 0.1, "Green component should be near 0"
+        assert b == 0.0, "Blue component should be 0.0"
+
+    def test_hsv_to_rgb_segment_1_yellow(self):
+        """
+        Test HSV to RGB conversion for hue segment 1 (yellow region).
+        
+        Covers the case where i % 6 == 1, returning (q, v, p).
+        """
+        # h=0.25 (middle of segment 1) should be in yellow region
+        r, g, b = hsv_to_rgb(0.25, 1.0, 1.0)
+        assert abs(r - 0.5) < 0.01, "Red component should be around 0.5"
+        assert g == 1.0, "Green component should be 1.0"
+        assert b == 0.0, "Blue component should be 0.0"
+
+    def test_hsv_to_rgb_segment_2_green(self):
+        """
+        Test HSV to RGB conversion for hue segment 2 (green region).
+        
+        Covers the case where i % 6 == 2, returning (p, v, t).
+        """
+        # h=0.4167 (middle of segment 2) should be in green-cyan region
+        r, g, b = hsv_to_rgb(0.4167, 1.0, 1.0)
+        assert r == 0.0, "Red component should be 0.0"
+        assert g == 1.0, "Green component should be 1.0"
+        assert abs(b - 0.5) < 0.01, "Blue component should be around 0.5"
+
+    def test_hsv_to_rgb_segment_3_cyan(self):
+        """
+        Test HSV to RGB conversion for hue segment 3 (cyan region).
+        
+        Covers the case where i % 6 == 3, returning (p, q, v).
+        """
+        # h=0.5833 (middle of segment 3) should be in cyan-blue region
+        r, g, b = hsv_to_rgb(0.5833, 1.0, 1.0)
+        assert r == 0.0, "Red component should be 0.0"
+        assert abs(g - 0.5) < 0.01, "Green component should be around 0.5"
+        assert b == 1.0, "Blue component should be 1.0"
+
+    def test_hsv_to_rgb_segment_4_blue(self):
+        """
+        Test HSV to RGB conversion for hue segment 4 (blue region).
+        
+        Covers the case where i % 6 == 4, returning (t, p, v).
+        """
+        # h=0.75 (middle of segment 4) should be in blue-magenta region
+        r, g, b = hsv_to_rgb(0.75, 1.0, 1.0)
+        assert abs(r - 0.5) < 0.01, "Red component should be around 0.5"
+        assert g == 0.0, "Green component should be 0.0"
+        assert b == 1.0, "Blue component should be 1.0"
+
+    def test_hsv_to_rgb_segment_5_magenta(self):
+        """
+        Test HSV to RGB conversion for hue segment 5 (magenta region).
+        
+        Covers the case where i % 6 == 5, returning (v, p, q).
+        """
+        # h=0.9167 (middle of segment 5) should be in magenta-red region
+        r, g, b = hsv_to_rgb(0.9167, 1.0, 1.0)
+        assert r == 1.0, "Red component should be 1.0"
+        assert g == 0.0, "Green component should be 0.0"
+        assert abs(b - 0.5) < 0.01, "Blue component should be around 0.5"
+
+    def test_hsv_to_rgb_saturation_effect(self):
+        """
+        Test that saturation parameter correctly desaturates colors.
+
+        Lower saturation should move the color toward gray.
+        """
+        # Full saturation
+        _, g1, b1 = hsv_to_rgb(0.0, 1.0, 1.0)
+
+        # Half saturation
+        _, g2, b2 = hsv_to_rgb(0.0, 0.5, 1.0)
+
+        # With lower saturation, non-red components should increase
+        assert g2 > g1, "Lower saturation should increase green component"
+        assert b2 > b1, "Lower saturation should increase blue component"
+
+    def test_hsv_to_rgb_value_effect(self):
+        """
+        Test that value parameter correctly controls brightness.
+        
+        Lower value should make all components darker.
+        """
+        # Full value
+        r1, _, _ = hsv_to_rgb(0.0, 1.0, 1.0)
+
+        # Half value
+        r2, _, _ = hsv_to_rgb(0.0, 1.0, 0.5)
+
+        # With lower value, all components should be proportionally reduced
+        assert r2 < r1, "Lower value should reduce red component"
+        assert abs(r2 - 0.5 * r1) < 0.01, "Red component should be proportional to value"
+
+    def test_hsv_to_rgb_grayscale(self):
+        """
+        Test that zero saturation produces grayscale values.
+        
+        With s=0, all RGB components should be equal to the value parameter.
+        """
+        r, g, b = hsv_to_rgb(0.5, 0.0, 0.7)
+        assert r == g == b == 0.7, "Zero saturation should produce grayscale"
+
+    def test_hsv_to_rgb_black(self):
+        """
+        Test that zero value produces black.
+        
+        With v=0, all RGB components should be 0.
+        """
+        r, g, b = hsv_to_rgb(0.5, 1.0, 0.0)
+        assert r == g == b == 0.0, "Zero value should produce black"
