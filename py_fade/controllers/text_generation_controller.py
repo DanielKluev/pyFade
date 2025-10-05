@@ -254,7 +254,7 @@ class TextGenerationController:
         # Not found, need to generate it
         self.log.warning("Prefix not found in cache, evaluating it using the model: %s", prefix)
         prefix_completion = self.construct_completion_prefill(prefix)
-        eval_logprobs = self.mapped_model.evaluate_completion(prompt=self.prompt_revision.prompt_text, completion=prefix_completion)
+        eval_logprobs = self.mapped_model.evaluate_completion(prompt=self.prompt_conversation, completion=prefix_completion)
         beam_prefix = CompletionPrefix.create_from_eval(prefix, eval_logprobs)
         self.cached_prefixes[prefix] = beam_prefix
         return beam_prefix
