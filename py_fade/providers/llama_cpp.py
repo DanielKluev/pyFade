@@ -233,7 +233,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             self.current_model_gguf_file = None
             self.current_model_logits_all = False
             self.current_model_context_length = 0
-            time.sleep(1)  # Give some time for memory to be freed
+            time.sleep(2)  # Give some time for memory to be freed
 
     def load_model(self, model_id: str, gguf_file: str, n_gpu_layers: int = -1, verbose: bool = False, logits_all: bool = False,
                    n_ctx: int = 1024) -> Optional["Llama"]:
