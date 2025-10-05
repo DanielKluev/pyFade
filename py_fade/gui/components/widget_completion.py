@@ -199,6 +199,13 @@ class CompletionFrame(QFrame):
             self.pin_button.setToolTip("Pin/unpin this beam")
             self.actions_layout.addWidget(self.pin_button)
 
+            # Resume button for truncated beams
+            self.resume_button = QPushButtonWithIcon("resume", parent=self, icon_size=self.actions_icon_size, button_size=40)
+            self.resume_button.setFlat(True)
+            self.resume_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.resume_button.hide()  # Only shown for truncated completions
+            self.actions_layout.addWidget(self.resume_button)
+
             # Archive button for saved beam completions
             self.archive_button = QPushButtonWithIcon("archive", parent=self, icon_size=self.actions_icon_size, button_size=40)
             self.archive_button.setFlat(True)
@@ -235,6 +242,8 @@ class CompletionFrame(QFrame):
                 self.save_button.clicked.connect(self._on_save_clicked)
             if self.pin_button:
                 self.pin_button.clicked.connect(self._on_pin_clicked)
+            if self.resume_button:
+                self.resume_button.clicked.connect(self._on_resume_clicked)
 
     def _log_rating_saved(self, rating: int) -> None:
         """Log rating persistence for debugging purposes."""
@@ -342,11 +351,22 @@ class CompletionFrame(QFrame):
 
         # Show/hide buttons based on whether this beam has been saved
         is_saved = (hasattr(self.completion, "id") and getattr(self.completion, "id", None) is not None)
+        is_truncated = getattr(self.completion, "is_truncated", False)
+        is_archived = getattr(self.completion, "is_archived", False)
 
         if self.save_button:
             self.save_button.setVisible(not is_saved)
         if self.pin_button:
             self.pin_button.setVisible(not is_saved)
+
+        # Resume button for truncated completions (both saved and unsaved)
+        if self.resume_button:
+            if is_truncated and not is_archived:
+                self.resume_button.show()
+                self.resume_button.setToolTip("Resume generation from this truncated completion.")
+            else:
+                self.resume_button.hide()
+
         if self.archive_button:
             self.archive_button.setVisible(is_saved)
             if is_saved:

@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
@@ -27,8 +28,10 @@ from PyQt6.QtWidgets import (
 from py_fade.controllers.text_generation_controller import TextGenerationController
 from py_fade.data_formats.base_data_classes import SinglePositionToken, SinglePositionTopLogprobs
 from py_fade.dataset.dataset import DatasetDatabase
+from py_fade.dataset.completion import PromptCompletion
 from py_fade.gui.components.widget_token_picker import WidgetTokenPicker
 from py_fade.gui.components.widget_completion import CompletionFrame
+from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow, EditorMode
 from py_fade.providers.llm_response import LLMResponse
 from py_fade.providers.providers_manager import MappedModel
 
@@ -469,6 +472,7 @@ class WidgetCompletionBeams(QWidget):
         frame.discard_requested.connect(self.on_beam_discarded)
         frame.save_requested.connect(self.on_beam_accepted)
         frame.pin_toggled.connect(self.on_beam_pinned)
+        frame.resume_requested.connect(self.on_beam_resume_requested)
 
         self.beam_frames.append((beam, frame))
 
@@ -556,6 +560,92 @@ class WidgetCompletionBeams(QWidget):
         """Handle beam pin/unpin - update visual state and re-sort frames."""
         # Visual feedback is handled in the frame itself
         # Re-sort the frames to move pinned beams to the top
+        self.sort_beam_frames()
+
+    @pyqtSlot(object)
+    def on_beam_resume_requested(self, completion):
+        """Handle resume request for a truncated completion in beam mode."""
+        # Check if this is a persisted completion (has id) or transient (LLMResponse)
+        is_persisted = isinstance(completion, PromptCompletion) and hasattr(completion, "id") and completion.id is not None
+
+        if is_persisted:
+            # For persisted completions, use the three-way editor like in sample mode
+            self._handle_persisted_beam_resume(completion)
+        else:
+            # For transient completions, generate continuation in place
+            self._handle_transient_beam_resume(completion)
+
+    def _handle_persisted_beam_resume(self, completion: PromptCompletion) -> None:
+        """Handle resume for a persisted (saved) beam completion using three-way editor."""
+        if not self.sample_widget or not self.sample_widget.active_facet:
+            # No sample widget or facet, just open editor without facet
+            facet = None
+        else:
+            facet = self.sample_widget.active_facet
+
+        # Open the editor window in blocking mode
+        editor = ThreeWayCompletionEditorWindow(self.app, self.dataset, completion, EditorMode.CONTINUATION, facet=facet, parent=self)
+
+        # Show as modal dialog
+        result = editor.exec()
+        if result and self.sample_widget:
+            # Refresh the sample widget outputs to reflect any changes made in the editor
+            self.sample_widget.populate_outputs()
+
+            # Update the beam frame with the refreshed completion from database
+            session = self.dataset.session
+            if session:
+                session.refresh(completion)
+                for _beam, frame in self.beam_frames:
+                    if frame.completion.id == completion.id:  # type: ignore
+                        frame.set_completion(completion)
+                        break
+
+    def _handle_transient_beam_resume(self, completion: LLMResponse) -> None:
+        """Handle resume for a transient (unsaved) beam completion by generating continuation in place."""
+        # Get context_length and max_tokens from the original completion
+        context_length = completion.context_length
+        max_tokens = completion.max_tokens
+
+        # Create or get the text generation controller
+        generation_controller = self.app.get_or_create_text_generation_controller(self.mapped_model, completion.prompt_revision,
+                                                                                  context_length=context_length, max_tokens=max_tokens)
+
+        if generation_controller is None:
+            self.log.error("Generation controller could not be created for model %s", self.mapped_model.model_id)
+            QMessageBox.warning(self, "Provider unavailable", "Cannot continue generation because no provider is available for this model.")
+            return
+
+        # Update status
+        self.status_label.setText("Generating continuation for truncated beam...")
+
+        try:
+            # Generate continuation using the controller
+            response = generation_controller.generate_continuation(original_completion=completion, max_tokens=max_tokens,
+                                                                   context_length=context_length)
+        except (RuntimeError, ValueError, ImportError) as exc:  # pragma: no cover - defensive logging
+            self.log.error("Continuation generation failed: %s", exc)
+            QMessageBox.warning(self, "Generation failed", f"Continuation generation failed: {exc}")
+            self.status_label.setText("Continuation generation failed.")
+            return
+
+        if response is None:
+            self.log.warning("Continuation generation returned None")
+            QMessageBox.warning(self, "Generation failed", "Continuation generation returned no response.")
+            self.status_label.setText("Continuation generation failed.")
+            return
+
+        # Find the beam frame and update it with the new expanded completion
+        for index, (_beam, frame) in enumerate(self.beam_frames):
+            if frame.completion is completion:
+                # Replace the old beam with the new expanded one
+                self.beam_frames[index] = (response, frame)
+                frame.set_completion(response)
+                self.log.info("Updated beam frame with expanded completion")
+                break
+
+        self.status_label.setText("Continuation generated successfully.")
+        # Re-sort beams to reflect any changes in logprobs
         self.sort_beam_frames()
 
     def rearrange_beam_grid(self):

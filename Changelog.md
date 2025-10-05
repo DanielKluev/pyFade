@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- **Beam search: truncated Completion continuation**: Both transient and persisted completions in beam search window now show continuation button if truncated. For persistent completions, the same 3-way editor flow is used as in WidgetSample. For transient completions, continuation is generated in place without additional user input, keeping current context size and replacing the completion frame with the expanded completion.
+
 ### Fixed
 - **Multi-line and Emoji Highlighting Bug**: Fixed highlighting issues with multi-line text and emoji/multi-byte Unicode characters in completion text editor
   - Fixed multi-line prefill and beam token highlighting by replacing Qt's `document.find()` (which doesn't support newlines) with manual string search
