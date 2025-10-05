@@ -96,6 +96,7 @@ class LLMResponse(CommonCompletionProtocol):
     top_k: int
     context_length: int
     max_tokens: int
+    parent_completion_id: int | None = None  # ID of parent completion if this is a derivative, else None
     prefill: str | None = None  # part of completion that wasn't generated, but artificially
     # inserted manually or during beam expansion
     beam_token: str | None = None  # token at which beam tree was forked, if any
@@ -103,6 +104,7 @@ class LLMResponse(CommonCompletionProtocol):
     is_truncated: bool | None = None  # whether generation stopped due to max_tokens limit
     is_full_response_logprobs: bool | None = None  # whether logprobs cover full_response_text (True) or just part (False).
     is_archived: bool = False  # whether this completion is archived and hidden by default
+    is_manual: bool = False  # whether this completion was manually edited
 
     @classmethod
     def from_completion_and_logprobs(cls, completion: "PromptCompletion", logprobs: "PromptCompletionLogprobs") -> "LLMResponse":

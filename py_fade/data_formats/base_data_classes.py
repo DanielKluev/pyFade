@@ -470,12 +470,14 @@ class CommonCompletionProtocol(Protocol):
     model_id: str  # Model ID used to generate this completion originally.
     prompt_conversation: CommonConversation  # converation leading to this response (excluding prefill and response itself)
     completion_text: str  # Full text of the completion.
+    parent_completion_id: int | None  # ID of parent completion if this is a derivative, else None
     prefill: str | None  # Part of completion that wasn't generated, but artificially inserted manually or during beam expansion.
     beam_token: str | None  # Token at which beam tree was forked, if any.
     temperature: float
     top_k: int
     is_truncated: bool  # Whether the completion was truncated due to max tokens limit.
     is_archived: bool  # Whether this completion is archived and hidden by default.
+    is_manual: bool  # Whether this completion was manually edited.
 
     def get_logprobs_for_model_id(self, model_id: str) -> CommonCompletionLogprobs | None:
         """

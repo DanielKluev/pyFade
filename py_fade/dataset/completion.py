@@ -67,6 +67,7 @@ class PromptCompletion(dataset_base):
     max_tokens: Mapped[int] = mapped_column(nullable=False)
     is_truncated: Mapped[bool] = mapped_column(nullable=False, default=False)
     is_archived: Mapped[bool] = mapped_column(nullable=False, default=False)
+    is_manual: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     @classmethod
     def get_or_create_from_llm_response(cls, dataset: "DatasetDatabase", prompt_revision: "PromptRevision", response: "LLMResponse",

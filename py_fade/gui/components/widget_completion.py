@@ -542,6 +542,16 @@ class CompletionFrame(QFrame):
             tooltip=tooltip,
         ))
 
+        # Is manually edited
+        if completion.is_manual:
+            self.status_layout.addWidget(
+                QLabelWithIcon(
+                    "edit",
+                    size=self.icons_size,
+                    color="orange",
+                    tooltip=f"This completion was manually edited. Parent completion: {completion.parent_completion_id}, click to view.",
+                ))
+
         self.status_layout.addStretch()
 
     def _can_show_heatmap(self, completion: CommonCompletionProtocol) -> bool:

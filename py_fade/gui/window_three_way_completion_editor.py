@@ -470,7 +470,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
 
             new_completion = self._persist_new_completion(
                 text=new_text,
-                model_id="manual",
+                model_id=self.original_completion.model_id,
                 temperature=0.0,
                 top_k=1,
                 prefill=None,
@@ -478,6 +478,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
                 context_length=0,
                 max_tokens=0,
                 is_truncated=False,
+                is_manual=True,
             )
 
         if new_completion is None:
@@ -495,8 +496,8 @@ class ThreeWayCompletionEditorWindow(QDialog):
         self.accept()
 
     def _persist_new_completion(self, *, text: str, model_id: str, temperature: float, top_k: int, prefill: str | None,
-                                beam_token: str | None, context_length: int, max_tokens: int,
-                                is_truncated: bool) -> PromptCompletion | None:
+                                beam_token: str | None, context_length: int, max_tokens: int, is_truncated: bool,
+                                is_manual: bool) -> PromptCompletion | None:
         """Create and commit a new ``PromptCompletion`` record."""
 
         session = self.dataset.session if self.dataset else None
@@ -521,6 +522,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
             max_tokens=max_tokens,
             is_truncated=is_truncated,
             is_archived=False,
+            is_manual=is_manual,
         )
         session.add(new_completion)
         session.commit()
