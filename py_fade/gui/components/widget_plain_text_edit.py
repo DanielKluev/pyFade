@@ -10,7 +10,10 @@ import logging
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QMimeData
+from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QTextEdit
+
+from py_fade.providers.flat_prefix_template import FLAT_PREFIX_SYSTEM, FLAT_PREFIX_USER, FLAT_PREFIX_ASSISTANT
 
 if TYPE_CHECKING:
     pass
@@ -95,3 +98,82 @@ class PlainTextEdit(QTextEdit):
         temp_edit.deleteLater()
 
         self.setPlainText(plain_text)
+
+    def contextMenuEvent(self, event):  # pylint: disable=invalid-name
+        """
+        Override contextMenuEvent to add role tag insertion options.
+        
+        Creates a custom context menu with options to insert role tags
+        at the cursor position or at the end of the text.
+        
+        Args:
+            event: QContextMenuEvent with position information
+        """
+        # Create the default context menu
+        menu = self.createStandardContextMenu()
+
+        # Add separator before role tag options
+        menu.addSeparator()
+
+        # Add role tag insertion actions
+        insert_system_action = QAction("Insert System Tag at Cursor", self)
+        insert_system_action.triggered.connect(lambda: self.insert_role_tag_at_cursor(FLAT_PREFIX_SYSTEM))
+        menu.addAction(insert_system_action)
+
+        insert_user_action = QAction("Insert User Tag at Cursor", self)
+        insert_user_action.triggered.connect(lambda: self.insert_role_tag_at_cursor(FLAT_PREFIX_USER))
+        menu.addAction(insert_user_action)
+
+        insert_assistant_action = QAction("Insert Assistant Tag at Cursor", self)
+        insert_assistant_action.triggered.connect(lambda: self.insert_role_tag_at_cursor(FLAT_PREFIX_ASSISTANT))
+        menu.addAction(insert_assistant_action)
+
+        # Add separator before "at end" options
+        menu.addSeparator()
+
+        insert_system_end_action = QAction("Insert System Tag at End", self)
+        insert_system_end_action.triggered.connect(lambda: self.insert_role_tag_at_end(FLAT_PREFIX_SYSTEM))
+        menu.addAction(insert_system_end_action)
+
+        insert_user_end_action = QAction("Insert User Tag at End", self)
+        insert_user_end_action.triggered.connect(lambda: self.insert_role_tag_at_end(FLAT_PREFIX_USER))
+        menu.addAction(insert_user_end_action)
+
+        insert_assistant_end_action = QAction("Insert Assistant Tag at End", self)
+        insert_assistant_end_action.triggered.connect(lambda: self.insert_role_tag_at_end(FLAT_PREFIX_ASSISTANT))
+        menu.addAction(insert_assistant_end_action)
+
+        # Show the menu at the event position
+        menu.exec(event.globalPos())
+
+    def insert_role_tag_at_cursor(self, tag: str) -> None:
+        """
+        Insert a role tag at the current cursor position.
+        
+        Args:
+            tag: The role tag to insert (FLAT_PREFIX_SYSTEM, FLAT_PREFIX_USER, or FLAT_PREFIX_ASSISTANT)
+        """
+        cursor = self.textCursor()
+        cursor.insertText(tag)
+        self.log.debug("Inserted role tag %s at cursor position", tag)
+
+    def insert_role_tag_at_end(self, tag: str) -> None:
+        """
+        Insert a role tag at the end of the text on a new line.
+        
+        Args:
+            tag: The role tag to insert (FLAT_PREFIX_SYSTEM, FLAT_PREFIX_USER, or FLAT_PREFIX_ASSISTANT)
+        """
+        # Move cursor to end of document
+        cursor = self.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+
+        # Add newline if text doesn't end with one
+        text = self.toPlainText()
+        if text and not text.endswith('\n'):
+            cursor.insertText('\n')
+
+        # Insert the tag
+        cursor.insertText(tag)
+
+        self.log.debug("Inserted role tag %s at end of text", tag)

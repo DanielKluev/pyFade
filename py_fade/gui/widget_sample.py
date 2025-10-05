@@ -34,6 +34,7 @@ from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from py_fade.gui.widget_new_completion import NewCompletionFrame
 from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow, EditorMode
 from py_fade.providers.providers_manager import MappedModel
+from py_fade.providers.flat_prefix_template import FLAT_PREFIX_SYSTEM, FLAT_PREFIX_USER, FLAT_PREFIX_ASSISTANT
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
     from py_fade.dataset.completion import PromptCompletion
@@ -119,8 +120,33 @@ class WidgetSample(QWidget):
         self.token_usage_label = QLabel("Tokens: Prompt: 0 | Response: 0 | Total: 0 / 0", self)
         self.token_usage_label.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
 
+        # Role tag buttons for inserting system/user/assistant tags
+        role_tag_buttons_layout = QHBoxLayout()
+        role_tag_buttons_layout.setSpacing(4)
+
+        role_tag_label = QLabel("Insert Role Tag:", self)
+        role_tag_buttons_layout.addWidget(role_tag_label)
+
+        self.system_tag_button = QPushButtonWithIcon("", "S", parent=self, icon_size=0, button_size=32)
+        self.system_tag_button.setToolTip("Insert System Tag at End (must be at beginning)")
+        self.system_tag_button.clicked.connect(self.insert_system_tag)
+        role_tag_buttons_layout.addWidget(self.system_tag_button)
+
+        self.user_tag_button = QPushButtonWithIcon("", "U", parent=self, icon_size=0, button_size=32)
+        self.user_tag_button.setToolTip("Insert User Tag at End")
+        self.user_tag_button.clicked.connect(self.insert_user_tag)
+        role_tag_buttons_layout.addWidget(self.user_tag_button)
+
+        self.assistant_tag_button = QPushButtonWithIcon("", "A", parent=self, icon_size=0, button_size=32)
+        self.assistant_tag_button.setToolTip("Insert Assistant Tag at End")
+        self.assistant_tag_button.clicked.connect(self.insert_assistant_tag)
+        role_tag_buttons_layout.addWidget(self.assistant_tag_button)
+
+        role_tag_buttons_layout.addStretch()
+
         prompt_layout.addWidget(self.prompt_area)
         prompt_layout.addWidget(self.token_usage_label)
+        prompt_layout.addLayout(role_tag_buttons_layout)
 
         # Sample controls panel
         controls_frame = QFrame(self)
@@ -297,6 +323,43 @@ class WidgetSample(QWidget):
                                                  "background-color: #ffe6e6;")
         else:
             self.token_usage_label.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
+
+    def insert_system_tag(self):
+        """
+        Insert system role tag at the beginning of the prompt text.
+        
+        System tag must be at the beginning of the prompt and there must be only one system tag.
+        If a system tag already exists, show a warning and don't insert.
+        """
+        current_text = self.prompt_area.toPlainText()
+
+        # Check if system tag already exists
+        if FLAT_PREFIX_SYSTEM in current_text:
+            QMessageBox.warning(self, "System Tag Already Exists",
+                                "A system tag already exists in the prompt. Only one system tag is allowed.")
+            self.log.debug("Attempted to insert system tag but one already exists")
+            return
+
+        # Insert system tag at the beginning
+        if current_text:
+            new_text = f"{FLAT_PREFIX_SYSTEM}\n{current_text}"
+        else:
+            new_text = FLAT_PREFIX_SYSTEM
+
+        self.prompt_area.setPlainText(new_text)
+        self.log.debug("Inserted system tag at beginning of prompt")
+
+    def insert_user_tag(self):
+        """
+        Insert user role tag at the end of the prompt text on a new line.
+        """
+        self.prompt_area.insert_role_tag_at_end(FLAT_PREFIX_USER)
+
+    def insert_assistant_tag(self):
+        """
+        Insert assistant role tag at the end of the prompt text on a new line.
+        """
+        self.prompt_area.insert_role_tag_at_end(FLAT_PREFIX_ASSISTANT)
 
     def set_sample(self, sample: Sample | None):
         """Set the sample and populate UI with sample data."""
