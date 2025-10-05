@@ -93,8 +93,10 @@ def apply_template_mistral(messages: CommonConversation) -> str:
         if role not in ("user", "assistant"):
             raise ValueError(f"Unsupported role '{role}' for Mistral template.")
         if role == "user":
-            prompt += f"[INST] {content} [/INST]"
-        else:  # assistant
+            prompt += f"[INST] {content} [/INST] "
+        elif i == len(messages.messages) - 1:
+            prompt += f"{content}"
+        else:
             prompt += f"{content}</s>"
     return prompt.strip()
 
