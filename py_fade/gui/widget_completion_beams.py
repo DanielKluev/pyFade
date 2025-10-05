@@ -608,7 +608,7 @@ class WidgetCompletionBeams(QWidget):
         max_tokens = completion.max_tokens
 
         # Create or get the text generation controller
-        generation_controller = self.app.get_or_create_text_generation_controller(self.mapped_model, completion.prompt_revision,
+        generation_controller = self.app.get_or_create_text_generation_controller(self.mapped_model, self.prompt,
                                                                                   context_length=context_length, max_tokens=max_tokens)
 
         if generation_controller is None:
@@ -621,7 +621,7 @@ class WidgetCompletionBeams(QWidget):
 
         try:
             # Generate continuation using the controller
-            response = generation_controller.generate_continuation(original_completion=completion, max_tokens=max_tokens,
+            response = generation_controller.generate_continuation(original_completion=completion, max_tokens=context_length,
                                                                    context_length=context_length)
         except (RuntimeError, ValueError, ImportError) as exc:  # pragma: no cover - defensive logging
             self.log.error("Continuation generation failed: %s", exc)
