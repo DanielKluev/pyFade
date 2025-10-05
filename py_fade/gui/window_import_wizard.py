@@ -50,7 +50,6 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QComboBox,
-    QLineEdit,
     QSpinBox,
     QTextEdit,
     QProgressBar,
