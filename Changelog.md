@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Added
+- **Beam Out from Heatmap**: Added ability to start beam search from any token position in heatmap mode
+  - Click on any token in heatmap view to see alternatives for that position
+  - Token picker shows up to 200 alternatives in multi-select mode
+  - Automatically extracts prefix (all tokens before clicked position) as prefill
+  - Starts beam generation with selected alternatives at clicked position
+  - Maintains token fidelity by working with actual tokens rather than text
+  - beam_token property is set on generated completions
+  - Comprehensive test coverage with 8 new tests
 - **Extended New Completion Widget**: Enhanced the new completion widget with four generation modes and comprehensive UI improvements
   - **Mode Selector**: Switch between Regular, Continue Truncated, Manual Input, and Token-by-Token generation modes
   - **Regular Mode**: Generate completions from prompt with optional prefill (existing behavior)

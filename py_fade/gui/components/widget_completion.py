@@ -51,6 +51,7 @@ class CompletionFrame(QFrame):
     discard_requested = pyqtSignal(object)  # PromptCompletion or LLMResponse
     save_requested = pyqtSignal(object)  # LLMResponse for beam mode
     pin_toggled = pyqtSignal(object, bool)  # LLMResponse, is_pinned
+    beam_out_requested = pyqtSignal(int)  # token_index - clicked token in heatmap mode
 
     icons_size = 24
     actions_icon_size = 22
@@ -594,3 +595,12 @@ class CompletionFrame(QFrame):
             widget = item.widget() if item is not None else None
             if widget is not None:
                 widget.deleteLater()
+
+    def on_heatmap_token_clicked(self, token_index: int) -> None:
+        """
+        Handle token click in heatmap mode.
+
+        Emits beam_out_requested signal with token index to let parent widget handle the beam-out logic.
+        """
+        self.log.debug("Heatmap token clicked at index %d", token_index)
+        self.beam_out_requested.emit(token_index)

@@ -473,6 +473,7 @@ class WidgetCompletionBeams(QWidget):
         frame.save_requested.connect(self.on_beam_accepted)
         frame.pin_toggled.connect(self.on_beam_pinned)
         frame.resume_requested.connect(self.on_beam_resume_requested)
+        frame.beam_out_requested.connect(self.on_beam_out_requested)
 
         self.beam_frames.append((beam, frame))
 
@@ -684,3 +685,107 @@ class WidgetCompletionBeams(QWidget):
 
         # Re-arrange pinned frames in grid
         self.rearrange_beam_grid()
+
+    @pyqtSlot(int)
+    def on_beam_out_requested(self, token_index: int):
+        """
+        Handle beam-out request from heatmap token click.
+
+        Extracts prefix before clicked token, gets alternatives for clicked position,
+        and shows token picker to start beam generation.
+        """
+        # Find the beam frame that emitted the signal
+        sender_frame = self.sender()
+        if not sender_frame:
+            self.log.warning("on_beam_out_requested called but sender() is None")
+            return
+
+        # Find the completion for this frame
+        completion = None
+        for beam, frame in self.beam_frames:
+            if frame == sender_frame:
+                completion = beam
+                break
+
+        if not completion:
+            self.log.warning("Could not find completion for sender frame")
+            return
+
+        # Get logprobs for this completion
+        if not completion.logprobs or not completion.logprobs.sampled_logprobs:
+            self.status_label.setText("Error: No logprobs available for this completion")
+            return
+
+        sampled_tokens = completion.logprobs.sampled_logprobs
+        if token_index < 0 or token_index >= len(sampled_tokens):
+            self.log.warning("Token index %d out of range (0-%d)", token_index, len(sampled_tokens) - 1)
+            return
+
+        # Extract prefix tokens before the clicked token
+        prefix_tokens = sampled_tokens[:token_index]
+        prefix_text = "".join(token.token_str for token in prefix_tokens)
+
+        self.log.info("Beam-out requested at token index %d, prefix: '%s'", token_index, prefix_text)
+
+        # Get the beam controller
+        beam_controller = self._get_or_create_beam_controller()
+        if not beam_controller:
+            self.status_label.setText("Error: Unable to create beam controller")
+            return
+
+        try:
+            # Fetch alternatives for the clicked token position
+            self.status_label.setText("Fetching token alternatives...")
+
+            # Need to get alternatives for position at token_index
+            # We'll use fetch_next_token_logprobs_for_prefix with the prefix
+            token_logprobs = beam_controller.fetch_next_token_logprobs_for_prefix(prefix_text, 200)
+
+            # Show token picker in multi-select mode
+            self._show_beam_out_token_picker(token_logprobs, prefix_text)
+
+        except (RuntimeError, ValueError) as exc:
+            self.status_label.setText(f"Error: {exc}")
+            self.log.error("Error fetching token alternatives: %s", exc)
+
+    def _show_beam_out_token_picker(self, token_logprobs: SinglePositionTopLogprobs, prefix_text: str):
+        """Show token picker for beam-out from heatmap click."""
+        # Create token picker dialog
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Tokens for Beam-Out Generation")
+        dialog.setGeometry(300, 300, 800, 600)
+
+        layout = QVBoxLayout(dialog)
+
+        # Add instruction label
+        instruction = QLabel(f"Select tokens for beam generation from position after: '{prefix_text[:50]}...'")
+        layout.addWidget(instruction)
+
+        # Create token picker widget in multi-select mode
+        token_picker = WidgetTokenPicker(
+            dialog,
+            token_logprobs,
+            multi_select=True,
+        )
+        layout.addWidget(token_picker)
+
+        # Connect token selection signal
+        token_picker.tokens_selected.connect(partial(self._on_beam_out_tokens_selected, prefix_text=prefix_text, dialog=dialog))
+
+        # Store reference and show dialog
+        self.token_picker_window = dialog
+        dialog.exec()
+
+    def _on_beam_out_tokens_selected(self, selected_tokens: list[SinglePositionToken], *, prefix_text: str, dialog: QDialog) -> None:
+        """Handle token selection for beam-out and start generation."""
+        dialog.accept()  # Close the dialog
+
+        if not selected_tokens:
+            self.status_label.setText("No tokens selected")
+            return
+
+        # Set prefill to the prefix text
+        self.prefill_edit.setPlainText(prefix_text)
+
+        # Start beam generation with selected tokens
+        self._generate_beams_with_tokens(selected_tokens)
