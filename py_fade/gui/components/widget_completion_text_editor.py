@@ -2,8 +2,8 @@
 Widget for editing completion text with formatting and highlighting capabilities.
 
 This module provides a custom QTextEdit widget that properly handles text highlighting
-for emoji and multi-byte Unicode characters by using Qt's native UTF-16 text positioning
-instead of Python string indexing.
+for emoji, multi-byte Unicode characters, and multi-line text (with newlines) by using
+manual string search combined with Qt's QTextCursor for positioning.
 """
 
 from __future__ import annotations
@@ -31,9 +31,9 @@ class CompletionTextEdit(QTextEdit):
     """
     Custom QTextEdit that supports prefill, beam token and heatmap highlighting.
 
-    This widget properly handles emoji and multi-byte Unicode characters by using
-    Qt's document.find() and QTextCursor methods for text positioning, which work
-    with UTF-16 code units instead of Python's Unicode code points.
+    This widget properly handles emoji, multi-byte Unicode characters, and multi-line
+    text (with newlines) by using manual string search with QTextCursor positioning.
+    This approach works correctly with UTF-16 code units and multi-line strings.
     """
     _completion: CommonCompletionProtocol | None = None
     _logprobs: CommonCompletionLogprobs | None = None
@@ -172,29 +172,71 @@ class CompletionTextEdit(QTextEdit):
         Only the non-overlapping part of prefill is highlighted as PREFILL_COLOR,
         while the overlapping part (beam token) is highlighted as BEAM_TOKEN_COLOR.
 
-        Uses Qt's text search to properly handle UTF-16 positioning for emoji and multi-byte characters.
+        Uses manual string search with QTextCursor positioning to handle multi-line text and UTF-16 properly.
         """
         if not self._completion:
             return
 
         def apply_highlight_by_search(search_text: str, color: QColor, start_pos: int = 0) -> int:
             """
-            Find and highlight text using Qt's search, returning the end position or -1 if not found.
+            Find and highlight text using manual string search, returning the end position or -1 if not found.
 
-            Returns the UTF-16 position after the found text, or -1 if not found.
+            Args:
+                search_text: The text to search for
+                color: The background color to apply
+                start_pos: Starting Qt UTF-16 position to search from (default 0)
+
+            Returns:
+                The Qt UTF-16 position after the found text, or -1 if not found.
+
+            Uses manual string search instead of Qt's document.find() to support multi-line text (newlines).
+            Handles UTF-16 surrogate pairs (emoji) correctly by converting between Python and Qt positions.
             """
-            # Use Qt's document find method which handles UTF-16 properly
-            cursor = self.document().find(search_text, start_pos)
-            if cursor.isNull():
+            # Get the plain text for string searching
+            plain_text = self.toPlainText()
+
+            # Convert Qt UTF-16 start_pos to Python string position
+            # We need to count how many Python characters correspond to start_pos UTF-16 code units
+            py_start_pos = 0
+            utf16_pos = 0
+            for i, char in enumerate(plain_text):
+                if utf16_pos >= start_pos:
+                    py_start_pos = i
+                    break
+                # Count UTF-16 code units for this character
+                char_utf16_len = len(char.encode('utf-16-le')) // 2
+                utf16_pos += char_utf16_len
+            else:
+                # Reached end of text
+                py_start_pos = len(plain_text)
+
+            # Find the search text in the plain text (using Python string positions)
+            py_search_pos = plain_text.find(search_text, py_start_pos)
+            if py_search_pos == -1:
                 return -1
+
+            # Convert Python string position to Qt UTF-16 position
+            # Count UTF-16 code units for characters before the search position
+            text_before = plain_text[:py_search_pos]
+            qt_search_pos = len(text_before.encode('utf-16-le')) // 2
+
+            # Calculate UTF-16 length of the search text for Qt cursor positioning
+            # Qt uses UTF-16 code units, where emoji and other characters outside BMP
+            # are represented as surrogate pairs (2 code units)
+            utf16_length = len(search_text.encode('utf-16-le')) // 2
+
+            # Create cursor and select the found text using Qt positions
+            cursor = self.textCursor()
+            cursor.setPosition(qt_search_pos)
+            cursor.setPosition(qt_search_pos + utf16_length, QTextCursor.MoveMode.KeepAnchor)
 
             # Apply highlighting
             highlight_format = QTextCharFormat()
             highlight_format.setBackground(color)
             cursor.mergeCharFormat(highlight_format)
 
-            # Return position after the found text
-            return cursor.position()
+            # Return position after the found text (in UTF-16 code units)
+            return qt_search_pos + utf16_length
 
         prefill = self._completion.prefill
         beam_token = self._completion.beam_token

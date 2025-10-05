@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Fixed
+- **Multi-line and Emoji Highlighting Bug**: Fixed highlighting issues with multi-line text and emoji/multi-byte Unicode characters in completion text editor
+  - Fixed multi-line prefill and beam token highlighting by replacing Qt's `document.find()` (which doesn't support newlines) with manual string search
+  - Replaced Python string indexing with Qt's QTextCursor positioning for correct UTF-16 code unit handling
+  - Fixed prefill, beam token, and heatmap highlighting to properly handle surrogate pairs, newlines, and multi-line text
+  - Added comprehensive test coverage for multi-line and emoji highlighting scenarios
 - **Beam Completion Widget Update Bug**: Fixed issue where CompletionFrame in beam search window was not updated after saving a beam
   - Modified `WidgetSample.add_completion()` to return the created `PromptCompletion`
   - Updated `WidgetCompletionBeams.on_beam_accepted()` to update frame with persisted completion

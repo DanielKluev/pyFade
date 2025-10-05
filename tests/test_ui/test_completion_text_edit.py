@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt, QPointF
-from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtGui import QMouseEvent, QTextCursor
 
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.components.widget_completion_text_editor import CompletionTextEdit, PREFILL_COLOR, BEAM_TOKEN_COLOR
@@ -514,6 +514,202 @@ class TestCompletionTextEditEdgeCases:
 
         # Should work without major performance issues
         assert text_edit.is_heatmap_mode
+
+
+class TestCompletionTextEditMultilinePrefillHighlighting:
+    """Test prefill highlighting with multi-line text (newlines)."""
+
+    def test_multiline_prefill_highlighting(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """Multi-line prefill text is highlighted correctly."""
+        _ = ensure_google_icon_font
+        prefill_text = "Line 1\nLine 2"
+        completion_text = "Line 1\nLine 2\nLine 3"
+
+        beam = _create_test_llm_response(completion_text=completion_text, prefill=prefill_text)
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+        text_edit = frame.text_edit
+        frame.show()
+        qt_app.processEvents()
+
+        assert text_edit.toPlainText() == completion_text
+
+        # Check that prefill is highlighted (position 5 is in "Line 1")
+        cursor = text_edit.textCursor()
+        cursor.setPosition(5)
+        format_at_line1 = cursor.charFormat()
+        line1_bg = format_at_line1.background().color()
+
+        # Position 9 is in "Line 2" (after newline at position 6)
+        cursor.setPosition(9)
+        format_at_line2 = cursor.charFormat()
+        line2_bg = format_at_line2.background().color()
+
+        # Both should be highlighted with prefill color
+        assert line1_bg == PREFILL_COLOR, f"Expected prefill color at position 5, got {line1_bg.name()}"
+        assert line2_bg == PREFILL_COLOR, f"Expected prefill color at position 9, got {line2_bg.name()}"
+
+        # Position 15 is in "Line 3" (not part of prefill)
+        cursor.setPosition(15)
+        format_at_line3 = cursor.charFormat()
+        line3_bg = format_at_line3.background().color()
+
+        # Line 3 should NOT be highlighted
+        assert line3_bg != PREFILL_COLOR, "Line 3 should not be highlighted"
+
+    def test_multiline_beam_token_highlighting(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """Multi-line beam token is highlighted correctly."""
+        _ = ensure_google_icon_font
+        beam_token_text = "token\npart"
+        completion_text = "Start token\npart continuation"
+
+        beam = _create_test_llm_response(completion_text=completion_text, beam_token=beam_token_text)
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+        text_edit = frame.text_edit
+        frame.show()
+        qt_app.processEvents()
+
+        assert text_edit.toPlainText() == completion_text
+
+        # Position 7 is in "token" part
+        cursor = text_edit.textCursor()
+        cursor.setPosition(7)
+        format_at_token = cursor.charFormat()
+        token_bg = format_at_token.background().color()
+
+        # Position 12 is in "part" (after newline)
+        cursor.setPosition(12)
+        format_at_part = cursor.charFormat()
+        part_bg = format_at_part.background().color()
+
+        # Both should be highlighted with beam token color
+        assert token_bg == BEAM_TOKEN_COLOR, f"Expected beam token color at position 7, got {token_bg.name()}"
+        assert part_bg == BEAM_TOKEN_COLOR, f"Expected beam token color at position 12, got {part_bg.name()}"
+
+    def test_multiline_prefill_with_multiline_beam_token(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """Multi-line prefill with overlapping multi-line beam token is highlighted correctly."""
+        _ = ensure_google_icon_font
+        prefill_text = "Prefix\ntoken\npart"
+        beam_token_text = "token\npart"
+        completion_text = "Prefix\ntoken\npart\nmore content"
+
+        beam = _create_test_llm_response(completion_text=completion_text, prefill=prefill_text, beam_token=beam_token_text)
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+        text_edit = frame.text_edit
+        frame.show()
+        qt_app.processEvents()
+
+        assert text_edit.toPlainText() == completion_text
+
+        cursor = text_edit.textCursor()
+
+        # Position 3 is in "Prefix" (non-overlapping part of prefill)
+        cursor.setPosition(3)
+        format_at_prefix = cursor.charFormat()
+        prefix_bg = format_at_prefix.background().color()
+
+        # Position 9 is in "token" (overlapping part - should be beam token color)
+        cursor.setPosition(9)
+        format_at_token = cursor.charFormat()
+        token_bg = format_at_token.background().color()
+
+        # Position 16 is in "part" (overlapping part - should be beam token color)
+        cursor.setPosition(16)
+        format_at_part = cursor.charFormat()
+        part_bg = format_at_part.background().color()
+
+        # "Prefix" should be prefill color
+        assert prefix_bg == PREFILL_COLOR, f"Expected prefill color at position 3, got {prefix_bg.name()}"
+
+        # "token\npart" should be beam token color
+        assert token_bg == BEAM_TOKEN_COLOR, f"Expected beam token color at position 9, got {token_bg.name()}"
+        assert part_bg == BEAM_TOKEN_COLOR, f"Expected beam token color at position 16, got {part_bg.name()}"
+
+    def test_single_line_still_works(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """Single-line prefill/beam tokens still work after fix."""
+        _ = ensure_google_icon_font
+        beam = _create_test_llm_response(completion_text="Prefilled token and more", prefill="Prefilled token", beam_token="token")
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+        text_edit = frame.text_edit
+        frame.show()
+        qt_app.processEvents()
+
+        cursor = text_edit.textCursor()
+
+        # Check "Prefilled " part
+        cursor.setPosition(5)
+        format_at_prefill = cursor.charFormat()
+        prefill_bg = format_at_prefill.background().color()
+
+        # Check "token" part
+        cursor.setPosition(12)
+        format_at_beam = cursor.charFormat()
+        beam_bg = format_at_beam.background().color()
+
+        assert prefill_bg == PREFILL_COLOR
+        assert beam_bg == BEAM_TOKEN_COLOR
+
+    def test_emoji_as_prefill_and_beam(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """Emoji can be used as both prefill and beam token (UTF-16 surrogate pair handling)."""
+        _ = ensure_google_icon_font
+        emoji = "😊"
+        completion_text = "😊 more text"
+
+        beam = _create_test_llm_response(completion_text=completion_text, prefill=emoji, beam_token=emoji)
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+        text_edit = frame.text_edit
+        frame.show()
+        qt_app.processEvents()
+
+        # The emoji should be highlighted as beam token
+        # Qt uses UTF-16 encoding where emoji is a surrogate pair (2 code units)
+        # To check the format, we need to select the character, not just position at it
+        cursor = text_edit.textCursor()
+
+        # Select the emoji character (positions 0-2 in UTF-16)
+        cursor.setPosition(0)
+        cursor.setPosition(2, QTextCursor.MoveMode.KeepAnchor)
+        selected_text = cursor.selectedText()
+        emoji_bg = cursor.charFormat().background().color()
+
+        # The emoji should be selected and highlighted as beam token
+        assert selected_text == emoji, f"Expected to select emoji {repr(emoji)}, got {repr(selected_text)}"
+        assert emoji_bg == BEAM_TOKEN_COLOR, f"Expected beam token color for emoji, got {emoji_bg.name()}"
+
+        # Position 2 (space after emoji) should NOT be highlighted
+        cursor.setPosition(2)
+        cursor.setPosition(3, QTextCursor.MoveMode.KeepAnchor)
+        space_bg = cursor.charFormat().background().color()
+        assert space_bg != BEAM_TOKEN_COLOR, "Space after emoji should not be highlighted"
 
 
 class TestCompletionTextEditIntegrationWithCompletionFrame:
