@@ -504,7 +504,11 @@ class WidgetDatasetTop(QMainWindow):
             )
             return
 
-        if not self.current_model_path:
+        mapped_model = None
+        if self.current_model_path:
+            mapped_model = self.app.providers_manager.get_mapped_model(self.current_model_path)
+
+        if not mapped_model:
             QMessageBox.information(
                 self,
                 "No Model Selected",
@@ -515,8 +519,8 @@ class WidgetDatasetTop(QMainWindow):
         # Import here to avoid circular dependency
         from py_fade.gui.window_facet_summary import FacetSummaryWindow  # pylint: disable=import-outside-toplevel
 
-        self.log.info("Opening facet summary for facet '%s' and model '%s'", self.current_facet.name, self.current_model_path)
-        dialog = FacetSummaryWindow(self.app, self.dataset, self.current_facet, self.current_model_path, parent=self)
+        self.log.info("Opening facet summary for facet '%s' and model '%s'", self.current_facet.name, mapped_model.path)
+        dialog = FacetSummaryWindow(self.app, self.dataset, self.current_facet, mapped_model, parent=self)
         dialog.exec()
 
     def _prompt_for_dataset_destination(self, title: str, suggested_name: str) -> pathlib.Path | None:

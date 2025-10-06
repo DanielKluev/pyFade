@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from py_fade.dataset.completion import PromptCompletion
+from py_fade.providers.providers_manager import MappedModel
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -64,8 +65,9 @@ class FacetSummaryController:
     Analyzes samples in a facet to determine their readiness for SFT and DPO training
     based on completion ratings and logprob thresholds.
     """
+    target_model: MappedModel
 
-    def __init__(self, app: "pyFadeApp", dataset: "DatasetDatabase", facet: "Facet", target_model_id: str):
+    def __init__(self, app: "pyFadeApp", dataset: "DatasetDatabase", facet: "Facet", target_model: MappedModel):
         """
         Initialize the controller.
 
@@ -79,7 +81,7 @@ class FacetSummaryController:
         self.app = app
         self.dataset = dataset
         self.facet = facet
-        self.target_model_id = target_model_id
+        self.target_model = target_model
 
     def generate_report(self) -> FacetSummaryReport:
         """
@@ -88,11 +90,11 @@ class FacetSummaryController:
         Returns:
             FacetSummaryReport with statistics and details
         """
-        self.log.info("Generating facet summary report for facet '%s' and model '%s'", self.facet.name, self.target_model_id)
+        self.log.info("Generating facet summary report for facet '%s' and model '%s'", self.facet.name, self.target_model.path)
 
         report = FacetSummaryReport(
             facet_name=self.facet.name,
-            target_model_id=self.target_model_id,
+            target_model_id=self.target_model.model_id,
             min_rating=self.facet.min_rating,
             min_logprob_threshold=self.facet.min_logprob_threshold,
             avg_logprob_threshold=self.facet.avg_logprob_threshold,
@@ -134,7 +136,7 @@ class FacetSummaryController:
             report.sft_unfinished_details.append(
                 UnfinishedSampleInfo(
                     sample_id=sample.id,
-                    sample_name=f"Sample #{sample.id}",
+                    sample_name=f"Sample #{sample.id} {sample.title}",
                     reasons=["No rated completions found"],
                 ))
             return
@@ -148,7 +150,7 @@ class FacetSummaryController:
             report.sft_unfinished_details.append(
                 UnfinishedSampleInfo(
                     sample_id=sample.id,
-                    sample_name=f"Sample #{sample.id}",
+                    sample_name=f"Sample #{sample.id} {sample.title}",
                     reasons=[f"No completion with rating >= {self.facet.min_rating} (max rating: {max_rating})"],
                 ))
             return
@@ -156,7 +158,7 @@ class FacetSummaryController:
         # Check logprob thresholds for high-rated completions
         valid_completions = []
         for completion in high_rated:
-            logprobs = completion.get_logprobs_for_model_id(self.target_model_id)
+            logprobs = completion.get_logprobs_for_model_id(self.target_model.model_id)
             if (logprobs and logprobs.min_logprob >= self.facet.min_logprob_threshold and
                     logprobs.avg_logprob >= self.facet.avg_logprob_threshold):
                 valid_completions.append((completion, logprobs))
@@ -166,7 +168,7 @@ class FacetSummaryController:
             reasons = ["No high-rated completion meets logprob thresholds"]
             # Add details about why completions failed
             for completion in high_rated:
-                logprobs = completion.get_logprobs_for_model_id(self.target_model_id)
+                logprobs = completion.get_logprobs_for_model_id(self.target_model.model_id)
                 if not logprobs:
                     reasons.append(f"  Completion {completion.id}: No logprobs for target model")
                 else:
@@ -180,7 +182,7 @@ class FacetSummaryController:
             report.sft_unfinished_details.append(
                 UnfinishedSampleInfo(
                     sample_id=sample.id,
-                    sample_name=f"Sample #{sample.id}",
+                    sample_name=f"Sample #{sample.id} {sample.title}",
                     reasons=reasons,
                 ))
             return
@@ -214,7 +216,7 @@ class FacetSummaryController:
             report.dpo_unfinished_details.append(
                 UnfinishedSampleInfo(
                     sample_id=sample.id,
-                    sample_name=f"Sample #{sample.id}",
+                    sample_name=f"Sample #{sample.id} {sample.title}",
                     reasons=["No rated completions found"],
                 ))
             return
@@ -228,7 +230,7 @@ class FacetSummaryController:
             report.dpo_unfinished_details.append(
                 UnfinishedSampleInfo(
                     sample_id=sample.id,
-                    sample_name=f"Sample #{sample.id}",
+                    sample_name=f"Sample #{sample.id} {sample.title}",
                     reasons=[f"No completion with rating >= {self.facet.min_rating} (max rating: {max_rating})"],
                 ))
             return
@@ -236,7 +238,7 @@ class FacetSummaryController:
         # Check logprob thresholds for high-rated completions
         valid_completions = []
         for completion in high_rated:
-            logprobs = completion.get_logprobs_for_model_id(self.target_model_id)
+            logprobs = completion.get_logprobs_for_model_id(self.target_model.model_id)
             if (logprobs and logprobs.min_logprob >= self.facet.min_logprob_threshold and
                     logprobs.avg_logprob >= self.facet.avg_logprob_threshold):
                 valid_completions.append((completion, logprobs))
@@ -247,7 +249,7 @@ class FacetSummaryController:
             report.dpo_unfinished_details.append(
                 UnfinishedSampleInfo(
                     sample_id=sample.id,
-                    sample_name=f"Sample #{sample.id}",
+                    sample_name=f"Sample #{sample.id} {sample.title}",
                     reasons=reasons,
                 ))
             return
@@ -264,8 +266,8 @@ class FacetSummaryController:
             report.dpo_unfinished_details.append(
                 UnfinishedSampleInfo(
                     sample_id=sample.id,
-                    sample_name=f"Sample #{sample.id}",
-                    reasons=[f"No completion with rating < {best_rating} (best passing completion rating)"],
+                    sample_name=f"Sample #{sample.id} {sample.title}",
+                    reasons=[f"No paired rejection completion (rating < {best_rating}, best passing completion rating: {best_rating})"],
                 ))
             return
 

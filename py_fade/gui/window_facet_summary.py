@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
 )
 
 from py_fade.controllers.facet_summary_controller import FacetSummaryController, FacetSummaryReport
+from py_fade.providers.providers_manager import MappedModel
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -33,7 +34,7 @@ class FacetSummaryWindow(QDialog):
     including detailed information about unfinished samples.
     """
 
-    def __init__(self, app: "pyFadeApp", dataset: "DatasetDatabase", facet: "Facet", target_model_id: str, *,
+    def __init__(self, app: "pyFadeApp", dataset: "DatasetDatabase", facet: "Facet", target_model: MappedModel, *,
                  parent: QWidget | None = None) -> None:
         """
         Initialize the facet summary window.
@@ -42,7 +43,7 @@ class FacetSummaryWindow(QDialog):
             app: The main application instance
             dataset: Dataset database
             facet: Facet to generate report for
-            target_model_id: Target model ID for logprob evaluation
+            target_model: Target model for logprob evaluation
             parent: Parent widget
         """
         super().__init__(parent)
@@ -50,7 +51,7 @@ class FacetSummaryWindow(QDialog):
         self.app = app
         self.dataset = dataset
         self.facet = facet
-        self.target_model_id = target_model_id
+        self.target_model = target_model
         self.report: FacetSummaryReport | None = None
 
         self.setWindowTitle(f"Facet Summary: {facet.name}")
@@ -69,7 +70,7 @@ class FacetSummaryWindow(QDialog):
         layout.addWidget(header_label)
 
         # Model info
-        model_label = QLabel(f"<b>Target Model:</b> {self.target_model_id}")
+        model_label = QLabel(f"<b>Target Model:</b> {self.target_model.model_id}")
         layout.addWidget(model_label)
 
         # Scrollable content area
@@ -98,7 +99,7 @@ class FacetSummaryWindow(QDialog):
         self.log.info("Generating facet summary report for facet '%s'", self.facet.name)
 
         # Generate report
-        controller = FacetSummaryController(self.app, self.dataset, self.facet, self.target_model_id)
+        controller = FacetSummaryController(self.app, self.dataset, self.facet, self.target_model)
         self.report = controller.generate_report()
 
         # Display report
@@ -126,6 +127,8 @@ class FacetSummaryWindow(QDialog):
 
     def create_thresholds_section(self) -> QGroupBox:
         """Create the thresholds information section."""
+        if not self.report:
+            raise RuntimeError("Report not generated yet.")
         group = QGroupBox("Training Thresholds")
         layout = QVBoxLayout(group)
 
@@ -141,6 +144,8 @@ class FacetSummaryWindow(QDialog):
 
     def create_sft_section(self) -> QGroupBox:
         """Create the SFT statistics section."""
+        if not self.report:
+            raise RuntimeError("Report not generated yet.")
         group = QGroupBox("SFT (Supervised Fine-Tuning) Readiness")
         layout = QVBoxLayout(group)
 
@@ -177,6 +182,8 @@ class FacetSummaryWindow(QDialog):
 
     def create_dpo_section(self) -> QGroupBox:
         """Create the DPO statistics section."""
+        if not self.report:
+            raise RuntimeError("Report not generated yet.")
         group = QGroupBox("DPO (Direct Preference Optimization) Readiness")
         layout = QVBoxLayout(group)
 
