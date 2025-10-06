@@ -401,10 +401,7 @@ class TestCompletionTextEditMouseInteraction:
         _ = ensure_google_icon_font
         beam = _create_test_llm_response(completion_text="Hello world")
 
-        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
-        text_edit = frame.text_edit
-        frame.show()
-        qt_app.processEvents()
+        _, text_edit = setup_completion_frame_basic(temp_dataset, beam, qt_app)
 
         # Not in heatmap mode
         assert not text_edit.is_heatmap_mode
