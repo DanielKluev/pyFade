@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPlainTextEdit,
+    QPushButton,
     QScrollArea,
     QSpinBox,
     QTextEdit,
@@ -38,7 +39,6 @@ class CompletionMode(Enum):
     Enum for different completion generation modes.
     """
     REGULAR = "regular"  # Regular generation from prompt + optional prefill
-    CONTINUATION = "continuation"  # Continuation of current generation if truncated
     MANUAL = "manual"  # Manual completion input
     TOKEN_BY_TOKEN = "token_by_token"  # Token by token generation with token picker
 
@@ -47,14 +47,14 @@ class NewCompletionFrame(QFrame):
     """
     UI frame for creating a new completion with multiple modes.
 
-    Supports four modes:
+    Supports three modes:
     - REGULAR: Regular generation from prompt + optional prefill
-    - CONTINUATION: Continuation of truncated completion
     - MANUAL: Manual completion input with optional model ID
     - TOKEN_BY_TOKEN: Token by token generation with token picker
 
     Has model picker (combobox), temperature, top_k controls,
     prefill/completion text areas, and mode-specific controls.
+    Continuation is automatically available via button when completion is truncated.
     """
 
     completion_accepted = pyqtSignal(object)  # Signal emitted when completion is accepted and should be saved
@@ -62,10 +62,11 @@ class NewCompletionFrame(QFrame):
     log: logging.Logger
     current_mode: CompletionMode
     generated_completion: "LLMResponse | None"
-    current_completion: "PromptCompletion | None"  # For continuation mode
+    current_completion: "PromptCompletion | None"  # For continuation tracking
     token_by_token_controller: "TextGenerationController | None"
     token_by_token_prefix: str  # Current token-by-token prefix
     token_by_token_tokens: list[SinglePositionToken]  # Selected tokens for token-by-token
+    has_truncated_completion: bool  # Track if current completion is truncated for continuation button
 
     def __init__(self, parent: QWidget, app: "pyFadeApp"):
         super().__init__(parent)
@@ -77,6 +78,7 @@ class NewCompletionFrame(QFrame):
         self.token_by_token_controller = None
         self.token_by_token_prefix = ""
         self.token_by_token_tokens = []
+        self.has_truncated_completion = False
         self.setFrameShape(QFrame.Shape.StyledPanel)
         # self.setStyleSheet("background-color: #f0f8ff; border: 2px dashed #4169e1;")
 
@@ -87,29 +89,20 @@ class NewCompletionFrame(QFrame):
 
         layout = QVBoxLayout(self)
 
-        # Header with mode selector
+        # Header
         header_layout = QHBoxLayout()
         header = QLabel("Generate New Completion")
         header_layout.addWidget(header)
-
-        # Mode selector
-        header_layout.addWidget(QLabel("Mode:"))
-        self.mode_combo = QComboBox()
-        self.mode_combo.addItem("Regular Generation", CompletionMode.REGULAR)
-        self.mode_combo.addItem("Continue Truncated", CompletionMode.CONTINUATION)
-        self.mode_combo.addItem("Manual Input", CompletionMode.MANUAL)
-        self.mode_combo.addItem("Token by Token", CompletionMode.TOKEN_BY_TOKEN)
-        self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
-        header_layout.addWidget(self.mode_combo)
         header_layout.addStretch()
         layout.addLayout(header_layout)
 
         # Controls layout
         controls_layout = QHBoxLayout()
 
-        # Model picker
+        # Model picker (editable for manual mode)
         controls_layout.addWidget(QLabel("Model:"))
         self.model_combo = QComboBox()
+        self.model_combo.setEditable(False)
         self.model_combo.addItems(self.app.available_models)
         controls_layout.addWidget(self.model_combo)
 
@@ -131,16 +124,6 @@ class NewCompletionFrame(QFrame):
         controls_layout.addStretch()
         layout.addLayout(controls_layout)
 
-        # Manual model ID input (for manual mode)
-        manual_model_layout = QHBoxLayout()
-        manual_model_layout.addWidget(QLabel("Model ID (manual):"))
-        self.manual_model_id_edit = QLineEdit()
-        self.manual_model_id_edit.setPlaceholderText("Enter model ID for manual completions (default: manual)")
-        self.manual_model_id_edit.setText("manual")
-        manual_model_layout.addWidget(self.manual_model_id_edit)
-        self.manual_model_id_layout = manual_model_layout
-        layout.addLayout(manual_model_layout)
-
         # Prefill text area
         layout.addWidget(QLabel("Prefill (optional):"))
         self.prefill_edit = QPlainTextEdit()
@@ -148,33 +131,57 @@ class NewCompletionFrame(QFrame):
         self.prefill_edit.setMaximumHeight(80)
         layout.addWidget(self.prefill_edit)
 
-        # Generated completion area
+        # Main content area with completion and token picker
+        # This will be horizontal layout for token-by-token mode
+        self.content_layout = QHBoxLayout()
+
+        # Completion area container
+        self.completion_container = QWidget()
+        completion_container_layout = QVBoxLayout(self.completion_container)
+        completion_container_layout.setContentsMargins(0, 0, 0, 0)
+
         self.completion_area = QTextEdit()
         self.completion_area.setReadOnly(True)
         self.completion_area.setMinimumHeight(120)
         self.completion_area.setPlaceholderText("Generated completion text...")
-        layout.addWidget(self.completion_area)
+        completion_container_layout.addWidget(self.completion_area)
 
-        # Token picker area (for token-by-token mode)
+        self.content_layout.addWidget(self.completion_container)
+
+        # Token picker area (for token-by-token mode, shown to the right)
         self.token_picker_area = QScrollArea()
         self.token_picker_area.setWidgetResizable(True)
-        self.token_picker_area.setVisible(False)  # Hidden by default; shown in step-by-step mode
+        self.token_picker_area.setVisible(False)  # Hidden by default
         self.token_picker_area.setMinimumHeight(200)
-        layout.addWidget(self.token_picker_area)
+        self.token_picker_area.setMinimumWidth(300)
+        self.content_layout.addWidget(self.token_picker_area)
+
+        layout.addLayout(self.content_layout)
 
         # Buttons layout
         buttons_layout = QHBoxLayout()
 
         self.generate_btn = QPushButtonWithIcon("send", "Generate", parent=self, icon_size=20, button_size=36)
         self.generate_btn.setToolTip("Generate completion with current parameters")
-        self.generate_btn.clicked.connect(self.generate_completion)
+        self.generate_btn.clicked.connect(self._handle_generate)
         buttons_layout.addWidget(self.generate_btn)
 
-        self.continue_generation_btn = QPushButtonWithIcon("resume", "Continue", parent=self, icon_size=20, button_size=36)
-        self.continue_generation_btn.setToolTip("Continue regular generation from current token-by-token sequence")
-        self.continue_generation_btn.clicked.connect(self.continue_from_token_by_token)
-        self.continue_generation_btn.setVisible(False)
-        buttons_layout.addWidget(self.continue_generation_btn)
+        self.edit_btn = QPushButtonWithIcon("edit", "Edit", parent=self, icon_size=20, button_size=36)
+        self.edit_btn.setToolTip("Switch to manual editing mode")
+        self.edit_btn.clicked.connect(self._handle_edit)
+        buttons_layout.addWidget(self.edit_btn)
+
+        self.token_by_token_btn = QPushButtonWithIcon("token", "Token by Token", parent=self, icon_size=20, button_size=36)
+        self.token_by_token_btn.setToolTip("Token by token generation mode")
+        self.token_by_token_btn.setCheckable(True)
+        self.token_by_token_btn.clicked.connect(self._handle_token_by_token_toggle)
+        buttons_layout.addWidget(self.token_by_token_btn)
+
+        self.continue_btn = QPushButtonWithIcon("resume", "Continue", parent=self, icon_size=20, button_size=36)
+        self.continue_btn.setToolTip("Continue truncated completion")
+        self.continue_btn.clicked.connect(self._handle_continuation)
+        self.continue_btn.setVisible(False)
+        buttons_layout.addWidget(self.continue_btn)
 
         self.save_btn = QPushButtonWithIcon("check", "Save", parent=self, icon_size=20, button_size=36)
         self.save_btn.setToolTip("Save completion to dataset")
@@ -193,130 +200,161 @@ class NewCompletionFrame(QFrame):
         # Initialize UI state
         self._update_ui_for_mode()
 
-    def set_selected_model(self, mapped_model: MappedModel | None) -> None:
-        """Select the provided model in the combo box when available."""
-        if not mapped_model:
-            return
-        index = self.model_combo.findText(mapped_model.path)
-        if index < 0:
-            return
-        self.model_combo.blockSignals(True)
-        self.model_combo.setCurrentIndex(index)
-        self.model_combo.blockSignals(False)
-
-    def set_completion_for_continuation(self, completion: "PromptCompletion") -> None:
+    def _handle_generate(self):
         """
-        Set a completion to be continued.
+        Handle Generate button click.
         
-        This method is used when the widget is in CONTINUATION mode.
-        """
-        self.current_completion = completion
-        # Switch to continuation mode
-        for i in range(self.mode_combo.count()):
-            if self.mode_combo.itemData(i) == CompletionMode.CONTINUATION:
-                self.mode_combo.setCurrentIndex(i)
-                break
-        # Display the completion text
-        self.completion_area.setPlainText(completion.completion_text)
-        self.completion_area.show()
-        self.status_label.setText(f"Ready to continue completion (model: {completion.model_id})")
-
-    def _on_mode_changed(self, index: int) -> None:
-        """
-        Handle mode change.
-        
-        Updates UI visibility and state based on selected mode.
-        """
-        mode_data = self.mode_combo.itemData(index)
-        if mode_data:
-            self.current_mode = mode_data
-            self._update_ui_for_mode()
-            self.log.debug("Mode changed to %s", self.current_mode)
-
-    def _update_ui_for_mode(self) -> None:
-        """
-        Update UI elements visibility and state based on current mode.
-        """
-        # Hide/show elements based on mode
-        is_manual = self.current_mode == CompletionMode.MANUAL
-        is_token_by_token = self.current_mode == CompletionMode.TOKEN_BY_TOKEN
-        is_continuation = self.current_mode == CompletionMode.CONTINUATION
-
-        # Manual model ID input is only shown in manual mode
-        for i in range(self.manual_model_id_layout.count()):
-            widget = self.manual_model_id_layout.itemAt(i).widget()
-            if widget:
-                widget.setVisible(is_manual)
-
-        # Token picker is only shown in token-by-token mode
-        self.token_picker_area.setVisible(is_token_by_token)
-
-        # Prefill area behavior
-        if is_manual:
-            self.prefill_edit.setPlaceholderText("Not used in manual mode")
-            self.prefill_edit.setEnabled(False)
-        else:
-            self.prefill_edit.setPlaceholderText("Enter prefill text here...")
-            self.prefill_edit.setEnabled(True)
-
-        # Completion area behavior
-        if is_manual:
-            self.completion_area.setReadOnly(False)
-            self.completion_area.setPlaceholderText("Enter completion text manually...")
-        else:
-            self.completion_area.setReadOnly(True)
-            self.completion_area.setPlaceholderText("Generated completion text...")
-
-        # Continue button only visible in token-by-token mode when there's a prefix
-        self.continue_generation_btn.setVisible(is_token_by_token and bool(self.token_by_token_prefix))
-
-        # Update generate button text based on mode
-        if is_token_by_token:
-            self.generate_btn.setText("Next Token")
-            self.generate_btn.setToolTip("Fetch next token candidates")
-        elif is_continuation:
-            self.generate_btn.setText("Continue")
-            self.generate_btn.setToolTip("Continue truncated completion")
-        else:
-            self.generate_btn.setText("Generate")
-            self.generate_btn.setToolTip("Generate completion with current parameters")
-
-        # Update status label
-        if is_manual:
-            self.status_label.setText("Manual mode: Enter completion text and model ID, then save.")
-        elif is_token_by_token:
-            self.status_label.setText("Token-by-token mode: Click 'Next Token' to see candidates.")
-        elif is_continuation:
-            if self.current_completion:
-                self.status_label.setText(f"Continuation mode: Continue completion from model {self.current_completion.model_id}")
-            else:
-                self.status_label.setText("Continuation mode: No completion set for continuation.")
-        else:
-            self.status_label.setText("")
-
-    def generate_completion(self):
-        """
-        Generate a new completion with current parameters.
-        
-        Behavior depends on current mode:
-        - REGULAR: Generate from prompt + optional prefill
-        - CONTINUATION: Continue truncated completion
-        - MANUAL: Save manually entered completion
-        - TOKEN_BY_TOKEN: Fetch next token candidates and show picker
+        Generates completion based on current mode (regular or token-by-token).
         """
         if not self.app:
             self.status_label.setText("Error: No app provider available")
             return
 
-        # Dispatch based on mode
-        if self.current_mode == CompletionMode.MANUAL:
-            self._handle_manual_mode()
-        elif self.current_mode == CompletionMode.CONTINUATION:
-            self._handle_continuation_mode()
-        elif self.current_mode == CompletionMode.TOKEN_BY_TOKEN:
+        if self.current_mode == CompletionMode.TOKEN_BY_TOKEN:
             self._handle_token_by_token_mode()
-        else:  # REGULAR
+        else:
             self._handle_regular_mode()
+
+    def _handle_edit(self):
+        """
+        Handle Edit button click.
+        
+        Switches to manual mode, keeping any generated text editable.
+        """
+        self.current_mode = CompletionMode.MANUAL
+        # Update UI will handle setting model combo to editable and "manual"
+        self._update_ui_for_mode()
+        self.log.debug("Switched to manual edit mode")
+
+    def _handle_token_by_token_toggle(self, checked: bool):
+        """
+        Handle Token by Token button toggle.
+        
+        Switches between regular and token-by-token modes.
+        """
+        if checked:
+            # Switching to token-by-token mode
+            self.current_mode = CompletionMode.TOKEN_BY_TOKEN
+            # Validate model - if it's "manual" or invalid, switch to first available model
+            current_model = self.model_combo.currentText()
+            if current_model not in self.app.available_models:
+                if self.app.available_models:
+                    self.model_combo.setCurrentIndex(0)
+                    self.log.debug("Invalid model for token-by-token, switched to %s", self.model_combo.currentText())
+        else:
+            # Switching back to regular mode
+            self.current_mode = CompletionMode.REGULAR
+
+        self._update_ui_for_mode()
+        self.log.debug("Mode changed to %s", self.current_mode)
+
+    def _handle_continuation(self):
+        """
+        Handle Continue button click.
+        
+        Continues generation from truncated completion in current mode.
+        """
+        if not self.current_completion:
+            self.status_label.setText("Error: No completion to continue")
+            return
+
+        # Navigate up the widget hierarchy to find the WidgetSample
+        widget_sample = self.parent()
+        while widget_sample and not hasattr(widget_sample, "prompt_area"):
+            widget_sample = widget_sample.parent()
+
+        if not widget_sample:
+            self.status_label.setText("Error: Cannot find widget sample")
+            return
+
+        self.continue_btn.setEnabled(False)
+        self.generate_btn.setEnabled(False)
+        self.status_label.setText("Generating continuation...")
+        if self.app.q_app:  # type: ignore
+            self.app.q_app.processEvents()  # type: ignore # Force UI update
+
+        # Get mapped model from current completion
+        mapped_model = self.app.providers_manager.get_mapped_model(self.model_combo.currentText())
+        if not mapped_model:
+            self.status_label.setText(f"Error: Model '{self.model_combo.currentText()}' not found")
+            self.continue_btn.setEnabled(True)
+            self.generate_btn.setEnabled(True)
+            return
+
+        prompt_text: str = widget_sample.prompt_area.toPlainText().strip()  # type: ignore
+        context_length: int = widget_sample.context_length_field.value()  # type: ignore
+        max_tokens: int = widget_sample.max_tokens_field.value()  # type: ignore
+
+        try:
+            controller = self.app.get_or_create_text_generation_controller(mapped_model, prompt_text, context_length=context_length,
+                                                                           max_tokens=max_tokens)
+        except ValueError as e:
+            self.status_label.setText(f"Error: {e}")
+            self.continue_btn.setEnabled(True)
+            self.generate_btn.setEnabled(True)
+            return
+
+        # Generate continuation
+        try:
+            self.generated_completion = controller.generate_continuation(
+                original_completion=self.current_completion,
+                context_length=context_length,
+                max_tokens=max_tokens,
+            )
+            if self.generated_completion:
+                self.display_completion()
+            else:
+                self.status_label.setText("Error: Continuation generation failed")
+                self.continue_btn.setEnabled(True)
+                self.generate_btn.setEnabled(True)
+        except (RuntimeError, ValueError) as e:
+            self.status_label.setText(f"Error: {e}")
+            self.continue_btn.setEnabled(True)
+            self.generate_btn.setEnabled(True)
+
+    def _update_ui_for_mode(self) -> None:
+        """
+        Update UI elements visibility and state based on current mode.
+        """
+        is_manual = self.current_mode == CompletionMode.MANUAL
+        is_token_by_token = self.current_mode == CompletionMode.TOKEN_BY_TOKEN
+
+        # Completion area behavior
+        if is_manual:
+            self.completion_area.setReadOnly(False)
+            self.completion_area.setPlaceholderText("Enter completion text manually...")
+            # Make model combo editable in manual mode and set to "manual"
+            self.model_combo.setEditable(True)
+            self.model_combo.setEditText("manual")
+        else:
+            self.completion_area.setReadOnly(True)
+            self.completion_area.setPlaceholderText("Generated completion text...")
+            self.model_combo.setEditable(False)
+
+        # Token picker visibility and layout
+        if is_token_by_token:
+            self.token_picker_area.setVisible(True)
+            # Adjust content layout stretch for side-by-side view
+            self.content_layout.setStretch(0, 1)  # Completion area
+            self.content_layout.setStretch(1, 1)  # Token picker area
+        else:
+            self.token_picker_area.setVisible(False)
+            self.content_layout.setStretch(0, 1)
+            self.content_layout.setStretch(1, 0)
+
+        # Update button states
+        self.token_by_token_btn.setChecked(is_token_by_token)
+
+        # Continue button visibility based on truncation
+        self.continue_btn.setVisible(self.has_truncated_completion)
+
+        # Update status label
+        if is_manual:
+            self.status_label.setText("Manual mode: Enter completion text, edit model ID if needed, then save.")
+        elif is_token_by_token:
+            self.status_label.setText("Token-by-token mode: Click 'Generate' to see token candidates.")
+        else:
+            self.status_label.setText("")
 
     def _handle_regular_mode(self) -> None:
         """Handle regular generation mode."""
@@ -363,91 +401,6 @@ class NewCompletionFrame(QFrame):
         )
         self.display_completion()
 
-    def _handle_continuation_mode(self) -> None:
-        """Handle continuation mode for truncated completions."""
-        if not self.current_completion:
-            self.status_label.setText("Error: No completion set for continuation")
-            return
-
-        # Navigate up the widget hierarchy to find the WidgetSample
-        widget_sample = self.parent()
-        while widget_sample and not hasattr(widget_sample, "prompt_area"):
-            widget_sample = widget_sample.parent()
-
-        if not widget_sample:
-            self.status_label.setText("Error: Cannot find widget sample")
-            return
-
-        self.generate_btn.setEnabled(False)
-        self.status_label.setText("Generating continuation...")
-        if self.app.q_app:  # type: ignore
-            self.app.q_app.processEvents()  # type: ignore # Force UI update
-
-        # Get mapped model from current completion
-        mapped_model = self.app.providers_manager.get_mapped_model(self.model_combo.currentText())
-        if not mapped_model:
-            self.status_label.setText(f"Error: Model '{self.model_combo.currentText()}' not found")
-            self.generate_btn.setEnabled(True)
-            return
-
-        prompt_text: str = widget_sample.prompt_area.toPlainText().strip()  # type: ignore
-        context_length: int = widget_sample.context_length_field.value()  # type: ignore
-        max_tokens: int = widget_sample.max_tokens_field.value()  # type: ignore
-
-        try:
-            controller = self.app.get_or_create_text_generation_controller(mapped_model, prompt_text, context_length=context_length,
-                                                                           max_tokens=max_tokens)
-        except ValueError as e:
-            self.status_label.setText(f"Error: {e}")
-            self.generate_btn.setEnabled(True)
-            return
-
-        # Generate continuation
-        try:
-            self.generated_completion = controller.generate_continuation(
-                original_completion=self.current_completion,
-                context_length=context_length,
-                max_tokens=max_tokens,
-            )
-            if self.generated_completion:
-                self.display_completion()
-            else:
-                self.status_label.setText("Error: Continuation generation failed")
-                self.generate_btn.setEnabled(True)
-        except (RuntimeError, ValueError) as e:
-            self.status_label.setText(f"Error: {e}")
-            self.generate_btn.setEnabled(True)
-
-    def _handle_manual_mode(self) -> None:
-        """Handle manual completion input mode."""
-        # Import here to avoid circular imports
-        from py_fade.providers.llm_response import LLMResponse  # pylint: disable=import-outside-toplevel
-
-        # In manual mode, just enable save button if there's text
-        completion_text = self.completion_area.toPlainText().strip()
-        if not completion_text:
-            self.status_label.setText("Error: No completion text entered")
-            return
-
-        model_id = self.manual_model_id_edit.text().strip() or "manual"
-
-        self.generated_completion = LLMResponse(
-            model_id=model_id,
-            prompt_conversation=None,  # Will be set when saved
-            prefill=None,
-            completion_text=completion_text,
-            generated_part_text=completion_text,
-            temperature=self.temp_spin.value(),
-            top_k=self.topk_spin.value(),
-            context_length=0,
-            max_tokens=0,
-            is_truncated=False,
-            logprobs=None,
-        )
-
-        self.save_btn.setEnabled(True)
-        self.status_label.setText(f"Manual completion ready to save (model: {model_id})")
-
     def _handle_token_by_token_mode(self) -> None:
         """Handle token-by-token generation mode."""
         # Navigate up the widget hierarchy to find the WidgetSample
@@ -464,10 +417,22 @@ class NewCompletionFrame(QFrame):
         if self.app.q_app:  # type: ignore
             self.app.q_app.processEvents()  # type: ignore # Force UI update
 
-        # Get or create controller
-        mapped_model = self.app.providers_manager.get_mapped_model(self.model_combo.currentText())
+        # Get or create controller - validate model first
+        current_model_text = self.model_combo.currentText()
+        if current_model_text not in self.app.available_models:
+            # Invalid model, switch to first available
+            if self.app.available_models:
+                self.model_combo.setCurrentIndex(0)
+                current_model_text = self.model_combo.currentText()
+                self.log.debug("Invalid model for token-by-token, switched to %s", current_model_text)
+            else:
+                self.status_label.setText("Error: No available models")
+                self.generate_btn.setEnabled(True)
+                return
+
+        mapped_model = self.app.providers_manager.get_mapped_model(current_model_text)
         if not mapped_model:
-            self.status_label.setText(f"Error: Model '{self.model_combo.currentText()}' not found")
+            self.status_label.setText(f"Error: Model '{current_model_text}' not found")
             self.generate_btn.setEnabled(True)
             return
 
@@ -480,9 +445,17 @@ class NewCompletionFrame(QFrame):
                 self.token_by_token_controller = self.app.get_or_create_text_generation_controller(
                     mapped_model, prompt_text, context_length=context_length, max_tokens=max_tokens)
 
-            # Get current prefix (prefill + accumulated tokens)
+            # Get current prefix - can come from prefill, manual input, or accumulated tokens
+            # Support manual input in completion area
+            manual_text = self.completion_area.toPlainText().strip()
             prefill_text = self.prefill_edit.toPlainText().strip()
-            current_prefix = prefill_text + self.token_by_token_prefix
+
+            if manual_text and not self.token_by_token_prefix:
+                # User has entered manual text, use it as starting point
+                current_prefix = manual_text
+            else:
+                # Use prefill + accumulated tokens
+                current_prefix = prefill_text + self.token_by_token_prefix
 
             # Fetch next token candidates
             token_logprobs = self.token_by_token_controller.fetch_next_token_logprobs_for_prefix(current_prefix, 100)
@@ -517,7 +490,7 @@ class NewCompletionFrame(QFrame):
         """
         Handle token selection in token-by-token mode.
         
-        Appends selected token to current prefix and updates display.
+        Appends selected token to current prefix, updates display, and automatically fetches next tokens.
         """
         if not selected_tokens:
             return
@@ -533,20 +506,20 @@ class NewCompletionFrame(QFrame):
         self.completion_area.setPlainText(self.prefill_edit.toPlainText().strip() + self.token_by_token_prefix)
         self.completion_area.show()
 
-        # Show continue button
-        self.continue_generation_btn.setVisible(True)
+        # Automatically fetch next tokens
+        self.status_label.setText(f"Token added: '{token.token_str}'. Fetching next candidates...")
+        if self.app.q_app:  # type: ignore
+            self.app.q_app.processEvents()  # type: ignore
 
-        # Clear token picker
-        self.token_picker_area.setWidget(None)
-        self.token_picker_area.setVisible(False)
-
-        self.status_label.setText(f"Token added: '{token.token_str}'. Click 'Next Token' for more or 'Continue' for regular generation.")
+        # Fetch next token candidates automatically
+        self._handle_token_by_token_mode()
 
     def continue_from_token_by_token(self) -> None:
         """
         Continue regular generation from current token-by-token sequence.
         
         Uses the accumulated prefix as a high-fidelity prefill.
+        This is called when user clicks Continue button in token-by-token mode.
         """
         if not self.token_by_token_controller or not self.token_by_token_tokens:
             self.status_label.setText("Error: No token-by-token sequence to continue from")
@@ -561,7 +534,7 @@ class NewCompletionFrame(QFrame):
             self.status_label.setText("Error: Cannot find widget sample")
             return
 
-        self.continue_generation_btn.setEnabled(False)
+        self.continue_btn.setEnabled(False)
         self.generate_btn.setEnabled(False)
         self.status_label.setText("Continuing generation...")
         if self.app.q_app:  # type: ignore
@@ -603,7 +576,7 @@ class NewCompletionFrame(QFrame):
 
         except (RuntimeError, ValueError) as e:
             self.status_label.setText(f"Error: {e}")
-            self.continue_generation_btn.setEnabled(True)
+            self.continue_btn.setEnabled(True)
             self.generate_btn.setEnabled(True)
 
     def display_completion(self):
@@ -631,28 +604,99 @@ class NewCompletionFrame(QFrame):
 
         # Update UI state
         self.generate_btn.setEnabled(True)
-        self.continue_generation_btn.setEnabled(False)  # Disable after regular generation completes
         self.save_btn.setEnabled(True)
-        self.status_label.setText(f"Generated by {self.generated_completion.model_id}")
+
+        # Check if completion is truncated and update continuation button
+        self.has_truncated_completion = self.generated_completion.is_truncated
+        self.current_completion = None  # Will be set if save is clicked
+        self.continue_btn.setVisible(self.has_truncated_completion)
+
+        status_msg = f"Generated by {self.generated_completion.model_id}"
+        if self.has_truncated_completion:
+            status_msg += " (truncated - click Continue for more)"
+        self.status_label.setText(status_msg)
 
     def save_completion(self):
         """Save the generated completion and emit signal."""
         if not self.generated_completion:
-            return
+            # For manual mode, create completion from entered text
+            if self.current_mode == CompletionMode.MANUAL:
+                model_id = self.model_combo.currentText() or "manual"
+                # Import here to avoid circular imports
+                from py_fade.providers.llm_response import LLMResponse  # pylint: disable=import-outside-toplevel
+
+                completion_text = self.completion_area.toPlainText().strip()
+                if not completion_text:
+                    self.status_label.setText("Error: No completion text entered")
+                    return
+
+                self.generated_completion = LLMResponse(
+                    model_id=model_id,
+                    prompt_conversation=None,  # Will be set when saved
+                    prefill=None,
+                    completion_text=completion_text,
+                    generated_part_text=completion_text,
+                    temperature=self.temp_spin.value(),
+                    top_k=self.topk_spin.value(),
+                    context_length=0,
+                    max_tokens=0,
+                    is_truncated=False,
+                    logprobs=None,
+                )
+            else:
+                return
 
         self.completion_accepted.emit(self.generated_completion)
         self.status_label.setText("Completion saved!")
 
         # Reset for next generation (but keep parameters)
         self.generated_completion = None
+        self.has_truncated_completion = False
         self.current_completion = None
         self.token_by_token_controller = None
         self.token_by_token_prefix = ""
         self.token_by_token_tokens = []
-        self.completion_area.hide()
-        self.token_picker_area.hide()
+        self.completion_area.clear()
+        self.token_picker_area.setWidget(None)
+        self.token_picker_area.setVisible(False)
         self.save_btn.setEnabled(False)
-        self.continue_generation_btn.setVisible(False)
+        self.continue_btn.setVisible(False)
 
         # Reset to regular mode
-        self.mode_combo.setCurrentIndex(0)
+        self.current_mode = CompletionMode.REGULAR
+        self.token_by_token_btn.setChecked(False)
+        self.model_combo.setEditable(False)
+        self._update_ui_for_mode()
+
+    def set_completion_for_continuation(self, completion: "PromptCompletion") -> None:
+        """
+        Set a completion to be continued.
+        
+        This method displays the completion and shows the continuation button.
+        """
+        self.current_completion = completion
+        self.has_truncated_completion = True
+
+        # Display the completion text
+        self.completion_area.setPlainText(completion.completion_text)
+        self.completion_area.show()
+
+        # Set model to match completion
+        mapped_model = self.app.providers_manager.get_mapped_model(completion.model_id)
+        if mapped_model:
+            self.set_selected_model(mapped_model)
+
+        # Update UI
+        self._update_ui_for_mode()
+        self.status_label.setText(f"Ready to continue completion (model: {completion.model_id})")
+
+    def set_selected_model(self, mapped_model: MappedModel | None) -> None:
+        """Select the provided model in the combo box when available."""
+        if not mapped_model:
+            return
+        index = self.model_combo.findText(mapped_model.path)
+        if index < 0:
+            return
+        self.model_combo.blockSignals(True)
+        self.model_combo.setCurrentIndex(index)
+        self.model_combo.blockSignals(False)
