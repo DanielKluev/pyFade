@@ -8,15 +8,15 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from py_fade.dataset.facet import Facet
-from py_fade.dataset.sample import Sample
-from py_fade.dataset.prompt import PromptRevision
+from py_fade.data_formats.base_data_classes import CompletionTopLogprobs
 from py_fade.dataset.completion import PromptCompletion
+from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.dataset.completion_rating import PromptCompletionRating
+from py_fade.dataset.facet import Facet
+from py_fade.dataset.prompt import PromptRevision
+from py_fade.dataset.sample import Sample
 from py_fade.gui.window_facet_summary import FacetSummaryWindow
 from tests.helpers.data_helpers import create_test_single_position_token
-from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
-from py_fade.data_formats.base_data_classes import CompletionTopLogprobs
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication

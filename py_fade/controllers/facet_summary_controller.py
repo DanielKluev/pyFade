@@ -157,7 +157,8 @@ class FacetSummaryController:
         valid_completions = []
         for completion in high_rated:
             logprobs = completion.get_logprobs_for_model_id(self.target_model_id)
-            if logprobs and logprobs.min_logprob >= self.facet.min_logprob_threshold and logprobs.avg_logprob >= self.facet.avg_logprob_threshold:
+            if (logprobs and logprobs.min_logprob >= self.facet.min_logprob_threshold and
+                    logprobs.avg_logprob >= self.facet.avg_logprob_threshold):
                 valid_completions.append((completion, logprobs))
 
         if not valid_completions:
@@ -186,7 +187,7 @@ class FacetSummaryController:
 
         # Sample is ready for SFT - find best completion
         # Best is highest rated among those that pass thresholds
-        best_completion, best_logprobs = max(valid_completions, key=lambda x: self._get_completion_rating(x[0]))
+        _, best_logprobs = max(valid_completions, key=lambda x: self._get_completion_rating(x[0]))
 
         report.sft_finished_samples += 1
         report.sft_total_loss += abs(best_logprobs.avg_logprob)
@@ -236,7 +237,8 @@ class FacetSummaryController:
         valid_completions = []
         for completion in high_rated:
             logprobs = completion.get_logprobs_for_model_id(self.target_model_id)
-            if logprobs and logprobs.min_logprob >= self.facet.min_logprob_threshold and logprobs.avg_logprob >= self.facet.avg_logprob_threshold:
+            if (logprobs and logprobs.min_logprob >= self.facet.min_logprob_threshold and
+                    logprobs.avg_logprob >= self.facet.avg_logprob_threshold):
                 valid_completions.append((completion, logprobs))
 
         if not valid_completions:

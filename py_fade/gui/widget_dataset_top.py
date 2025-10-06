@@ -98,6 +98,7 @@ class WidgetDatasetTop(QMainWindow):
         self.action_export_current_facet: QAction | None = None
         self.action_open_encryption_docs: QAction | None = None
         self.action_about: QAction | None = None
+        self.facet_summary_button: QPushButton | None = None
 
         self.setWindowTitle(f"Dataset: {dataset.db_path.name}")
         self.setGeometry(200, 200, 1200, 800)

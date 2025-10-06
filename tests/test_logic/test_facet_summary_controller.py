@@ -7,13 +7,13 @@ import datetime
 import pytest
 
 from py_fade.controllers.facet_summary_controller import FacetSummaryController
-from py_fade.dataset.facet import Facet
-from py_fade.dataset.sample import Sample
-from py_fade.dataset.prompt import PromptRevision
+from py_fade.data_formats.base_data_classes import CompletionTopLogprobs
 from py_fade.dataset.completion import PromptCompletion
-from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
-from py_fade.data_formats.base_data_classes import CompletionTokenLogprobs, CompletionTopLogprobs
+from py_fade.dataset.completion_rating import PromptCompletionRating
+from py_fade.dataset.facet import Facet
+from py_fade.dataset.prompt import PromptRevision
+from py_fade.dataset.sample import Sample
 from tests.helpers.data_helpers import create_test_single_position_token
 
 
@@ -88,7 +88,7 @@ def test_sample_with_no_ratings(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Create sample with completion but no rating
-    sample, prompt = create_test_sample(temp_dataset)
+    _, prompt = create_test_sample(temp_dataset)
     completion = PromptCompletion(
         prompt_revision_id=prompt.id,
         sha256="a" * 64,
@@ -118,7 +118,7 @@ def test_sample_with_low_rating(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Create sample with low-rated completion
-    sample, prompt = create_test_sample(temp_dataset)
+    _, prompt = create_test_sample(temp_dataset)
     completion = PromptCompletion(
         prompt_revision_id=prompt.id,
         sha256="b" * 64,
@@ -157,7 +157,7 @@ def test_sample_with_high_rating_no_logprobs(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Create sample with high-rated completion but no logprobs
-    sample, prompt = create_test_sample(temp_dataset)
+    _, prompt = create_test_sample(temp_dataset)
     completion = PromptCompletion(
         prompt_revision_id=prompt.id,
         sha256="c" * 64,
@@ -193,7 +193,7 @@ def test_sample_with_high_rating_bad_logprobs(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Create sample with high-rated completion but bad logprobs
-    sample, prompt = create_test_sample(temp_dataset)
+    _, prompt = create_test_sample(temp_dataset)
     completion = PromptCompletion(
         prompt_revision_id=prompt.id,
         sha256="d" * 64,
@@ -235,7 +235,7 @@ def test_sample_ready_for_sft(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Create sample with high-rated completion and good logprobs
-    sample, prompt = create_test_sample(temp_dataset)
+    _, prompt = create_test_sample(temp_dataset)
     completion = PromptCompletion(
         prompt_revision_id=prompt.id,
         sha256="e" * 64,
@@ -275,7 +275,7 @@ def test_sample_ready_for_dpo(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Create sample with two completions: one high-rated with good logprobs, one low-rated
-    sample, prompt = create_test_sample(temp_dataset)
+    _, prompt = create_test_sample(temp_dataset)
 
     # High-rated completion
     completion1 = PromptCompletion(
@@ -331,7 +331,7 @@ def test_sample_ready_for_sft_not_dpo(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Create sample with one high-rated completion
-    sample, prompt = create_test_sample(temp_dataset)
+    _, prompt = create_test_sample(temp_dataset)
     completion = PromptCompletion(
         prompt_revision_id=prompt.id,
         sha256="h" * 64,
