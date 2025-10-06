@@ -135,6 +135,7 @@ class WidgetTokenPicker(QWidget):
                 min-height: 40px;
                 color: black;
                 font-weight: bold;
+                text-transform: none;
             }}
             QPushButton:checked {{
                 border: 3px solid #000;
