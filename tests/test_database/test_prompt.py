@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
 
 
-def test_hash_from_text_consistent(temp_dataset: "DatasetDatabase") -> None:
+def test_hash_from_text_consistent() -> None:
     """
     Test that hash_from_text produces consistent hashes for same input.
 
@@ -43,7 +43,7 @@ def test_hash_from_text_consistent(temp_dataset: "DatasetDatabase") -> None:
     assert len(hash1) == 64  # SHA256 produces 64-character hex string
 
 
-def test_hash_from_text_different_for_different_inputs(temp_dataset: "DatasetDatabase") -> None:
+def test_hash_from_text_different_for_different_inputs() -> None:
     """
     Test that different prompt texts produce different hashes.
 
@@ -55,7 +55,7 @@ def test_hash_from_text_different_for_different_inputs(temp_dataset: "DatasetDat
     assert hash1 != hash2
 
 
-def test_new_from_text_creates_revision(temp_dataset: "DatasetDatabase") -> None:
+def test_new_from_text_creates_revision() -> None:
     """
     Test creating a new PromptRevision from text.
 
@@ -126,7 +126,7 @@ def test_get_by_hash_returns_none_for_nonexistent(temp_dataset: "DatasetDatabase
     assert found is None
 
 
-def test_prompt_text_oneliner_short_text(temp_dataset: "DatasetDatabase") -> None:
+def test_prompt_text_oneliner_short_text() -> None:
     """
     Test oneliner property for short prompt text.
 
@@ -138,7 +138,7 @@ def test_prompt_text_oneliner_short_text(temp_dataset: "DatasetDatabase") -> Non
     assert revision.prompt_text_oneliner == "Short prompt"
 
 
-def test_prompt_text_oneliner_long_text(temp_dataset: "DatasetDatabase") -> None:
+def test_prompt_text_oneliner_long_text() -> None:
     """
     Test oneliner property truncates long prompt text.
 
@@ -153,7 +153,7 @@ def test_prompt_text_oneliner_long_text(temp_dataset: "DatasetDatabase") -> None
     assert oneliner.endswith("...")
 
 
-def test_prompt_text_oneliner_replaces_newlines(temp_dataset: "DatasetDatabase") -> None:
+def test_prompt_text_oneliner_replaces_newlines() -> None:
     """
     Test oneliner property replaces newlines with spaces.
 
