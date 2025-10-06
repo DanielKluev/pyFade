@@ -61,3 +61,46 @@ def test_get_all_orders_by_latest_first(temp_dataset):
     facets = Facet.get_all(temp_dataset)
 
     assert [facet.id for facet in facets] == [second.id, first.id]
+
+
+def test_facet_default_thresholds(temp_dataset):
+    """Test that facets are created with correct default threshold values."""
+    facet = Facet.create(temp_dataset, "Test Facet", "Test description")
+    temp_dataset.commit()
+
+    assert facet.min_rating == 7
+    assert facet.min_logprob_threshold == -1.0
+    assert facet.avg_logprob_threshold == -0.4
+
+
+def test_facet_custom_thresholds(temp_dataset):
+    """Test creating facets with custom threshold values."""
+    facet = Facet.create(temp_dataset, "Custom Facet", "Custom thresholds", min_rating=8, min_logprob_threshold=-0.5,
+                         avg_logprob_threshold=-0.3)
+    temp_dataset.commit()
+
+    assert facet.min_rating == 8
+    assert facet.min_logprob_threshold == -0.5
+    assert facet.avg_logprob_threshold == -0.3
+
+
+def test_facet_update_thresholds(temp_dataset):
+    """Test updating facet threshold values."""
+    facet = Facet.create(temp_dataset, "Update Test", "Initial thresholds")
+    temp_dataset.commit()
+
+    # Verify defaults
+    assert facet.min_rating == 7
+    assert facet.min_logprob_threshold == -1.0
+    assert facet.avg_logprob_threshold == -0.4
+
+    # Update thresholds
+    facet.update(temp_dataset, min_rating=9, min_logprob_threshold=-0.8, avg_logprob_threshold=-0.2)
+    temp_dataset.commit()
+
+    # Verify updates
+    updated = Facet.get_by_id(temp_dataset, facet.id)
+    assert updated is not None
+    assert updated.min_rating == 9
+    assert updated.min_logprob_threshold == -0.8
+    assert updated.avg_logprob_threshold == -0.2
