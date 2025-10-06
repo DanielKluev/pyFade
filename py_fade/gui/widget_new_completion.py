@@ -351,8 +351,9 @@ class NewCompletionFrame(QFrame):
             self.token_picker_area.setVisible(True)
             self.token_picker_area.show()  # Explicitly show as well
             # Adjust content layout stretch for side-by-side view
+            # Give token picker area 2x more space than completion area
             self.content_layout.setStretch(0, 1)  # Completion area
-            self.content_layout.setStretch(1, 1)  # Token picker area
+            self.content_layout.setStretch(1, 2)  # Token picker area - 2x wider
         else:
             self.token_picker_area.setVisible(False)
             self.token_picker_area.hide()
@@ -645,33 +646,59 @@ class NewCompletionFrame(QFrame):
 
     def save_completion(self):
         """Save the generated completion and emit signal."""
-        if not self.generated_completion:
-            # For manual mode, create completion from entered text
-            if self.current_mode == CompletionMode.MANUAL:
-                model_id = self.model_combo.currentText() or "manual"
-                # Import here to avoid circular imports
-                from py_fade.providers.llm_response import LLMResponse  # pylint: disable=import-outside-toplevel
+        # Import here to avoid circular imports
+        from py_fade.providers.llm_response import LLMResponse  # pylint: disable=import-outside-toplevel
 
-                completion_text = self.completion_area.toPlainText().strip()
-                if not completion_text:
-                    self.status_label.setText("Error: No completion text entered")
-                    return
-
-                self.generated_completion = LLMResponse(
-                    model_id=model_id,
-                    prompt_conversation=None,  # Will be set when saved
-                    prefill=None,
-                    completion_text=completion_text,
-                    generated_part_text=completion_text,
-                    temperature=self.temp_spin.value(),
-                    top_k=self.topk_spin.value(),
-                    context_length=0,
-                    max_tokens=0,
-                    is_truncated=False,
-                    logprobs=None,
-                )
-            else:
+        # For manual mode, always create completion from current text area content
+        # This handles both: 1) manual entry from scratch, 2) editing after generation
+        if self.current_mode == CompletionMode.MANUAL:
+            model_id = self.model_combo.currentText() or "manual"
+            completion_text = self.completion_area.toPlainText().strip()
+            if not completion_text:
+                self.status_label.setText("Error: No completion text entered")
                 return
+
+            self.generated_completion = LLMResponse(
+                model_id=model_id,
+                prompt_conversation=None,  # Will be set when saved
+                prefill=None,
+                completion_text=completion_text,
+                generated_part_text=completion_text,
+                temperature=self.temp_spin.value(),
+                top_k=self.topk_spin.value(),
+                context_length=0,
+                max_tokens=0,
+                is_truncated=False,
+                logprobs=None,
+            )
+        # For token-by-token mode, create completion from accumulated tokens
+        elif self.current_mode == CompletionMode.TOKEN_BY_TOKEN:
+            if not self.token_by_token_tokens:
+                self.status_label.setText("Error: No tokens selected")
+                return
+
+            model_id = self.model_combo.currentText()
+            prefill_text = self.prefill_edit.toPlainText().strip()
+            # Full completion text includes prefill + accumulated tokens
+            completion_text = prefill_text + self.token_by_token_prefix
+
+            self.generated_completion = LLMResponse(
+                model_id=model_id,
+                prompt_conversation=None,  # Will be set when saved
+                prefill=prefill_text if prefill_text else None,
+                completion_text=completion_text,
+                generated_part_text=self.token_by_token_prefix,
+                temperature=self.temp_spin.value(),
+                top_k=self.topk_spin.value(),
+                context_length=0,
+                max_tokens=0,
+                is_truncated=False,
+                logprobs=None,
+            )
+        # For regular mode, use the generated completion as-is
+        elif not self.generated_completion:
+            self.status_label.setText("Error: No completion to save")
+            return
 
         self.completion_accepted.emit(self.generated_completion)
         self.status_label.setText("Completion saved!")
