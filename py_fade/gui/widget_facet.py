@@ -5,12 +5,14 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
+    QDoubleSpinBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPlainTextEdit,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -118,19 +120,74 @@ class WidgetFacet(CrudFormWidget):
 
         frame_layout.addLayout(metadata_layout)
 
-        form_layout.addWidget(form_frame)
+        # Thresholds GroupBox
+        thresholds_group = QGroupBox("Training Thresholds", parent=self)
+        thresholds_layout = QVBoxLayout(thresholds_group)
+        thresholds_layout.setSpacing(12)
 
-    def set_facet(self, facet: "Facet | None") -> None: # pylint: disable=duplicate-code
+        # Min Rating
+        min_rating_layout = QHBoxLayout()
+        min_rating_label = QLabel("Min Rating:", parent=thresholds_group)
+        min_rating_label.setStyleSheet("font-weight: bold;")
+        min_rating_label.setToolTip("Minimum rating for completion to be considered valid for training")
+        self.min_rating_field = QSpinBox(parent=thresholds_group)
+        self.min_rating_field.setRange(0, 10)
+        self.min_rating_field.setValue(7)
+        self.min_rating_field.setToolTip("Minimum rating (0-10) for completion to be considered valid")
+        min_rating_layout.addWidget(min_rating_label)
+        min_rating_layout.addWidget(self.min_rating_field)
+        min_rating_layout.addStretch()
+        thresholds_layout.addLayout(min_rating_layout)
+
+        # Min Logprob Threshold
+        min_logprob_layout = QHBoxLayout()
+        min_logprob_label = QLabel("Min Logprob Threshold:", parent=thresholds_group)
+        min_logprob_label.setStyleSheet("font-weight: bold;")
+        min_logprob_label.setToolTip("Minimum logprob threshold for individual tokens")
+        self.min_logprob_field = QDoubleSpinBox(parent=thresholds_group)
+        self.min_logprob_field.setRange(-10.0, 0.0)
+        self.min_logprob_field.setSingleStep(0.1)
+        self.min_logprob_field.setDecimals(2)
+        self.min_logprob_field.setValue(-1.0)
+        self.min_logprob_field.setToolTip("Minimum logprob threshold for tokens (typically negative)")
+        min_logprob_layout.addWidget(min_logprob_label)
+        min_logprob_layout.addWidget(self.min_logprob_field)
+        min_logprob_layout.addStretch()
+        thresholds_layout.addLayout(min_logprob_layout)
+
+        # Avg Logprob Threshold
+        avg_logprob_layout = QHBoxLayout()
+        avg_logprob_label = QLabel("Avg Logprob Threshold:", parent=thresholds_group)
+        avg_logprob_label.setStyleSheet("font-weight: bold;")
+        avg_logprob_label.setToolTip("Average logprob threshold for completions")
+        self.avg_logprob_field = QDoubleSpinBox(parent=thresholds_group)
+        self.avg_logprob_field.setRange(-10.0, 0.0)
+        self.avg_logprob_field.setSingleStep(0.1)
+        self.avg_logprob_field.setDecimals(2)
+        self.avg_logprob_field.setValue(-0.4)
+        self.avg_logprob_field.setToolTip("Average logprob threshold for completions (typically negative)")
+        avg_logprob_layout.addWidget(avg_logprob_label)
+        avg_logprob_layout.addWidget(self.avg_logprob_field)
+        avg_logprob_layout.addStretch()
+        thresholds_layout.addLayout(avg_logprob_layout)
+
+        form_layout.addWidget(form_frame)
+        form_layout.addWidget(thresholds_group)
+
+    def set_facet(self, facet: "Facet | None") -> None:  # pylint: disable=duplicate-code
         """Set the facet data and populate UI components."""
 
         self.facet = facet
 
         if facet is None:
             self.set_header_text("New Facet")
-            self.name_field.setText("") # pylint: disable=duplicate-code
+            self.name_field.setText("")  # pylint: disable=duplicate-code
             self.description_field.setPlainText("")
             self.total_samples_field.setText("0")
             self.date_created_field.setText("Will be set on save")
+            self.min_rating_field.setValue(7)
+            self.min_logprob_field.setValue(-1.0)
+            self.avg_logprob_field.setValue(-0.4)
             self.set_delete_visible(False)
         else:
             self.set_header_text(f"Edit Facet: {facet.name}")
@@ -138,6 +195,9 @@ class WidgetFacet(CrudFormWidget):
             self.description_field.setPlainText(facet.description)
             self.total_samples_field.setText(str(facet.total_samples))
             self.date_created_field.setText(facet.date_created.strftime("%Y-%m-%d %H:%M:%S"))
+            self.min_rating_field.setValue(facet.min_rating)
+            self.min_logprob_field.setValue(facet.min_logprob_threshold)
+            self.avg_logprob_field.setValue(facet.avg_logprob_threshold)
             self.set_delete_visible(True)
 
         self.validate_form()
@@ -160,12 +220,13 @@ class WidgetFacet(CrudFormWidget):
         """Persist the current facet to the database."""
 
         if not self.dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         name = self.name_field.text().strip()
         description = self.description_field.toPlainText().strip()
+        min_rating = self.min_rating_field.value()
+        min_logprob_threshold = self.min_logprob_field.value()
+        avg_logprob_threshold = self.avg_logprob_field.value()
 
         try:
             if self.facet is None:
@@ -174,11 +235,17 @@ class WidgetFacet(CrudFormWidget):
                     description=description,
                     total_samples=0,
                     date_created=datetime.datetime.now(),
+                    min_rating=min_rating,
+                    min_logprob_threshold=min_logprob_threshold,
+                    avg_logprob_threshold=avg_logprob_threshold,
                 )
                 self.dataset.session.add(self.facet)
             else:
                 self.facet.name = name
                 self.facet.description = description
+                self.facet.min_rating = min_rating
+                self.facet.min_logprob_threshold = min_logprob_threshold
+                self.facet.avg_logprob_threshold = avg_logprob_threshold
 
             self.dataset.session.commit()
         except SQLAlchemyError as exc:
@@ -197,9 +264,7 @@ class WidgetFacet(CrudFormWidget):
             return
 
         if not self.dataset.session:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         reply = QMessageBox.question(
             self,

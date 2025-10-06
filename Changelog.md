@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### Added
+- **Facet Summary Report**: Added comprehensive facet summary report feature for tracking training readiness
+  - Added `min_rating`, `min_logprob_threshold`, and `avg_logprob_threshold` fields to Facet model
+  - Added UI controls in WidgetFacet for editing threshold values
+  - New "Facet Summary" button in dataset context frame (enabled when facet and model are selected)
+  - FacetSummaryController analyzes samples for SFT and DPO training readiness
+  - Modal window displays statistics for finished/unfinished samples
+  - Shows total loss calculations and detailed reasons for unfinished samples
+  - For SFT: requires completion with rating >= min_rating and passing logprob thresholds
+  - For DPO: requires high-rated completion plus at least one lower-rated completion
+  - Comprehensive test coverage with 15 new unit tests and 5 UI tests
 - **Beam Out from Heatmap**: Added ability to start beam search from any token position in heatmap mode
   - Click on any token in heatmap view to see alternatives for that position
   - Token picker shows up to 200 alternatives in multi-select mode
