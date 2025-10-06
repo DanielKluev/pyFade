@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+- **New Completion Frame Save Bug Fixes**: Fixed three critical bugs in the new completion frame save functionality
+  - Bug 1: Manual mode now correctly saves edited text instead of reverting to original generated text
+  - Bug 2: Token-by-token mode now properly saves accumulated tokens when save button is clicked
+  - Bug 3: Token picker area expanded to 2x width of completion area for better visibility in token-by-token mode
+  - Comprehensive test coverage with 2 new tests verifying all bug fixes
+
 ### Added
 - **Role Tag Buttons Moved to Controls Panel**: Relocated system/user/assistant role tag buttons from prompt area to controls panel
   - Buttons (S, U, A) now appear in the controls panel on the right side of the sample widget
