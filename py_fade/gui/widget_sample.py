@@ -52,6 +52,7 @@ class WidgetSample(QWidget):
     - Label and field pairs arranged horizontally on the same row
     - Context Length and Max Tokens combined in a single row for space efficiency
     - Icon-only action buttons (Save, Copy, Beam Search) with tooltips in a horizontal row
+    - Role tag buttons (S, U, A) for inserting system/user/assistant tags in the prompt
     - Show archived completions checkbox integrated into the controls panel
 
     Control fields:
@@ -60,6 +61,7 @@ class WidgetSample(QWidget):
     - Editable group path combo box with autocomplete
     - Context length and max tokens numeric inputs (combined row)
     - Icon-only action buttons: Save (save icon), Copy (content_copy icon), Beam Search (search icon)
+    - Role tag buttons: System (S), User (U), Assistant (A) for inserting role tags into prompt
     - Show archived completions checkbox for filtering completions display
     """
 
@@ -120,33 +122,8 @@ class WidgetSample(QWidget):
         self.token_usage_label = QLabel("Tokens: Prompt: 0 | Response: 0 | Total: 0 / 0", self)
         self.token_usage_label.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
 
-        # Role tag buttons for inserting system/user/assistant tags
-        role_tag_buttons_layout = QHBoxLayout()
-        role_tag_buttons_layout.setSpacing(4)
-
-        role_tag_label = QLabel("Insert Role Tag:", self)
-        role_tag_buttons_layout.addWidget(role_tag_label)
-
-        self.system_tag_button = QPushButtonWithIcon("", "S", parent=self, icon_size=0, button_size=32)
-        self.system_tag_button.setToolTip("Insert System Tag at End (must be at beginning)")
-        self.system_tag_button.clicked.connect(self.insert_system_tag)
-        role_tag_buttons_layout.addWidget(self.system_tag_button)
-
-        self.user_tag_button = QPushButtonWithIcon("", "U", parent=self, icon_size=0, button_size=32)
-        self.user_tag_button.setToolTip("Insert User Tag at End")
-        self.user_tag_button.clicked.connect(self.insert_user_tag)
-        role_tag_buttons_layout.addWidget(self.user_tag_button)
-
-        self.assistant_tag_button = QPushButtonWithIcon("", "A", parent=self, icon_size=0, button_size=32)
-        self.assistant_tag_button.setToolTip("Insert Assistant Tag at End")
-        self.assistant_tag_button.clicked.connect(self.insert_assistant_tag)
-        role_tag_buttons_layout.addWidget(self.assistant_tag_button)
-
-        role_tag_buttons_layout.addStretch()
-
         prompt_layout.addWidget(self.prompt_area)
         prompt_layout.addWidget(self.token_usage_label)
-        prompt_layout.addLayout(role_tag_buttons_layout)
 
         # Sample controls panel
         controls_frame = QFrame(self)
@@ -238,6 +215,30 @@ class WidgetSample(QWidget):
         buttons_row_layout.addWidget(self.beam_search_button)
         buttons_row_layout.addStretch()  # Push buttons to the left
 
+        # Role tag buttons for inserting system/user/assistant tags
+        role_tag_buttons_layout = QHBoxLayout()
+        role_tag_buttons_layout.setSpacing(4)
+
+        role_tag_label = QLabel("Insert Role Tag:", self)
+        role_tag_buttons_layout.addWidget(role_tag_label)
+
+        self.system_tag_button = QPushButtonWithIcon("", "S", parent=self, icon_size=0, button_size=32)
+        self.system_tag_button.setToolTip("Insert System Tag at End (must be at beginning)")
+        self.system_tag_button.clicked.connect(self.insert_system_tag)
+        role_tag_buttons_layout.addWidget(self.system_tag_button)
+
+        self.user_tag_button = QPushButtonWithIcon("", "U", parent=self, icon_size=0, button_size=32)
+        self.user_tag_button.setToolTip("Insert User Tag at End")
+        self.user_tag_button.clicked.connect(self.insert_user_tag)
+        role_tag_buttons_layout.addWidget(self.user_tag_button)
+
+        self.assistant_tag_button = QPushButtonWithIcon("", "A", parent=self, icon_size=0, button_size=32)
+        self.assistant_tag_button.setToolTip("Insert Assistant Tag at End")
+        self.assistant_tag_button.clicked.connect(self.insert_assistant_tag)
+        role_tag_buttons_layout.addWidget(self.assistant_tag_button)
+
+        role_tag_buttons_layout.addStretch()
+
         # Show archived checkbox (moved from completions panel)
         self.show_archived_checkbox = QCheckBox("Show archived completions", self)
         self.show_archived_checkbox.setChecked(False)
@@ -249,6 +250,7 @@ class WidgetSample(QWidget):
         controls_layout.addLayout(notes_row_layout)
         controls_layout.addLayout(tokens_row_layout)
         controls_layout.addLayout(buttons_row_layout)
+        controls_layout.addLayout(role_tag_buttons_layout)
         controls_layout.addWidget(self.show_archived_checkbox)
         controls_layout.addStretch()
 

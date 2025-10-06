@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Added
+- **Role Tag Buttons Moved to Controls Panel**: Relocated system/user/assistant role tag buttons from prompt area to controls panel
+  - Buttons (S, U, A) now appear in the controls panel on the right side of the sample widget
+  - Maintains all existing functionality including keyboard shortcuts and insertion behavior
+  - Better UI organization by grouping all controls together
+  - Updated tests to verify new location while preserving functionality tests
+  - Comprehensive test coverage with 2 new location verification tests
 - **Facet Summary Report**: Added comprehensive facet summary report feature for tracking training readiness
   - Added `min_rating`, `min_logprob_threshold`, and `avg_logprob_threshold` fields to Facet model
   - Added UI controls in WidgetFacet for editing threshold values

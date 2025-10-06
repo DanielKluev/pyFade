@@ -188,3 +188,65 @@ class TestRoleTagButtonConnections:
         widget_sample.assistant_tag_button.click()
         qt_app.processEvents()
         assert FLAT_PREFIX_ASSISTANT in widget_sample.prompt_area.toPlainText()
+
+
+class TestRoleTagButtonLocation:
+    """
+    Test that role tag buttons are in the controls panel.
+    """
+
+    def test_role_tag_buttons_in_controls_panel(self, qt_app, widget_sample):
+        """
+        Test that role tag buttons are located in the controls panel, not the prompt area.
+        """
+        from PyQt6.QtWidgets import QFrame  # pylint: disable=import-outside-toplevel
+
+        # Find the controls frame (contains id_field)
+        controls_frame = None
+        frames = widget_sample.findChildren(QFrame)
+        for frame in frames:
+            if frame.__class__.__name__ == 'QSplitter':
+                continue
+            from PyQt6.QtWidgets import QLineEdit  # pylint: disable=import-outside-toplevel
+            lineedits = frame.findChildren(QLineEdit)
+            if widget_sample.id_field in lineedits:
+                controls_frame = frame
+                break
+
+        assert controls_frame is not None, "Controls frame should be found"
+
+        # Check that role tag buttons are children of the controls frame
+        from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon  # pylint: disable=import-outside-toplevel
+        buttons_in_controls = controls_frame.findChildren(QPushButtonWithIcon)
+
+        assert widget_sample.system_tag_button in buttons_in_controls, "System tag button should be in controls panel"
+        assert widget_sample.user_tag_button in buttons_in_controls, "User tag button should be in controls panel"
+        assert widget_sample.assistant_tag_button in buttons_in_controls, "Assistant tag button should be in controls panel"
+
+    def test_role_tag_buttons_not_in_prompt_area(self, qt_app, widget_sample):
+        """
+        Test that role tag buttons are NOT in the prompt area.
+        """
+        from PyQt6.QtWidgets import QFrame  # pylint: disable=import-outside-toplevel
+
+        # Find the prompt frame (contains prompt_area)
+        prompt_frame = None
+        frames = widget_sample.findChildren(QFrame)
+        for frame in frames:
+            if frame.__class__.__name__ == 'QSplitter':
+                continue
+            from py_fade.gui.components.widget_plain_text_edit import PlainTextEdit  # pylint: disable=import-outside-toplevel
+            text_edits = frame.findChildren(PlainTextEdit)
+            if widget_sample.prompt_area in text_edits:
+                prompt_frame = frame
+                break
+
+        assert prompt_frame is not None, "Prompt frame should be found"
+
+        # Check that role tag buttons are NOT children of the prompt frame
+        from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon  # pylint: disable=import-outside-toplevel
+        buttons_in_prompt = prompt_frame.findChildren(QPushButtonWithIcon)
+
+        assert widget_sample.system_tag_button not in buttons_in_prompt, "System tag button should NOT be in prompt area"
+        assert widget_sample.user_tag_button not in buttons_in_prompt, "User tag button should NOT be in prompt area"
+        assert widget_sample.assistant_tag_button not in buttons_in_prompt, "Assistant tag button should NOT be in prompt area"
