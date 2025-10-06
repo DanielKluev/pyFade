@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
     QMenuBar,
     QMessageBox,
     QMainWindow,
+    QPushButton,
     QSplitter,
     QTabWidget,
     QVBoxLayout,
@@ -177,6 +178,13 @@ class WidgetDatasetTop(QMainWindow):
         self.model_combo.setMinimumWidth(220)
         context_layout.addWidget(self.model_combo)
 
+        # Facet Summary button
+        self.facet_summary_button = QPushButton("Facet Summary")
+        self.facet_summary_button.setObjectName("facet-summary-button")
+        self.facet_summary_button.setEnabled(False)
+        self.facet_summary_button.clicked.connect(self._on_facet_summary_clicked)
+        context_layout.addWidget(self.facet_summary_button)
+
         context_layout.addStretch()
         content_layout.addWidget(context_frame)
 
@@ -274,6 +282,10 @@ class WidgetDatasetTop(QMainWindow):
 
         if self.action_exit_application is not None:
             self.action_exit_application.setEnabled(True)
+
+        # Enable Facet Summary button only when both facet and model are selected
+        if hasattr(self, "facet_summary_button") and self.facet_summary_button is not None:
+            self.facet_summary_button.setEnabled(self.current_facet is not None and self.current_model_path is not None)
 
     def _handle_encrypt_save_as(self, _checked: bool = False) -> None:
         """Encrypt the dataset into a new SQLCipher database."""
@@ -479,6 +491,32 @@ class WidgetDatasetTop(QMainWindow):
                    f"Dataset path: {self.dataset.db_path}\n"
                    "Visit https://github.com/DanielKluev/pyFade for project details.")
         QMessageBox.information(self, "About pyFADE", message)
+
+    def _on_facet_summary_clicked(self) -> None:
+        """Open the facet summary modal dialog."""
+
+        if not self.current_facet:
+            QMessageBox.information(
+                self,
+                "No Facet Selected",
+                "Please select a facet from the dropdown to view its summary.",
+            )
+            return
+
+        if not self.current_model_path:
+            QMessageBox.information(
+                self,
+                "No Model Selected",
+                "Please select a target model from the dropdown to view the facet summary.",
+            )
+            return
+
+        # Import here to avoid circular dependency
+        from py_fade.gui.window_facet_summary import FacetSummaryWindow  # pylint: disable=import-outside-toplevel
+
+        self.log.info("Opening facet summary for facet '%s' and model '%s'", self.current_facet.name, self.current_model_path)
+        dialog = FacetSummaryWindow(self.app, self.dataset, self.current_facet, self.current_model_path, parent=self)
+        dialog.exec()
 
     def _prompt_for_dataset_destination(self, title: str, suggested_name: str) -> pathlib.Path | None:
         """Ask the user for a destination file path, returning ``None`` on cancel."""
