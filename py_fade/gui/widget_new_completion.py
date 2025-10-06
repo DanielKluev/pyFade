@@ -142,6 +142,8 @@ class NewCompletionFrame(QFrame):
         self.completion_area.setReadOnly(True)
         self.completion_area.setMinimumHeight(120)
         self.completion_area.setPlaceholderText("Generated completion text...")
+        # Connect text changed signal to update save button state in manual mode
+        self.completion_area.textChanged.connect(self._on_completion_text_changed)
         completion_container_layout.addWidget(self.completion_area)
 
         self.content_layout.addWidget(self.completion_container)
@@ -213,6 +215,17 @@ class NewCompletionFrame(QFrame):
         else:
             self._handle_regular_mode()
 
+    def _on_completion_text_changed(self) -> None:
+        """
+        Handle completion area text changed event.
+        
+        Updates save button state in manual mode based on text content.
+        """
+        if self.current_mode == CompletionMode.MANUAL:
+            # Enable save button if there's any non-empty text in manual mode
+            has_text = bool(self.completion_area.toPlainText().strip())
+            self.save_btn.setEnabled(has_text)
+
     def _handle_edit(self):
         """
         Handle Edit button click.
@@ -245,6 +258,10 @@ class NewCompletionFrame(QFrame):
 
         self._update_ui_for_mode()
         self.log.debug("Mode changed to %s", self.current_mode)
+
+        # Automatically fetch token candidates when switching to token-by-token mode
+        if checked:
+            self._handle_token_by_token_mode()
 
     def _handle_continuation(self):
         """
@@ -332,11 +349,13 @@ class NewCompletionFrame(QFrame):
         # Token picker visibility and layout
         if is_token_by_token:
             self.token_picker_area.setVisible(True)
+            self.token_picker_area.show()  # Explicitly show as well
             # Adjust content layout stretch for side-by-side view
             self.content_layout.setStretch(0, 1)  # Completion area
             self.content_layout.setStretch(1, 1)  # Token picker area
         else:
             self.token_picker_area.setVisible(False)
+            self.token_picker_area.hide()
             self.content_layout.setStretch(0, 1)
             self.content_layout.setStretch(1, 0)
 
@@ -508,6 +527,9 @@ class NewCompletionFrame(QFrame):
         # Update completion display
         self.completion_area.setPlainText(self.prefill_edit.toPlainText().strip() + self.token_by_token_prefix)
         self.completion_area.show()
+
+        # Enable save button after at least one token is selected
+        self.save_btn.setEnabled(True)
 
         # Automatically fetch next tokens
         self.status_label.setText(f"Token added: '{token.token_str}'. Fetching next candidates...")
