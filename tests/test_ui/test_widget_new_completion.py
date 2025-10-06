@@ -301,16 +301,35 @@ class TestNewCompletionFrameManualMode:
         frame.edit_btn.click()
         qt_app.processEvents()
 
+        # Verify mode was switched to manual
+        assert frame.current_mode == CompletionMode.MANUAL
+
         # Enter manual completion
         frame.completion_area.setPlainText("Manually entered completion")
         frame.model_combo.setEditText("gpt-4")
+        qt_app.processEvents()
+
+        # Verify save button is enabled after entering text
+        assert frame.save_btn.isEnabled()
+
+        # Connect to signal to capture emitted completion
+        signal_received = []
+
+        def on_completion_accepted(completion):
+            signal_received.append(completion)
+
+        frame.completion_accepted.connect(on_completion_accepted)
+
         frame.save_btn.click()
         qt_app.processEvents()
 
-        # Signal should be emitted with correct data (captured in save_completion)
-        # We can't easily test the signal here without more mocking
-        # So we just verify the mode was switched
-        assert frame.current_mode == CompletionMode.MANUAL
+        # After save, mode should be reset to REGULAR
+        assert frame.current_mode == CompletionMode.REGULAR
+
+        # Verify signal was emitted with correct data
+        assert len(signal_received) == 1
+        assert signal_received[0].model_id == "gpt-4"
+        assert signal_received[0].completion_text == "Manually entered completion"
 
     def test_manual_completion_default_model_id(self, app_with_dataset: "pyFadeApp", qt_app: "QApplication",
                                                 ensure_google_icon_font: None) -> None:
@@ -351,8 +370,7 @@ class TestNewCompletionFrameTokenByTokenMode:
         Flow:
         1. Switch to TOKEN_BY_TOKEN mode
         2. Mock controller and token logprobs
-        3. Trigger next token fetch
-        4. Verify token picker is populated
+        3. Verify token picker is populated automatically (no need to click Generate anymore)
         
         Edge cases tested:
         - Controller is created
@@ -360,12 +378,9 @@ class TestNewCompletionFrameTokenByTokenMode:
         """
         _ = ensure_google_icon_font
         mock_sample = create_mock_widget_sample(app_with_dataset, temp_dataset)
+        mock_sample.show()  # Show parent so token picker can be visible
         frame = NewCompletionFrame(mock_sample, app_with_dataset)
         frame.show()
-        qt_app.processEvents()
-
-        # Click token-by-token button to switch mode
-        frame.token_by_token_btn.click()
         qt_app.processEvents()
 
         # Mock controller and token fetch
@@ -377,9 +392,9 @@ class TestNewCompletionFrameTokenByTokenMode:
         ])
         mock_controller.fetch_next_token_logprobs_for_prefix.return_value = mock_tokens
 
-        # Now generate to fetch tokens
+        # Click token-by-token button to switch mode - this now automatically fetches tokens
         with patch.object(app_with_dataset, 'get_or_create_text_generation_controller', return_value=mock_controller):
-            frame.generate_btn.click()
+            frame.token_by_token_btn.click()
             qt_app.processEvents()
 
         # Token picker widget should be set (not just visible, but populated)
@@ -663,8 +678,7 @@ class TestNewCompletionFrameBugFixes:
         assert frame.save_btn.isEnabled(), "Save button should be enabled after token selection in token-by-token mode"
 
     def test_token_by_token_mode_shows_token_picker_immediately(self, app_with_dataset: "pyFadeApp", qt_app: "QApplication",
-                                                                temp_dataset: "DatasetDatabase",
-                                                                ensure_google_icon_font: None) -> None:
+                                                                temp_dataset: "DatasetDatabase", ensure_google_icon_font: None) -> None:
         """
         Bug 3: Token-by-token mode should show token picker immediately without requiring "Generate" click.
         
@@ -679,6 +693,7 @@ class TestNewCompletionFrameBugFixes:
         """
         _ = ensure_google_icon_font
         mock_sample = create_mock_widget_sample(app_with_dataset, temp_dataset)
+        mock_sample.show()  # Show the parent widget so children can be visible
         frame = NewCompletionFrame(mock_sample, app_with_dataset)
         frame.show()
         qt_app.processEvents()
