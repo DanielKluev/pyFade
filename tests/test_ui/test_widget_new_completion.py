@@ -719,6 +719,151 @@ class TestNewCompletionFrameBugFixes:
         assert frame.token_picker_area.widget() is not None, "Token picker widget should be populated with tokens"
 
 
+class TestNewCompletionFrameBugFixesSave:
+    """
+    Test bug fixes for save functionality in new completion frame.
+    
+    Bug 1: Manual mode edits after generation are not saved.
+    Bug 2: Token-by-token save does nothing when tokens are accumulated.
+    """
+
+    def test_bug1_manual_edit_after_generation_saves_edited_text(self, app_with_dataset: "pyFadeApp", qt_app: "QApplication",
+                                                                 temp_dataset: "DatasetDatabase", ensure_google_icon_font: None) -> None:
+        """
+        Bug 1: Manual mode should save edited text, not original generated text.
+        
+        Flow:
+        1. Generate a completion (regular mode)
+        2. Switch to manual mode
+        3. Edit the generated completion text
+        4. Save
+        5. Verify saved text is the edited text with "manual" model ID
+        
+        Edge cases tested:
+        - Edited text is saved, not original
+        - Model ID is "manual" when in manual mode
+        """
+        _ = ensure_google_icon_font
+        mock_sample = create_mock_widget_sample(app_with_dataset, temp_dataset)
+        frame = NewCompletionFrame(mock_sample, app_with_dataset)
+        frame.show()
+        qt_app.processEvents()
+
+        # Step 1: Generate a completion
+        mock_controller = MagicMock()
+        original_text = "Original generated completion"
+        mock_response = create_test_llm_response(
+            model_id="mock-echo-model",
+            completion_text=original_text,
+            prefill=None,
+        )
+        mock_controller.generate.return_value = mock_response
+
+        with patch.object(app_with_dataset, 'get_or_create_text_generation_controller', return_value=mock_controller):
+            frame.generate_btn.click()
+            qt_app.processEvents()
+
+        # Verify generation worked
+        assert frame.generated_completion is not None
+        assert frame.generated_completion.completion_text == original_text
+
+        # Step 2: Switch to manual mode
+        frame.edit_btn.click()
+        qt_app.processEvents()
+
+        assert frame.current_mode == CompletionMode.MANUAL
+
+        # Step 3: Edit the text
+        edited_text = "Manually edited completion text"
+        frame.completion_area.setPlainText(edited_text)
+        qt_app.processEvents()
+
+        # Save button should be enabled
+        assert frame.save_btn.isEnabled()
+
+        # Step 4: Connect signal and save
+        signal_received = []
+
+        def on_completion_accepted(completion):
+            signal_received.append(completion)
+
+        frame.completion_accepted.connect(on_completion_accepted)
+
+        frame.save_btn.click()
+        qt_app.processEvents()
+
+        # Step 5: Verify saved completion has edited text and "manual" model ID
+        assert len(signal_received) == 1
+        saved_completion = signal_received[0]
+        assert saved_completion.completion_text == edited_text, f"Expected '{edited_text}', got '{saved_completion.completion_text}'"
+        assert saved_completion.model_id == "manual", f"Expected 'manual', got '{saved_completion.model_id}'"
+
+    def test_bug2_token_by_token_save_accumulated_tokens(self, app_with_dataset: "pyFadeApp", qt_app: "QApplication",
+                                                         temp_dataset: "DatasetDatabase", ensure_google_icon_font: None) -> None:
+        """
+        Bug 2: Token-by-token mode should save accumulated tokens when save is clicked.
+        
+        Flow:
+        1. Switch to token-by-token mode
+        2. Select some tokens to accumulate
+        3. Click save
+        4. Verify accumulated text is saved
+        
+        Edge cases tested:
+        - Accumulated tokens are saved correctly
+        - Model ID matches the selected model
+        """
+        _ = ensure_google_icon_font
+        mock_sample = create_mock_widget_sample(app_with_dataset, temp_dataset)
+        frame = NewCompletionFrame(mock_sample, app_with_dataset)
+        frame.show()
+        qt_app.processEvents()
+
+        # Step 1: Switch to token-by-token mode
+        frame.token_by_token_btn.click()
+        qt_app.processEvents()
+
+        assert frame.current_mode == CompletionMode.TOKEN_BY_TOKEN
+
+        # Step 2: Simulate token selection (patch to prevent auto-fetch)
+        accumulated_text = "Hello world"
+        with patch.object(frame, '_handle_token_by_token_mode'):
+            token1 = create_test_single_position_token("Hello", -0.1)
+            token2 = create_test_single_position_token(" world", -0.5)
+
+            frame._on_token_selected([token1])
+            qt_app.processEvents()
+            frame._on_token_selected([token2])
+            qt_app.processEvents()
+
+        # Verify tokens are accumulated
+        assert frame.token_by_token_prefix == accumulated_text
+        assert len(frame.token_by_token_tokens) == 2
+
+        # Save button should be enabled
+        assert frame.save_btn.isEnabled()
+
+        # Step 3: Connect signal and save
+        signal_received = []
+
+        def on_completion_accepted(completion):
+            signal_received.append(completion)
+
+        frame.completion_accepted.connect(on_completion_accepted)
+
+        frame.save_btn.click()
+        qt_app.processEvents()
+
+        # Step 4: Verify accumulated text is saved
+        assert len(signal_received) == 1, "Save should emit completion signal"
+        saved_completion = signal_received[0]
+        # The saved completion should have the accumulated text (with prefill if any)
+        expected_text = frame.prefill_edit.toPlainText().strip() + accumulated_text
+        assert saved_completion.completion_text == expected_text, f"Expected '{expected_text}', got '{saved_completion.completion_text}'"
+        # Model ID should be the selected model
+        assert saved_completion.model_id == frame.model_combo.currentText()
+
+
 class TestNewCompletionFrameSaveCompletion:
     """
     Test save completion functionality.
