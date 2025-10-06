@@ -36,6 +36,7 @@ common_icons_map = {
     "resume": "\uf7d0",  # resume / play icon
     "settings_alert": "\uf143",  # system with alert
     "person": "\ue7fd",  # user / person icon
+    "step": "\uf6fe",  # step / single step icon
 }
 
 # Important: icons_aliases holds higher priority than common_icons_map

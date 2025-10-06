@@ -159,29 +159,29 @@ class NewCompletionFrame(QFrame):
         # Buttons layout
         buttons_layout = QHBoxLayout()
 
-        self.generate_btn = QPushButtonWithIcon("send", "Generate", parent=self, icon_size=20, button_size=36)
+        self.generate_btn = QPushButtonWithIcon("send", parent=self, icon_size=20, button_size=36)
         self.generate_btn.setToolTip("Generate completion with current parameters")
         self.generate_btn.clicked.connect(self._handle_generate)
         buttons_layout.addWidget(self.generate_btn)
 
-        self.edit_btn = QPushButtonWithIcon("edit", "Edit", parent=self, icon_size=20, button_size=36)
+        self.edit_btn = QPushButtonWithIcon("edit", parent=self, icon_size=20, button_size=36)
         self.edit_btn.setToolTip("Switch to manual editing mode")
         self.edit_btn.clicked.connect(self._handle_edit)
         buttons_layout.addWidget(self.edit_btn)
 
-        self.token_by_token_btn = QPushButtonWithIcon("token", "Token by Token", parent=self, icon_size=20, button_size=36)
+        self.token_by_token_btn = QPushButtonWithIcon("step", parent=self, icon_size=20, button_size=36)
         self.token_by_token_btn.setToolTip("Token by token generation mode")
         self.token_by_token_btn.setCheckable(True)
         self.token_by_token_btn.clicked.connect(self._handle_token_by_token_toggle)
         buttons_layout.addWidget(self.token_by_token_btn)
 
-        self.continue_btn = QPushButtonWithIcon("resume", "Continue", parent=self, icon_size=20, button_size=36)
+        self.continue_btn = QPushButtonWithIcon("resume", parent=self, icon_size=20, button_size=36)
         self.continue_btn.setToolTip("Continue truncated completion")
         self.continue_btn.clicked.connect(self._handle_continuation)
         self.continue_btn.setVisible(False)
         buttons_layout.addWidget(self.continue_btn)
 
-        self.save_btn = QPushButtonWithIcon("check", "Save", parent=self, icon_size=20, button_size=36)
+        self.save_btn = QPushButtonWithIcon("check", parent=self, icon_size=20, button_size=36)
         self.save_btn.setToolTip("Save completion to dataset")
         self.save_btn.clicked.connect(self.save_completion)
         self.save_btn.setEnabled(False)
