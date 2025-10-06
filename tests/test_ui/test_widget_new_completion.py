@@ -583,6 +583,127 @@ class TestNewCompletionFrameContinuationMode:
         assert not frame.continue_btn.isHidden()
 
 
+class TestNewCompletionFrameBugFixes:
+    """
+    Test bug fixes for issue: New Completion doesn't conform to specs.
+    
+    Bug 1: Button "save" is disabled after entering manual completion.
+    Bug 2: Button "save" is disabled after token-by-token generation.
+    Bug 3: Token-by-token mode doesn't show token picker after being clicked, requiring to hit "generate" first.
+    """
+
+    def test_manual_mode_enables_save_button_after_text_entry(self, app_with_dataset: "pyFadeApp", qt_app: "QApplication",
+                                                              ensure_google_icon_font: None) -> None:
+        """
+        Bug 1: Save button should be enabled after entering manual completion.
+        
+        Flow:
+        1. Switch to manual mode via Edit button
+        2. Enter completion text
+        3. Verify save button is enabled
+        
+        Edge cases tested:
+        - Save button becomes enabled when text is entered in manual mode
+        - Save button remains disabled when text area is empty
+        """
+        _ = ensure_google_icon_font
+        parent = QWidget()
+        frame = NewCompletionFrame(parent, app_with_dataset)
+        frame.show()
+        qt_app.processEvents()
+
+        # Click edit button to switch to manual mode
+        frame.edit_btn.click()
+        qt_app.processEvents()
+
+        # Initially save button should be disabled (no completion text)
+        assert not frame.save_btn.isEnabled(), "Save button should be disabled when no text is entered"
+
+        # Enter manual completion text
+        frame.completion_area.setPlainText("Manually entered completion")
+        qt_app.processEvents()
+
+        # Save button should now be enabled
+        assert frame.save_btn.isEnabled(), "Save button should be enabled after entering text in manual mode"
+
+    def test_token_by_token_enables_save_button_after_token_selection(self, app_with_dataset: "pyFadeApp", qt_app: "QApplication",
+                                                                      temp_dataset: "DatasetDatabase",
+                                                                      ensure_google_icon_font: None) -> None:
+        """
+        Bug 2: Save button should be enabled after token-by-token generation.
+        
+        Flow:
+        1. Switch to TOKEN_BY_TOKEN mode
+        2. Select a token (simulated)
+        3. Verify save button is enabled
+        
+        Edge cases tested:
+        - Save button becomes enabled after at least one token is selected
+        """
+        _ = ensure_google_icon_font
+        mock_sample = create_mock_widget_sample(app_with_dataset, temp_dataset)
+        frame = NewCompletionFrame(mock_sample, app_with_dataset)
+        frame.show()
+        qt_app.processEvents()
+
+        # Switch to token-by-token mode
+        frame.token_by_token_btn.click()
+        qt_app.processEvents()
+
+        # Initially save button should be disabled
+        assert not frame.save_btn.isEnabled(), "Save button should be disabled initially"
+
+        # Simulate token selection (patch to prevent auto-fetch)
+        with patch.object(frame, '_handle_token_by_token_mode'):
+            test_token = create_test_single_position_token("Hello", -0.1)
+            frame._on_token_selected([test_token])
+            qt_app.processEvents()
+
+        # Save button should now be enabled
+        assert frame.save_btn.isEnabled(), "Save button should be enabled after token selection in token-by-token mode"
+
+    def test_token_by_token_mode_shows_token_picker_immediately(self, app_with_dataset: "pyFadeApp", qt_app: "QApplication",
+                                                                temp_dataset: "DatasetDatabase",
+                                                                ensure_google_icon_font: None) -> None:
+        """
+        Bug 3: Token-by-token mode should show token picker immediately without requiring "Generate" click.
+        
+        Flow:
+        1. Create NewCompletionFrame with mock widget sample
+        2. Click "Token by Token" button
+        3. Verify token picker area becomes visible and populated with tokens
+        
+        Edge cases tested:
+        - Token picker area is visible after mode switch
+        - Token candidates are fetched automatically
+        """
+        _ = ensure_google_icon_font
+        mock_sample = create_mock_widget_sample(app_with_dataset, temp_dataset)
+        frame = NewCompletionFrame(mock_sample, app_with_dataset)
+        frame.show()
+        qt_app.processEvents()
+
+        # Mock controller and token fetch
+        mock_controller = MagicMock()
+        mock_tokens = SinglePositionTopLogprobs([
+            create_test_single_position_token("Hello", -0.1),
+            create_test_single_position_token(" world", -0.5),
+            create_test_single_position_token(" there", -0.8),
+        ])
+        mock_controller.fetch_next_token_logprobs_for_prefix.return_value = mock_tokens
+
+        # Click token-by-token button to switch mode
+        with patch.object(app_with_dataset, 'get_or_create_text_generation_controller', return_value=mock_controller):
+            frame.token_by_token_btn.click()
+            qt_app.processEvents()
+
+        # Token picker area should be visible
+        assert frame.token_picker_area.isVisible(), "Token picker area should be visible immediately after switching to token-by-token mode"
+
+        # Token picker widget should be populated
+        assert frame.token_picker_area.widget() is not None, "Token picker widget should be populated with tokens"
+
+
 class TestNewCompletionFrameSaveCompletion:
     """
     Test save completion functionality.
