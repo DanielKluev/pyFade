@@ -3,61 +3,12 @@ Test module for FacetSummaryController.
 """
 from __future__ import annotations
 
-import datetime
 import pytest
 
 from py_fade.controllers.facet_summary_controller import FacetSummaryController
-from py_fade.data_formats.base_data_classes import CompletionTopLogprobs
-from py_fade.dataset.completion import PromptCompletion
-from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.facet import Facet
-from py_fade.dataset.prompt import PromptRevision
-from py_fade.dataset.sample import Sample
-from tests.helpers.data_helpers import create_test_single_position_token
-
-
-def create_test_sample(temp_dataset, title="Test Sample", notes="Test sample", prompt_text="Test prompt"):
-    """
-    Helper to create a sample with a prompt revision for testing.
-    """
-    sample = Sample(title=title, notes=notes, date_created=datetime.datetime.now())
-    temp_dataset.session.add(sample)
-    prompt = PromptRevision.new_from_text(prompt_text, context_length=2048, max_tokens=100)
-    temp_dataset.session.add(prompt)
-    sample.prompt_revision = prompt
-    temp_dataset.session.flush()
-    return sample, prompt
-
-
-def create_test_logprobs(temp_dataset, completion_id: int, model_id: str, min_logprob: float, avg_logprob: float):
-    """
-    Helper to create test logprobs for a completion.
-    """
-    # Create simple sampled logprobs
-    sampled_logprobs_list = [
-        create_test_single_position_token("Test", min_logprob).to_dict(),
-        create_test_single_position_token(" completion", avg_logprob).to_dict()
-    ]
-
-    # Create empty alternative logprobs for simplicity
-    alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
-
-    # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
-    # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
-    logprobs = PromptCompletionLogprobs(
-        prompt_completion_id=completion_id,
-        logprobs_model_id=model_id,
-        sampled_logprobs=None,
-        sampled_logprobs_json=sampled_logprobs_list,
-        alternative_logprobs=None,
-        alternative_logprobs_bin=alternative_logprobs_bin,
-        min_logprob=min_logprob,
-        avg_logprob=avg_logprob,
-    )
-    # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
-    temp_dataset.session.add(logprobs)
-    return logprobs
+from tests.helpers.data_helpers import create_test_sample, create_test_logprobs, create_test_completion_with_params
 
 
 def test_empty_facet_report(app_with_dataset, temp_dataset):
@@ -89,17 +40,7 @@ def test_sample_with_no_ratings(app_with_dataset, temp_dataset):
 
     # Create sample with completion but no rating
     _, prompt = create_test_sample(temp_dataset)
-    completion = PromptCompletion(
-        prompt_revision_id=prompt.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion",
-        context_length=2048,
-        max_tokens=100,
-    )
-    temp_dataset.session.add(completion)
+    create_test_completion_with_params(temp_dataset, prompt)
     temp_dataset.commit()
 
     controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, "test-model")
@@ -119,17 +60,7 @@ def test_sample_with_low_rating(app_with_dataset, temp_dataset):
 
     # Create sample with low-rated completion
     _, prompt = create_test_sample(temp_dataset)
-    completion = PromptCompletion(
-        prompt_revision_id=prompt.id,
-        sha256="b" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion",
-        context_length=2048,
-        max_tokens=100,
-    )
-    temp_dataset.session.add(completion)
+    completion = create_test_completion_with_params(temp_dataset, prompt, sha256="b" * 64)
     temp_dataset.commit()
 
     # Add low rating
@@ -158,17 +89,7 @@ def test_sample_with_high_rating_no_logprobs(app_with_dataset, temp_dataset):
 
     # Create sample with high-rated completion but no logprobs
     _, prompt = create_test_sample(temp_dataset)
-    completion = PromptCompletion(
-        prompt_revision_id=prompt.id,
-        sha256="c" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion",
-        context_length=2048,
-        max_tokens=100,
-    )
-    temp_dataset.session.add(completion)
+    completion = create_test_completion_with_params(temp_dataset, prompt, sha256="c" * 64)
     temp_dataset.commit()
 
     # Add high rating
@@ -194,17 +115,7 @@ def test_sample_with_high_rating_bad_logprobs(app_with_dataset, temp_dataset):
 
     # Create sample with high-rated completion but bad logprobs
     _, prompt = create_test_sample(temp_dataset)
-    completion = PromptCompletion(
-        prompt_revision_id=prompt.id,
-        sha256="d" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion",
-        context_length=2048,
-        max_tokens=100,
-    )
-    temp_dataset.session.add(completion)
+    completion = create_test_completion_with_params(temp_dataset, prompt, sha256="d" * 64)
     temp_dataset.commit()
 
     # Add high rating
@@ -236,17 +147,7 @@ def test_sample_ready_for_sft(app_with_dataset, temp_dataset):
 
     # Create sample with high-rated completion and good logprobs
     _, prompt = create_test_sample(temp_dataset)
-    completion = PromptCompletion(
-        prompt_revision_id=prompt.id,
-        sha256="e" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion",
-        context_length=2048,
-        max_tokens=100,
-    )
-    temp_dataset.session.add(completion)
+    completion = create_test_completion_with_params(temp_dataset, prompt, sha256="e" * 64)
     temp_dataset.commit()
 
     # Add high rating
@@ -278,17 +179,7 @@ def test_sample_ready_for_dpo(app_with_dataset, temp_dataset):
     _, prompt = create_test_sample(temp_dataset)
 
     # High-rated completion
-    completion1 = PromptCompletion(
-        prompt_revision_id=prompt.id,
-        sha256="f" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Good completion",
-        context_length=2048,
-        max_tokens=100,
-    )
-    temp_dataset.session.add(completion1)
+    completion1 = create_test_completion_with_params(temp_dataset, prompt, sha256="f" * 64, completion_text="Good completion")
     temp_dataset.commit()
 
     PromptCompletionRating.set_rating(temp_dataset, completion1, facet, 9)
@@ -297,17 +188,7 @@ def test_sample_ready_for_dpo(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Low-rated completion (for rejected in DPO)
-    completion2 = PromptCompletion(
-        prompt_revision_id=prompt.id,
-        sha256="g" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Bad completion",
-        context_length=2048,
-        max_tokens=100,
-    )
-    temp_dataset.session.add(completion2)
+    completion2 = create_test_completion_with_params(temp_dataset, prompt, sha256="g" * 64, completion_text="Bad completion")
     temp_dataset.commit()
 
     PromptCompletionRating.set_rating(temp_dataset, completion2, facet, 4)
@@ -332,17 +213,7 @@ def test_sample_ready_for_sft_not_dpo(app_with_dataset, temp_dataset):
 
     # Create sample with one high-rated completion
     _, prompt = create_test_sample(temp_dataset)
-    completion = PromptCompletion(
-        prompt_revision_id=prompt.id,
-        sha256="h" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Good completion",
-        context_length=2048,
-        max_tokens=100,
-    )
-    temp_dataset.session.add(completion)
+    completion = create_test_completion_with_params(temp_dataset, prompt, sha256="h" * 64, completion_text="Good completion")
     temp_dataset.commit()
 
     PromptCompletionRating.set_rating(temp_dataset, completion, facet, 9)

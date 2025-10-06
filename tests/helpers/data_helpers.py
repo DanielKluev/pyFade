@@ -3,11 +3,14 @@ Database and data setup helpers for testing.
 """
 from __future__ import annotations
 
+import datetime
 import hashlib
 from typing import TYPE_CHECKING, List, Tuple
 
 from py_fade.data_formats.base_data_classes import CommonConversation, CommonMessage
 from py_fade.dataset.completion import PromptCompletion
+from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
+from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
@@ -244,3 +247,84 @@ def create_mock_widget_sample(app, dataset):
     mock_widget.max_tokens_field.setValue(128)
 
     return mock_widget
+
+
+def create_test_sample(temp_dataset, title: str = "Test Sample", notes: str = "Test sample", prompt_text: str = "Test prompt"):
+    """
+    Create a sample with a prompt revision for testing.
+
+    Returns tuple of (sample, prompt).
+    """
+    sample = Sample(title=title, notes=notes, date_created=datetime.datetime.now())
+    temp_dataset.session.add(sample)
+    prompt = PromptRevision.new_from_text(prompt_text, context_length=2048, max_tokens=100)
+    temp_dataset.session.add(prompt)
+    sample.prompt_revision = prompt
+    temp_dataset.session.flush()
+    return sample, prompt
+
+
+def create_test_completion_with_params(temp_dataset, prompt, model_id: str = "test-model", completion_text: str = "Test completion",
+                                       sha256: str | None = None, temperature: float = 0.7, top_k: int = 50, context_length: int = 2048,
+                                       max_tokens: int = 100):
+    """
+    Create a test PromptCompletion with explicit parameters.
+
+    Eliminates duplicate completion creation code across test files.
+    """
+    if sha256 is None:
+        sha256 = "a" * 64
+    completion = PromptCompletion(prompt_revision_id=prompt.id, sha256=sha256, model_id=model_id, temperature=temperature, top_k=top_k,
+                                  completion_text=completion_text, context_length=context_length, max_tokens=max_tokens)
+    temp_dataset.session.add(completion)
+    temp_dataset.session.flush()
+    return completion
+
+
+def create_test_logprobs(temp_dataset, completion_id: int, model_id: str, min_logprob: float, avg_logprob: float):
+    """
+    Create test logprobs for a completion.
+
+    Eliminates duplicate logprobs creation code across test files.
+    """
+    # Create simple sampled logprobs
+    sampled_logprobs_list = [
+        create_test_single_position_token("Test", min_logprob).to_dict(),
+        create_test_single_position_token(" completion", avg_logprob).to_dict()
+    ]
+
+    # Create empty alternative logprobs for simplicity
+    alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
+
+    # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
+    # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
+    logprobs = PromptCompletionLogprobs(prompt_completion_id=completion_id, logprobs_model_id=model_id, sampled_logprobs=None,
+                                        sampled_logprobs_json=sampled_logprobs_list, alternative_logprobs=None,
+                                        alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=min_logprob, avg_logprob=avg_logprob)
+    # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
+    temp_dataset.session.add(logprobs)
+    return logprobs
+
+
+def create_test_sample_with_completion(temp_dataset, facet, rating: int, min_logprob: float, avg_logprob: float, title: str = "Test Sample",
+                                       notes: str = "Test sample", prompt_text: str = "Test prompt",
+                                       completion_text: str = "Test completion", model_id: str = "test-model"):
+    """
+    Create a sample with a rated completion and logprobs for testing.
+
+    This is a comprehensive helper that creates the full sample -> prompt -> completion -> rating -> logprobs chain.
+    Returns tuple of (sample, completion).
+    """
+    # Create sample and prompt
+    sample, prompt = create_test_sample(temp_dataset, title, notes, prompt_text)
+
+    # Create completion
+    completion = create_test_completion_with_params(temp_dataset, prompt, model_id=model_id, completion_text=completion_text)
+
+    # Add rating
+    PromptCompletionRating.set_rating(temp_dataset, completion, facet, rating)
+
+    # Add logprobs
+    create_test_logprobs(temp_dataset, completion.id, model_id, min_logprob, avg_logprob)
+
+    return sample, completion
