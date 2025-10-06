@@ -115,8 +115,8 @@ class TestWidgetSampleCompactLayout:
         # Filter out NewCompletionFrame buttons
         widget_sample_buttons = [btn for btn in icon_buttons if not isinstance(btn.parent(), NewCompletionFrame)]
 
-        # Should have at least 3 icon buttons (save, copy, beam search) in WidgetSample controls
-        assert len(widget_sample_buttons) >= 3, "Should have at least 3 icon-only buttons in WidgetSample controls"
+        # Should have at least 6 icon buttons (save, copy, beam search + S, U, A role tag buttons) in WidgetSample controls
+        assert len(widget_sample_buttons) >= 6, "Should have at least 6 icon-only buttons in WidgetSample controls (3 action + 3 role tag)"
 
         # Check that buttons have tooltips and no text (or minimal text)
         for button in widget_sample_buttons:
@@ -206,3 +206,33 @@ class TestWidgetSampleCompactLayout:
         # The checkbox should not be in the completion controls layout anymore
         assert widget.show_archived_checkbox not in completion_controls_widgets, \
             "Show archived checkbox should be moved from completion controls to main controls"
+
+    def test_role_tag_buttons_in_controls_panel(self, qt_app, app_with_dataset, ensure_google_icon_font):
+        """
+        Test that role tag buttons (S, U, A) are in the controls panel as part of compact layout.
+        """
+        _ = ensure_google_icon_font  # Ensure Google icon font is loaded
+        app = app_with_dataset
+        widget = WidgetSample(None, app, None)
+        widget.show()
+        qt_app.processEvents()
+
+        # Find the controls frame
+        controls_frame = None
+        frames = widget.findChildren(QFrame)
+        for frame in frames:
+            if frame.__class__.__name__ == 'QSplitter':
+                continue
+            lineedits = frame.findChildren(QLineEdit)
+            if widget.id_field in lineedits:
+                controls_frame = frame
+                break
+
+        assert controls_frame is not None, "Controls frame should be found"
+
+        # Check that role tag buttons are in controls frame
+        buttons_in_controls = controls_frame.findChildren(QPushButtonWithIcon)
+
+        assert widget.system_tag_button in buttons_in_controls, "System tag button should be in controls panel"
+        assert widget.user_tag_button in buttons_in_controls, "User tag button should be in controls panel"
+        assert widget.assistant_tag_button in buttons_in_controls, "Assistant tag button should be in controls panel"
