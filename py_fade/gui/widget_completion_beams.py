@@ -598,7 +598,7 @@ class WidgetCompletionBeams(QWidget):
             if session:
                 session.refresh(completion)
                 for _beam, frame in self.beam_frames:
-                    if frame.completion.id == completion.id:  # type: ignore
+                    if isinstance(frame.completion, PromptCompletion) and frame.completion.id == completion.id:
                         frame.set_completion(completion)
                         break
 
