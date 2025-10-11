@@ -22,41 +22,11 @@ from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.data_formats.base_data_classes import CompletionTopLogprobs
+from tests.helpers.data_helpers import create_completion_with_rating_and_logprobs
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.app import pyFadeApp
-
-
-def create_test_completion_with_logprobs(dataset: "DatasetDatabase", prompt_rev: PromptRevision, completion_text: str, model_id: str,
-                                         facet: Facet, rating: int, min_logprob: float, avg_logprob: float) -> PromptCompletion:
-    """
-    Create a test completion with rating and logprobs.
-    """
-    sha256 = hashlib.sha256(completion_text.encode("utf-8")).hexdigest()
-
-    completion = PromptCompletion(sha256=sha256, prompt_revision_id=prompt_rev.id, model_id=model_id, temperature=0.7, top_k=40,
-                                  completion_text=completion_text, tags={}, prefill=None, beam_token=None, is_truncated=False,
-                                  context_length=2048, max_tokens=512)
-    dataset.session.add(completion)
-    dataset.commit()
-
-    # Add rating
-    PromptCompletionRating.set_rating(dataset, completion, facet, rating)
-    dataset.commit()
-
-    # Add logprobs - construct manually
-    alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
-    # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
-    # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
-    logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=model_id, sampled_logprobs=None,
-                                        sampled_logprobs_json=None, alternative_logprobs=None,
-                                        alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=min_logprob, avg_logprob=avg_logprob)
-    # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
-    dataset.session.add(logprobs)
-    dataset.commit()
-
-    return completion
 
 
 class TestExportWithThresholds:
@@ -82,8 +52,8 @@ class TestExportWithThresholds:
         temp_dataset.commit()
 
         # Create completion with rating=8 (meets threshold) and good logprobs
-        create_test_completion_with_logprobs(temp_dataset, prompt_rev, "Good completion", mapped_model.model_id, facet, rating=8,
-                                             min_logprob=-0.4, avg_logprob=-0.2)
+        create_completion_with_rating_and_logprobs(temp_dataset, prompt_rev, "Good completion", mapped_model.model_id, facet, rating=8,
+                                                   min_logprob=-0.4, avg_logprob=-0.2)
 
         # Create template with None for thresholds (should use facet defaults)
         template = ExportTemplate.create(
@@ -509,25 +479,9 @@ class TestExportWithThresholds:
             Sample.create_if_unique(temp_dataset, f"Sample {i}", prompt_rev, "test_group")
             temp_dataset.commit()
 
-            sha256 = hashlib.sha256(f"Completion {i}".encode("utf-8")).hexdigest()
-            completion = PromptCompletion(sha256=sha256, prompt_revision_id=prompt_rev.id, model_id=mapped_model.model_id, temperature=0.7,
-                                          top_k=40, completion_text=f"Completion {i}", tags={}, prefill=None, beam_token=None,
-                                          is_truncated=False, context_length=2048, max_tokens=512)
-            temp_dataset.session.add(completion)
-            temp_dataset.commit()
-
-            PromptCompletionRating.set_rating(temp_dataset, completion, facet, 8)
-            temp_dataset.commit()
-
-            alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
-            # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
-            # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
-            logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=mapped_model.model_id,
-                                                sampled_logprobs=None, sampled_logprobs_json=[], alternative_logprobs=None,
-                                                alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=-0.5, avg_logprob=-0.3)
-            # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
-            temp_dataset.session.add(logprobs)
-            temp_dataset.commit()
+            # Use shared helper to create completion with rating and logprobs
+            create_completion_with_rating_and_logprobs(temp_dataset, prompt_rev, f"Completion {i}", mapped_model.model_id, facet, rating=8,
+                                                       min_logprob=-0.5, avg_logprob=-0.3)
 
         # Create template with count limit of 3
         template = ExportTemplate.create(

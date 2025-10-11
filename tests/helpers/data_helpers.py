@@ -306,6 +306,34 @@ def create_test_logprobs(temp_dataset, completion_id: int, model_id: str, min_lo
     return logprobs
 
 
+def create_completion_with_rating_and_logprobs(dataset: "DatasetDatabase", prompt_revision: PromptRevision, completion_text: str,
+                                              model_id: str, facet: Facet, rating: int, min_logprob: float,
+                                              avg_logprob: float) -> PromptCompletion:
+    """
+    Create a completion with rating and logprobs for testing.
+
+    This helper eliminates duplicate completion creation code across test files.
+    Returns the created PromptCompletion.
+    """
+    sha256 = hashlib.sha256(completion_text.encode("utf-8")).hexdigest()
+
+    completion = PromptCompletion(sha256=sha256, prompt_revision_id=prompt_revision.id, model_id=model_id, temperature=0.7, top_k=40,
+                                  completion_text=completion_text, tags={}, prefill=None, beam_token=None, is_truncated=False,
+                                  context_length=2048, max_tokens=512)
+    dataset.session.add(completion)
+    dataset.commit()
+
+    # Add rating
+    PromptCompletionRating.set_rating(dataset, completion, facet, rating)
+    dataset.commit()
+
+    # Add logprobs
+    create_test_logprobs(dataset, completion.id, model_id, min_logprob, avg_logprob)
+    dataset.commit()
+
+    return completion
+
+
 def create_test_sample_with_completion(temp_dataset, facet, rating: int, min_logprob: float, avg_logprob: float, title: str = "Test Sample",
                                        notes: str = "Test sample", prompt_text: str = "Test prompt",
                                        completion_text: str = "Test completion", model_id: str = "mock-echo-model"):
@@ -318,13 +346,8 @@ def create_test_sample_with_completion(temp_dataset, facet, rating: int, min_log
     # Create sample and prompt
     sample, prompt = create_test_sample(temp_dataset, title, notes, prompt_text)
 
-    # Create completion
-    completion = create_test_completion_with_params(temp_dataset, prompt, model_id=model_id, completion_text=completion_text)
-
-    # Add rating
-    PromptCompletionRating.set_rating(temp_dataset, completion, facet, rating)
-
-    # Add logprobs
-    create_test_logprobs(temp_dataset, completion.id, model_id, min_logprob, avg_logprob)
+    # Create completion with rating and logprobs using shared helper
+    completion = create_completion_with_rating_and_logprobs(temp_dataset, prompt, completion_text, model_id, facet, rating, min_logprob,
+                                                            avg_logprob)
 
     return sample, completion

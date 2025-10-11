@@ -6,7 +6,6 @@ Tests the new encrypted ZIP export/import features using pyzipper.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import pathlib
 import tempfile
@@ -23,11 +22,8 @@ from py_fade.dataset.export_template import ExportTemplate
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.prompt import PromptRevision
-from py_fade.dataset.completion import PromptCompletion
-from py_fade.dataset.completion_rating import PromptCompletionRating
-from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
-from py_fade.data_formats.base_data_classes import CompletionTopLogprobs
 from py_fade.data_formats.share_gpt_format import ShareGPTFormat
+from tests.helpers.data_helpers import create_completion_with_rating_and_logprobs
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -45,29 +41,10 @@ def create_test_sample_with_completion(dataset: "DatasetDatabase", facet: Facet,
     sample = Sample.create_if_unique(dataset, "Test Sample", prompt_rev, "test")
     dataset.commit()
 
-    # Create a completion
+    # Create a completion with rating and logprobs using shared helper
     completion_text = "The answer is 4."
-    sha256 = hashlib.sha256(completion_text.encode("utf-8")).hexdigest()
-    completion = PromptCompletion(sha256=sha256, prompt_revision_id=prompt_rev.id, model_id=model_id, temperature=0.7, top_k=40,
-                                  completion_text=completion_text, tags={}, prefill=None, beam_token=None, is_truncated=False,
-                                  context_length=2048, max_tokens=512)
-    dataset.session.add(completion)
-    dataset.commit()
-
-    # Add rating
-    PromptCompletionRating.set_rating(dataset, completion, facet, 10)
-    dataset.commit()
-
-    # Add logprobs - construct manually with very permissive values
-    alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
-    # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
-    # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
-    logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=model_id, sampled_logprobs=None,
-                                        sampled_logprobs_json=None, alternative_logprobs=None,
-                                        alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=0.0, avg_logprob=0.0)
-    # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
-    dataset.session.add(logprobs)
-    dataset.commit()
+    _ = create_completion_with_rating_and_logprobs(dataset, prompt_rev, completion_text, model_id, facet, rating=10, min_logprob=0.0,
+                                                    avg_logprob=0.0)
 
     return sample
 
