@@ -234,8 +234,8 @@ class ExportController:
         # For exports, we need to pick a model to check logprobs
         # Use the first available provider model
         target_model_id = None
-        if self.app.provider_manager.models:
-            target_model_id = self.app.provider_manager.models[0].model_id
+        if hasattr(self.app, 'providers_manager') and self.app.providers_manager.model_provider_map:
+            target_model_id = list(self.app.providers_manager.model_provider_map.keys())[0]
 
         # Check logprob thresholds for high-rated completions
         valid_completions = []
