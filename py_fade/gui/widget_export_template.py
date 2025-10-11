@@ -46,7 +46,6 @@ from py_fade.gui.components.widget_crud_form_base import CrudButtonStyles, CrudF
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
 
-
 FacetRow = dict[str, Any]
 
 
@@ -75,15 +74,9 @@ class WidgetExportTemplate(CrudFormWidget):
         self._available_facets: dict[int, Facet] = {}
 
         button_styles = CrudButtonStyles(
-            save=(
-                "QPushButton { background-color: #3949AB; color: white; padding: 8px 16px; }"
-            ),
-            cancel=(
-                "QPushButton { background-color: #9E9E9E; color: white; padding: 8px 16px; }"
-            ),
-            delete=(
-                "QPushButton { background-color: #D32F2F; color: white; padding: 8px 16px; }"
-            ),
+            save=("QPushButton { background-color: #3949AB; color: white; padding: 8px 16px; }"),
+            cancel=("QPushButton { background-color: #9E9E9E; color: white; padding: 8px 16px; }"),
+            delete=("QPushButton { background-color: #D32F2F; color: white; padding: 8px 16px; }"),
         )
 
         super().__init__(
@@ -100,9 +93,7 @@ class WidgetExportTemplate(CrudFormWidget):
         self.delete_button.setText("Delete")
 
         self.copy_button = QPushButtonWithIcon("content_copy", "Duplicate", parent=self)
-        self.copy_button.setStyleSheet(
-            "QPushButton { background-color: #5C6BC0; color: white; padding: 8px 16px; }"
-        )
+        self.copy_button.setStyleSheet("QPushButton { background-color: #5C6BC0; color: white; padding: 8px 16px; }")
         self.insert_button(1, self.copy_button)
 
         self.connect_signals()
@@ -216,23 +207,22 @@ class WidgetExportTemplate(CrudFormWidget):
         selector_layout.addStretch()
         facets_layout.addLayout(selector_layout)
 
-        self.facets_table = QTableWidget(0, 7)
+        self.facets_table = QTableWidget(0, 8)
         self.facets_table.setAlternatingRowColors(True)
-        self.facets_table.setHorizontalHeaderLabels(
-            [
-                "Facet",
-                "Limit Type",
-                "Limit Value",
-                "Order",
-                "Min Logprob",
-                "Avg Logprob",
-                "",
-            ]
-        )
+        self.facets_table.setHorizontalHeaderLabels([
+            "Facet",
+            "Limit Type",
+            "Limit Value",
+            "Order",
+            "Min Rating",
+            "Min Logprob",
+            "Avg Logprob",
+            "",
+        ])
         header = self.facets_table.horizontalHeader()
         if header is not None:
             header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-            for column in range(1, 7):
+            for column in range(1, 8):
                 header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         vertical_header = self.facets_table.verticalHeader()
         if vertical_header is not None:
@@ -248,9 +238,7 @@ class WidgetExportTemplate(CrudFormWidget):
 
         self.name_input.textChanged.connect(self.validate_form)
         self.description_input.textChanged.connect(self.validate_form)
-        self.training_combo.currentIndexChanged.connect(
-            lambda _: self.populate_output_formats(self.training_combo.currentData())
-        )
+        self.training_combo.currentIndexChanged.connect(lambda _: self.populate_output_formats(self.training_combo.currentData()))
         self.training_combo.currentIndexChanged.connect(lambda _: self.validate_form())
         self.output_combo.currentIndexChanged.connect(lambda _: self.validate_form())
         self.filename_input.textChanged.connect(self.validate_form)
@@ -269,9 +257,7 @@ class WidgetExportTemplate(CrudFormWidget):
 
         session = self.dataset.session
         if session is None:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         facets = Facet.get_all(self.dataset)
         self._available_facets = {facet.id: facet for facet in facets}
@@ -311,9 +297,7 @@ class WidgetExportTemplate(CrudFormWidget):
             self.set_header_text(f"Edit Export Template: {template.name}")
             self.name_input.setText(template.name)
             self.description_input.setText(template.description)
-            self.training_combo.setCurrentIndex(
-                self.training_combo.findData(template.training_type)
-            )
+            self.training_combo.setCurrentIndex(self.training_combo.findData(template.training_type))
             self.populate_output_formats(template.training_type)
             self.set_output_format(template.output_format)
             models = template.model_family.split(",") if template.model_family else []
@@ -354,7 +338,8 @@ class WidgetExportTemplate(CrudFormWidget):
         self.output_combo.blockSignals(True)
         self.output_combo.clear()
         format_options = ExportTemplate.OUTPUT_FORMATS.get(
-            training_type, ()  # type: ignore[arg-type]
+            training_type,
+            ()  # type: ignore[arg-type]
         )
         for option in format_options:
             self.output_combo.addItem(option, option)
@@ -423,14 +408,16 @@ class WidgetExportTemplate(CrudFormWidget):
         limit_combo.addItem("Max Samples", "count")
         limit_combo.addItem("Percentage", "percentage")
         limit_combo.currentIndexChanged.connect(partial(self._on_limit_type_changed, limit_combo))
+        # Default to percentage
+        limit_combo.setCurrentIndex(1)
         self.facets_table.setCellWidget(row, 1, limit_combo)
 
         # Limit value --------------------------------------------------------
         limit_spin = QDoubleSpinBox()
-        limit_spin.setDecimals(0)
-        limit_spin.setMinimum(1)
-        limit_spin.setMaximum(100000)
-        limit_spin.setValue(100)
+        limit_spin.setDecimals(1)
+        limit_spin.setMinimum(1.0)
+        limit_spin.setMaximum(100.0)
+        limit_spin.setValue(100.0)
         self.facets_table.setCellWidget(row, 2, limit_spin)
 
         # Order --------------------------------------------------------------
@@ -440,27 +427,50 @@ class WidgetExportTemplate(CrudFormWidget):
         order_combo.addItem("Oldest first", "oldest")
         self.facets_table.setCellWidget(row, 3, order_combo)
 
+        # Min rating threshold -----------------------------------------------
+        rating_spin = self._build_rating_spin(facet)
+        self.facets_table.setCellWidget(row, 4, rating_spin)
+
         # Min and avg logprob -----------------------------------------------
         min_spin = self._build_logprob_spin()
+        min_spin.setToolTip(f"Min logprob threshold (Default = {facet.min_logprob_threshold:.2f} from facet)")
         avg_spin = self._build_logprob_spin()
-        self.facets_table.setCellWidget(row, 4, min_spin)
-        self.facets_table.setCellWidget(row, 5, avg_spin)
+        avg_spin.setToolTip(f"Avg logprob threshold (Default = {facet.avg_logprob_threshold:.2f} from facet)")
+        self.facets_table.setCellWidget(row, 5, min_spin)
+        self.facets_table.setCellWidget(row, 6, avg_spin)
 
         # Remove button ------------------------------------------------------
         remove_button = QPushButtonWithIcon("delete", "")
         remove_button.setToolTip("Remove this facet from the export configuration")
         remove_button.clicked.connect(partial(self._remove_facet_by_button, remove_button))
-        self.facets_table.setCellWidget(row, 6, remove_button)
+        self.facets_table.setCellWidget(row, 7, remove_button)
 
         if config:
             self._apply_facet_row_config(row, config)
 
+    def _build_rating_spin(self, facet: Facet) -> QDoubleSpinBox:
+        """
+        Build a spin box for rating threshold with special value for "Default" (uses facet's min_rating).
+        """
+        spin = QDoubleSpinBox()
+        spin.setDecimals(0)
+        spin.setRange(-1, 10)  # -1 is special value for "Default"
+        spin.setSpecialValueText("Default")
+        spin.setValue(-1)  # Default to using facet's min_rating
+        spin.setSingleStep(1)
+        spin.setKeyboardTracking(False)
+        spin.setToolTip(f"Min rating threshold (Default = {facet.min_rating} from facet)")
+        return spin
+
     def _build_logprob_spin(self) -> QDoubleSpinBox:
+        """
+        Build a spin box for logprob thresholds with special value for "Default" (uses facet's threshold).
+        """
         spin = QDoubleSpinBox()
         spin.setDecimals(2)
         spin.setRange(-1000.0, 100.0)
-        spin.setSpecialValueText("None")
-        spin.setValue(-1000.0)
+        spin.setSpecialValueText("Default")
+        spin.setValue(-1000.0)  # Default to using facet's threshold
         spin.setSingleStep(0.1)
         spin.setKeyboardTracking(False)
         return spin
@@ -469,23 +479,35 @@ class WidgetExportTemplate(CrudFormWidget):
         limit_combo = self._widget_from_table(row, 1, QComboBox)
         limit_spin = self._widget_from_table(row, 2, QDoubleSpinBox)
         order_combo = self._widget_from_table(row, 3, QComboBox)
-        min_spin = self._widget_from_table(row, 4, QDoubleSpinBox)
-        avg_spin = self._widget_from_table(row, 5, QDoubleSpinBox)
+        rating_spin = self._widget_from_table(row, 4, QDoubleSpinBox)
+        min_spin = self._widget_from_table(row, 5, QDoubleSpinBox)
+        avg_spin = self._widget_from_table(row, 6, QDoubleSpinBox)
 
         if limit_combo:
-            index = limit_combo.findData(config.get("limit_type", "count"))
-            limit_combo.setCurrentIndex(index if index >= 0 else 0)
+            index = limit_combo.findData(config.get("limit_type", "percentage"))
+            limit_combo.setCurrentIndex(index if index >= 0 else 1)
         if limit_spin:
-            limit_type = config.get("limit_type", "count")
+            limit_type = config.get("limit_type", "percentage")
             self._configure_limit_spin(limit_spin, str(limit_type))
-            limit_spin.setValue(float(config.get("limit_value", 100)))
+            limit_spin.setValue(float(config.get("limit_value", 100.0)))
         if order_combo:
             index = order_combo.findData(config.get("order", "random"))
             order_combo.setCurrentIndex(index if index >= 0 else 0)
+        if rating_spin:
+            self._set_rating_spin_value(rating_spin, config.get("min_rating"))
         if min_spin:
             self._set_logprob_spin_value(min_spin, config.get("min_logprob"))
         if avg_spin:
             self._set_logprob_spin_value(avg_spin, config.get("avg_logprob"))
+
+    def _set_rating_spin_value(self, spin: QDoubleSpinBox, value: Any) -> None:
+        """
+        Set rating spin value, where None means use facet default.
+        """
+        if value in (None, ""):
+            spin.setValue(spin.minimum())  # -1 = "Default"
+        else:
+            spin.setValue(int(value))
 
     def _set_logprob_spin_value(self, spin: QDoubleSpinBox, value: Any) -> None:
         if value in (None, ""):
@@ -508,7 +530,7 @@ class WidgetExportTemplate(CrudFormWidget):
 
     def _remove_facet_by_button(self, button: QPushButton) -> None:
         for row in range(self.facets_table.rowCount()):
-            if self.facets_table.cellWidget(row, 6) is button:
+            if self.facets_table.cellWidget(row, 7) is button:
                 self.facets_table.removeRow(row)
                 break
         self.validate_form()
@@ -569,9 +591,7 @@ class WidgetExportTemplate(CrudFormWidget):
             except (RuntimeError, SQLAlchemyError) as exc:
                 errors.append(str(exc))
             else:
-                if existing and (
-                    self.template is None or existing.id != getattr(self.template, "id", None)
-                ):
+                if existing and (self.template is None or existing.id != getattr(self.template, "id", None)):
                     errors.append("An export template with this name already exists.")
 
         if not description:
@@ -620,10 +640,11 @@ class WidgetExportTemplate(CrudFormWidget):
             limit_combo = self._widget_from_table(row, 1, QComboBox)
             limit_spin = self._widget_from_table(row, 2, QDoubleSpinBox)
             order_combo = self._widget_from_table(row, 3, QComboBox)
-            min_spin = self._widget_from_table(row, 4, QDoubleSpinBox)
-            avg_spin = self._widget_from_table(row, 5, QDoubleSpinBox)
+            rating_spin = self._widget_from_table(row, 4, QDoubleSpinBox)
+            min_spin = self._widget_from_table(row, 5, QDoubleSpinBox)
+            avg_spin = self._widget_from_table(row, 6, QDoubleSpinBox)
 
-            if not all([limit_combo, limit_spin, order_combo, min_spin, avg_spin]):
+            if not all([limit_combo, limit_spin, order_combo, rating_spin, min_spin, avg_spin]):
                 raise ValueError("Facet row components are not fully initialized.")
 
             limit_type = limit_combo.currentData()
@@ -633,20 +654,15 @@ class WidgetExportTemplate(CrudFormWidget):
             if limit_type == "count" and limit_value < 1:
                 raise ValueError("Facet max samples must be at least 1.")
 
-            facets.append(
-                {
-                    "facet_id": int(facet_id),
-                    "limit_type": str(limit_type),
-                    "limit_value": limit_value,
-                    "order": order_combo.currentData(),
-                    "min_logprob": (
-                        None if min_spin.value() == min_spin.minimum() else min_spin.value()
-                    ),
-                    "avg_logprob": (
-                        None if avg_spin.value() == avg_spin.minimum() else avg_spin.value()
-                    ),
-                }
-            )
+            facets.append({
+                "facet_id": int(facet_id),
+                "limit_type": str(limit_type),
+                "limit_value": limit_value,
+                "order": order_combo.currentData(),
+                "min_rating": (None if rating_spin.value() == rating_spin.minimum() else int(rating_spin.value())),
+                "min_logprob": (None if min_spin.value() == min_spin.minimum() else min_spin.value()),
+                "avg_logprob": (None if avg_spin.value() == avg_spin.minimum() else avg_spin.value()),
+            })
 
         return facets
 
@@ -659,8 +675,7 @@ class WidgetExportTemplate(CrudFormWidget):
             "training_type": self.training_combo.currentData(),
             "output_format": self.output_combo.currentData(),
             "model_families": self._collect_selected_models(),
-            "filename_template": self.filename_input.text().strip()
-            or ExportTemplate.DEFAULT_FILENAME_TEMPLATE,
+            "filename_template": self.filename_input.text().strip() or ExportTemplate.DEFAULT_FILENAME_TEMPLATE,
             "normalize_style": self.normalize_checkbox.isChecked(),
             "encrypt": self.encrypt_checkbox.isChecked(),
             "encryption_password": self.password_input.text().strip() or None,
@@ -675,11 +690,7 @@ class WidgetExportTemplate(CrudFormWidget):
             item = self.model_list.item(index)
             if not item:
                 continue
-            item.setCheckState(
-                Qt.CheckState.Checked
-                if item.text().strip().lower() in normalized_models
-                else Qt.CheckState.Unchecked
-            )
+            item.setCheckState(Qt.CheckState.Checked if item.text().strip().lower() in normalized_models else Qt.CheckState.Unchecked)
 
     # ------------------------------------------------------------------
     # Actions
@@ -696,9 +707,7 @@ class WidgetExportTemplate(CrudFormWidget):
 
         session = self.dataset.session
         if session is None:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         try:
             if self.template is None:
@@ -721,9 +730,7 @@ class WidgetExportTemplate(CrudFormWidget):
             QMessageBox.critical(self, "Error", f"Failed to save export template: {exc}")
             return
 
-        QMessageBox.information(
-            self, "Saved", f"Export template '{self.template.name}' saved successfully."
-        )
+        QMessageBox.information(self, "Saved", f"Export template '{self.template.name}' saved successfully.")
         self.template_saved.emit(self.template)
         self.set_template(self.template)
 
@@ -745,9 +752,7 @@ class WidgetExportTemplate(CrudFormWidget):
 
         session = self.dataset.session
         if session is None:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         try:
             template = self.template
@@ -786,9 +791,7 @@ class WidgetExportTemplate(CrudFormWidget):
 
         session = self.dataset.session
         if session is None:
-            raise RuntimeError(
-                "Dataset session is not initialized. Call dataset.initialize() first."
-            )
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         try:
             new_template = self.template.duplicate(self.dataset)
@@ -804,10 +807,8 @@ class WidgetExportTemplate(CrudFormWidget):
         QMessageBox.information(
             self,
             "Duplicated",
-            (
-                f"A copy '{new_template.name}' has been created. "
-                "It is now available in the navigation sidebar."
-            ),
+            (f"A copy '{new_template.name}' has been created. "
+             "It is now available in the navigation sidebar."),
         )
         self.template_copied.emit(new_template)
 

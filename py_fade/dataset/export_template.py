@@ -292,11 +292,13 @@ class ExportTemplate(dataset_base):
 
             min_logprob = facet.get("min_logprob")
             avg_logprob = facet.get("avg_logprob")
+            min_rating = facet.get("min_rating")
             normalized.append({
                 "facet_id": facet_id,
                 "limit_type": limit_type,
                 "limit_value": limit_value,
                 "order": order,
+                "min_rating": None if min_rating in (None, "") else int(min_rating),
                 "min_logprob": None if min_logprob in (None, "") else float(min_logprob),
                 "avg_logprob": None if avg_logprob in (None, "") else float(avg_logprob),
             })
