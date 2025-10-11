@@ -267,10 +267,41 @@ class ExportWizard(BaseWizard):
         ]
 
         if template.facets_json:
-            facet_info = []
+            details.append("<p><b>Facets:</b></p><ul>")
             for facet_config in template.facets_json:
-                facet_info.append(f"Facet ID {facet_config.get('facet_id', 'Unknown')}")
-            details.append(f"<p><b>Facets:</b> {', '.join(facet_info)}</p>")
+                facet_id = facet_config.get('facet_id', 'Unknown')
+                limit_type = facet_config.get('limit_type', 'count')
+                limit_value = facet_config.get('limit_value', 100)
+                order = facet_config.get('order', 'random')
+
+                facet_desc = f"Facet ID {facet_id}: {limit_value}"
+                if limit_type == 'percentage':
+                    facet_desc += "% of samples"
+                else:
+                    facet_desc += " samples"
+                facet_desc += f" ({order} order)"
+
+                # Add threshold info
+                min_rating = facet_config.get('min_rating')
+                if min_rating is not None:
+                    facet_desc += f", min_rating={min_rating}"
+                else:
+                    facet_desc += ", min_rating=Default"
+
+                min_logprob = facet_config.get('min_logprob')
+                if min_logprob is not None:
+                    facet_desc += f", min_logprob={min_logprob:.2f}"
+                else:
+                    facet_desc += ", min_logprob=Default"
+
+                avg_logprob = facet_config.get('avg_logprob')
+                if avg_logprob is not None:
+                    facet_desc += f", avg_logprob={avg_logprob:.2f}"
+                else:
+                    facet_desc += ", avg_logprob=Default"
+
+                details.append(f"<li>{facet_desc}</li>")
+            details.append("</ul>")
 
         self.template_details.setHtml("".join(details))
 
@@ -396,7 +427,8 @@ class ExportWizard(BaseWizard):
             "success": True,
             "exported_count": exported_count,
             "output_path": self.output_path,
-            "template_name": self.selected_template.name if self.selected_template else "Unknown"
+            "template_name": self.selected_template.name if self.selected_template else "Unknown",
+            "detailed_results": self.export_controller.export_results if self.export_controller else None
         }
 
         self.update_results_display()
@@ -425,11 +457,47 @@ class ExportWizard(BaseWizard):
 
         if self.export_results.get("success", False):
             results_html = [
-                "<h3>Export Successful!</h3>", f"<p><b>Template:</b> {self.export_results.get('template_name', 'Unknown')}</p>",
-                f"<p><b>Exported Samples:</b> {self.export_results.get('exported_count', 0)}</p>",
+                "<h3>Export Successful!</h3>",
+                f"<p><b>Template:</b> {self.export_results.get('template_name', 'Unknown')}</p>",
+                f"<p><b>Total Exported Samples:</b> {self.export_results.get('exported_count', 0)}</p>",
                 f"<p><b>Output File:</b> {self.export_results.get('output_path', 'Unknown')}</p>",
-                "<p>The export operation completed successfully. You can now use the exported file for your training or analysis tasks.</p>"
             ]
+
+            # Add detailed results if available
+            detailed_results = self.export_results.get("detailed_results")
+            if detailed_results:
+                for facet_summary in detailed_results.facet_summaries:
+                    results_html.append(f"<hr><h4>Facet: {facet_summary.facet_name}</h4>")
+
+                    # Exported samples
+                    if facet_summary.exported_samples:
+                        results_html.append(f"<p><b>Exported Samples ({len(facet_summary.exported_samples)}):</b></p>")
+                        results_html.append("<ul>")
+                        for sample_info in facet_summary.exported_samples:
+                            display_name = f"{sample_info.group_path or ''}/{sample_info.sample_title}"
+                            results_html.append(f"<li>{display_name}</li>")
+                        results_html.append("</ul>")
+                    else:
+                        results_html.append("<p><i>No samples exported from this facet.</i></p>")
+
+                    # Failed samples
+                    if facet_summary.failed_samples:
+                        results_html.append(f"<p><b>Failed Samples ({len(facet_summary.failed_samples)}):</b></p>")
+                        results_html.append("<ul>")
+                        for sample_info, reasons in facet_summary.failed_samples:
+                            display_name = f"{sample_info.group_path or ''}/{sample_info.sample_title}"
+                            results_html.append(f"<li>{display_name}")
+                            if reasons:
+                                results_html.append("<ul>")
+                                for reason in reasons:
+                                    results_html.append(f"<li style='color: #d32f2f;'>{reason}</li>")
+                                results_html.append("</ul>")
+                            results_html.append("</li>")
+                        results_html.append("</ul>")
+
+            results_html.append(
+                "<p>The export operation completed successfully. You can now use the exported file for your training or analysis tasks.</p>"
+            )
         else:
             results_html = [
                 "<h3>Export Failed</h3>", f"<p><b>Template:</b> {self.export_results.get('template_name', 'Unknown')}</p>",
