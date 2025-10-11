@@ -455,54 +455,79 @@ class ExportWizard(BaseWizard):
         if not self.export_results:
             return
 
-        if self.export_results.get("success", False):
-            results_html = [
-                "<h3>Export Successful!</h3>",
-                f"<p><b>Template:</b> {self.export_results.get('template_name', 'Unknown')}</p>",
-                f"<p><b>Total Exported Samples:</b> {self.export_results.get('exported_count', 0)}</p>",
-                f"<p><b>Output File:</b> {self.export_results.get('output_path', 'Unknown')}</p>",
-            ]
-
-            # Add detailed results if available
-            detailed_results = self.export_results.get("detailed_results")
-            if detailed_results:
-                for facet_summary in detailed_results.facet_summaries:
-                    results_html.append(f"<hr><h4>Facet: {facet_summary.facet_name}</h4>")
-
-                    # Exported samples
-                    if facet_summary.exported_samples:
-                        results_html.append(f"<p><b>Exported Samples ({len(facet_summary.exported_samples)}):</b></p>")
-                        results_html.append("<ul>")
-                        for sample_info in facet_summary.exported_samples:
-                            display_name = f"{sample_info.group_path or ''}/{sample_info.sample_title}"
-                            results_html.append(f"<li>{display_name}</li>")
-                        results_html.append("</ul>")
-                    else:
-                        results_html.append("<p><i>No samples exported from this facet.</i></p>")
-
-                    # Failed samples
-                    if facet_summary.failed_samples:
-                        results_html.append(f"<p><b>Failed Samples ({len(facet_summary.failed_samples)}):</b></p>")
-                        results_html.append("<ul>")
-                        for sample_info, reasons in facet_summary.failed_samples:
-                            display_name = f"{sample_info.group_path or ''}/{sample_info.sample_title}"
-                            results_html.append(f"<li>{display_name}")
-                            if reasons:
-                                results_html.append("<ul>")
-                                for reason in reasons:
-                                    results_html.append(f"<li style='color: #d32f2f;'>{reason}</li>")
-                                results_html.append("</ul>")
-                            results_html.append("</li>")
-                        results_html.append("</ul>")
-
-            results_html.append(
-                "<p>The export operation completed successfully. You can now use the exported file for your training or analysis tasks.</p>"
-            )
-        else:
+        if not self.export_results.get("success", False):
+            # Handle failure case early
             results_html = [
                 "<h3>Export Failed</h3>", f"<p><b>Template:</b> {self.export_results.get('template_name', 'Unknown')}</p>",
                 f"<p><b>Error:</b> {self.export_results.get('error', 'Unknown error')}</p>",
                 "<p>The export operation failed. Please check the error message above and try again.</p>"
             ]
+            self.results_text.setHtml("".join(results_html))
+            return
 
+        # Success case
+        results_html = [
+            "<h3>Export Successful!</h3>",
+            f"<p><b>Template:</b> {self.export_results.get('template_name', 'Unknown')}</p>",
+            f"<p><b>Total Exported Samples:</b> {self.export_results.get('exported_count', 0)}</p>",
+            f"<p><b>Output File:</b> {self.export_results.get('output_path', 'Unknown')}</p>",
+        ]
+
+        # Add detailed results if available
+        detailed_results = self.export_results.get("detailed_results")
+        if detailed_results:
+            self._append_detailed_results(results_html, detailed_results)
+
+        results_html.append(
+            "<p>The export operation completed successfully. You can now use the exported file for your training or analysis tasks.</p>")
         self.results_text.setHtml("".join(results_html))
+
+    def _append_detailed_results(self, results_html: list[str], detailed_results) -> None:
+        """
+        Append detailed export results to HTML list.
+
+        Helper method to reduce nesting in update_results_display.
+        """
+        for facet_summary in detailed_results.facet_summaries:
+            results_html.append(f"<hr><h4>Facet: {facet_summary.facet_name}</h4>")
+            self._append_exported_samples(results_html, facet_summary)
+            self._append_failed_samples(results_html, facet_summary)
+
+    def _append_exported_samples(self, results_html: list[str], facet_summary) -> None:
+        """
+        Append exported samples list to HTML.
+
+        Helper method to reduce nesting.
+        """
+        if not facet_summary.exported_samples:
+            results_html.append("<p><i>No samples exported from this facet.</i></p>")
+            return
+
+        results_html.append(f"<p><b>Exported Samples ({len(facet_summary.exported_samples)}):</b></p>")
+        results_html.append("<ul>")
+        for sample_info in facet_summary.exported_samples:
+            display_name = f"{sample_info.group_path or ''}/{sample_info.sample_title}"
+            results_html.append(f"<li>{display_name}</li>")
+        results_html.append("</ul>")
+
+    def _append_failed_samples(self, results_html: list[str], facet_summary) -> None:
+        """
+        Append failed samples list to HTML.
+
+        Helper method to reduce nesting.
+        """
+        if not facet_summary.failed_samples:
+            return
+
+        results_html.append(f"<p><b>Failed Samples ({len(facet_summary.failed_samples)}):</b></p>")
+        results_html.append("<ul>")
+        for sample_info, reasons in facet_summary.failed_samples:
+            display_name = f"{sample_info.group_path or ''}/{sample_info.sample_title}"
+            results_html.append(f"<li>{display_name}")
+            if reasons:
+                results_html.append("<ul>")
+                for reason in reasons:
+                    results_html.append(f"<li style='color: #d32f2f;'>{reason}</li>")
+                results_html.append("</ul>")
+            results_html.append("</li>")
+        results_html.append("</ul>")
