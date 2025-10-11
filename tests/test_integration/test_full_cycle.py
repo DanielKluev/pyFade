@@ -96,6 +96,15 @@ def test_full_cycle_lm_eval(app_with_dataset: "pyFadeApp", temp_dataset: "Datase
     actual_models = set(completion_model_ids)
     assert actual_models == expected_models, f"Expected models {expected_models}, got {actual_models}"
 
+    # Add logprobs for completions so they can pass export thresholds
+    # The mock model is used as target model for export, so we add logprobs for it
+    mapped_model = app_with_dataset.providers_manager.get_mock_model()
+    from tests.helpers.data_helpers import create_test_logprobs  # pylint: disable=import-outside-toplevel
+    for completion in completions:
+        # Add passing logprobs for the mock model target
+        create_test_logprobs(temp_dataset, completion.id, mapped_model.model_id, min_logprob=-0.5, avg_logprob=-0.3)
+    temp_dataset.commit()
+
     # Create export template for math facet, SFT style
     facet_config = {"facet_id": facet_math.id, "limit_type": "count", "limit_value": 100, "order": "random"}
     template_sft = ExportTemplate.create(

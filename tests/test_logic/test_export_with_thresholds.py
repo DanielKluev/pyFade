@@ -79,8 +79,8 @@ class TestExportWithThresholds:
         temp_dataset.commit()
 
         # Create completion with rating=8 (meets threshold) and good logprobs
-        completion = create_test_completion_with_logprobs(temp_dataset, prompt_rev, "Good completion", mapped_model.model_id, facet,
-                                                          rating=8, min_logprob=-0.4, avg_logprob=-0.2)
+        create_test_completion_with_logprobs(temp_dataset, prompt_rev, "Good completion", mapped_model.model_id, facet, rating=8,
+                                             min_logprob=-0.4, avg_logprob=-0.2)
 
         # Create template with None for thresholds (should use facet defaults)
         template = ExportTemplate.create(
@@ -160,11 +160,13 @@ class TestExportWithThresholds:
         temp_dataset.commit()
 
         # Add logprobs
-        from py_fade.data_formats.base_data_classes import CompletionTopLogprobs
         alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
+        # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
+        # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
         logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=mapped_model.model_id,
                                             sampled_logprobs=None, sampled_logprobs_json=[], alternative_logprobs=None,
                                             alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=-0.8, avg_logprob=-0.4)
+        # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
         temp_dataset.session.add(logprobs)
         temp_dataset.commit()
 
@@ -249,9 +251,12 @@ class TestExportWithThresholds:
 
             # Add logprobs that pass thresholds
             alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
+            # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
+            # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
             logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=mapped_model.model_id,
                                                 sampled_logprobs=None, sampled_logprobs_json=[], alternative_logprobs=None,
                                                 alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=-0.5, avg_logprob=-0.3)
+            # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
             temp_dataset.session.add(logprobs)
             temp_dataset.commit()
 
@@ -342,9 +347,12 @@ class TestExportWithThresholds:
 
             # Different logprobs
             alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
+            # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
+            # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
             logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=mapped_model.model_id,
                                                 sampled_logprobs=None, sampled_logprobs_json=[], alternative_logprobs=None,
                                                 alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=min_lp, avg_logprob=avg_lp)
+            # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
             temp_dataset.session.add(logprobs)
             temp_dataset.commit()
 
@@ -432,9 +440,12 @@ class TestExportWithThresholds:
             temp_dataset.commit()
 
             alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
+            # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
+            # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
             logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=mapped_model.model_id,
                                                 sampled_logprobs=None, sampled_logprobs_json=[], alternative_logprobs=None,
                                                 alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=-0.5, avg_logprob=-0.3)
+            # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
             temp_dataset.session.add(logprobs)
             temp_dataset.commit()
 
@@ -506,9 +517,12 @@ class TestExportWithThresholds:
             temp_dataset.commit()
 
             alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
+            # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
+            # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
             logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=mapped_model.model_id,
                                                 sampled_logprobs=None, sampled_logprobs_json=[], alternative_logprobs=None,
                                                 alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=-0.5, avg_logprob=-0.3)
+            # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
             temp_dataset.session.add(logprobs)
             temp_dataset.commit()
 
