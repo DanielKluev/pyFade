@@ -72,7 +72,7 @@ class TestExportWithThresholds:
 
         # Create sample with completions
         prompt_rev = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-        sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "test_group")
+        Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "test_group")
         temp_dataset.commit()
 
         # Create completion with rating=8 (meets threshold) and good logprobs
@@ -136,23 +136,33 @@ class TestExportWithThresholds:
                              avg_logprob_threshold=-0.5)
         temp_dataset.commit()
 
+        # Get mock model for proper model_id
+        mapped_model = app_with_dataset.providers_manager.get_mock_model()
+
         # Create sample with completions
         prompt_rev = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-        sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "test_group")
+        Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "test_group")
         temp_dataset.commit()
 
         # Create completion with rating=6 (meets facet threshold but not override)
-        completion = PromptCompletion.create(temp_dataset, prompt_revision=prompt_rev, completion_text="Medium completion",
-                                             model_id="test-model")
+        sha256 = hashlib.sha256("Medium completion".encode("utf-8")).hexdigest()
+        completion = PromptCompletion(sha256=sha256, prompt_revision_id=prompt_rev.id, model_id=mapped_model.model_id, temperature=0.7,
+                                      top_k=40, completion_text="Medium completion", tags={}, prefill=None, beam_token=None,
+                                      is_truncated=False, context_length=2048, max_tokens=512)
+        temp_dataset.session.add(completion)
         temp_dataset.commit()
 
         # Add rating
-        PromptCompletionRating.create(temp_dataset, completion, facet, 6, "")
+        PromptCompletionRating.set_rating(temp_dataset, completion, facet, 6)
         temp_dataset.commit()
 
         # Add logprobs
-        PromptCompletionLogprobs.create(temp_dataset, completion, model_id="test-model", min_logprob=-0.8, avg_logprob=-0.4,
-                                        sum_logprob=-1.0)
+        from py_fade.data_formats.base_data_classes import CompletionTopLogprobs
+        alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
+        logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=mapped_model.model_id,
+                                            sampled_logprobs=None, sampled_logprobs_json=[], alternative_logprobs=None,
+                                            alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=-0.8, avg_logprob=-0.4)
+        temp_dataset.session.add(logprobs)
         temp_dataset.commit()
 
         # Create template with stricter override thresholds
@@ -209,6 +219,9 @@ class TestExportWithThresholds:
         facet = Facet.create(temp_dataset, "Test Facet", "Test facet description", min_rating=7)
         temp_dataset.commit()
 
+        # Get mock model for proper model_id
+        mapped_model = app_with_dataset.providers_manager.get_mock_model()
+
         # Create multiple samples with different ratings
         samples_data = [
             ("Sample High Rating", 9, True),  # Should be exported
@@ -217,20 +230,26 @@ class TestExportWithThresholds:
         ]
 
         for title, rating_value, _ in samples_data:
-            prompt_rev = PromptRevision.get_or_create(temp_dataset, f"Prompt for {title}")
-            sample = Sample.create_if_unique(temp_dataset, title, prompt_rev, "test_group")
+            prompt_rev = PromptRevision.get_or_create(temp_dataset, f"Prompt for {title}", 2048, 512)
+            Sample.create_if_unique(temp_dataset, title, prompt_rev, "test_group")
             temp_dataset.commit()
 
-            completion = PromptCompletion.create(temp_dataset, prompt_revision=prompt_rev, completion_text=f"Completion for {title}",
-                                                 model_id="test-model")
+            sha256 = hashlib.sha256(f"Completion for {title}".encode("utf-8")).hexdigest()
+            completion = PromptCompletion(sha256=sha256, prompt_revision_id=prompt_rev.id, model_id=mapped_model.model_id, temperature=0.7,
+                                          top_k=40, completion_text=f"Completion for {title}", tags={}, prefill=None, beam_token=None,
+                                          is_truncated=False, context_length=2048, max_tokens=512)
+            temp_dataset.session.add(completion)
             temp_dataset.commit()
 
-            PromptCompletionRating.create(temp_dataset, completion, facet, rating_value, "")
+            PromptCompletionRating.set_rating(temp_dataset, completion, facet, rating_value)
             temp_dataset.commit()
 
             # Add logprobs that pass thresholds
-            PromptCompletionLogprobs.create(temp_dataset, completion, model_id="test-model", min_logprob=-0.5, avg_logprob=-0.3,
-                                            sum_logprob=-1.0)
+            alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
+            logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=mapped_model.model_id,
+                                                sampled_logprobs=None, sampled_logprobs_json=[], alternative_logprobs=None,
+                                                alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=-0.5, avg_logprob=-0.3)
+            temp_dataset.session.add(logprobs)
             temp_dataset.commit()
 
         # Create template
@@ -292,6 +311,9 @@ class TestExportWithThresholds:
                              avg_logprob_threshold=-0.4)
         temp_dataset.commit()
 
+        # Get mock model for proper model_id
+        mapped_model = app_with_dataset.providers_manager.get_mock_model()
+
         # Create samples with different logprobs
         samples_data = [
             ("Sample Good Logprobs", -0.5, -0.3, True),  # Should be exported
@@ -300,21 +322,27 @@ class TestExportWithThresholds:
         ]
 
         for title, min_lp, avg_lp, _ in samples_data:
-            prompt_rev = PromptRevision.get_or_create(temp_dataset, f"Prompt for {title}")
-            sample = Sample.create_if_unique(temp_dataset, title, prompt_rev, "test_group")
+            prompt_rev = PromptRevision.get_or_create(temp_dataset, f"Prompt for {title}", 2048, 512)
+            Sample.create_if_unique(temp_dataset, title, prompt_rev, "test_group")
             temp_dataset.commit()
 
-            completion = PromptCompletion.create(temp_dataset, prompt_revision=prompt_rev, completion_text=f"Completion for {title}",
-                                                 model_id="test-model")
+            sha256 = hashlib.sha256(f"Completion for {title}".encode("utf-8")).hexdigest()
+            completion = PromptCompletion(sha256=sha256, prompt_revision_id=prompt_rev.id, model_id=mapped_model.model_id, temperature=0.7,
+                                          top_k=40, completion_text=f"Completion for {title}", tags={}, prefill=None, beam_token=None,
+                                          is_truncated=False, context_length=2048, max_tokens=512)
+            temp_dataset.session.add(completion)
             temp_dataset.commit()
 
             # All have good ratings
-            PromptCompletionRating.create(temp_dataset, completion, facet, 8, "")
+            PromptCompletionRating.set_rating(temp_dataset, completion, facet, 8)
             temp_dataset.commit()
 
             # Different logprobs
-            PromptCompletionLogprobs.create(temp_dataset, completion, model_id="test-model", min_logprob=min_lp, avg_logprob=avg_lp,
-                                            sum_logprob=-1.0)
+            alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
+            logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=mapped_model.model_id,
+                                                sampled_logprobs=None, sampled_logprobs_json=[], alternative_logprobs=None,
+                                                alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=min_lp, avg_logprob=avg_lp)
+            temp_dataset.session.add(logprobs)
             temp_dataset.commit()
 
         # Create template
@@ -381,21 +409,30 @@ class TestExportWithThresholds:
         facet = Facet.create(temp_dataset, "Test Facet", "Test facet description", min_rating=5)
         temp_dataset.commit()
 
+        # Get mock model for proper model_id
+        mapped_model = app_with_dataset.providers_manager.get_mock_model()
+
         # Create 10 samples, all meeting thresholds
         for i in range(10):
-            prompt_rev = PromptRevision.get_or_create(temp_dataset, f"Prompt {i}")
-            sample = Sample.create_if_unique(temp_dataset, f"Sample {i}", prompt_rev, "test_group")
+            prompt_rev = PromptRevision.get_or_create(temp_dataset, f"Prompt {i}", 2048, 512)
+            Sample.create_if_unique(temp_dataset, f"Sample {i}", prompt_rev, "test_group")
             temp_dataset.commit()
 
-            completion = PromptCompletion.create(temp_dataset, prompt_revision=prompt_rev, completion_text=f"Completion {i}",
-                                                 model_id="test-model")
+            sha256 = hashlib.sha256(f"Completion {i}".encode("utf-8")).hexdigest()
+            completion = PromptCompletion(sha256=sha256, prompt_revision_id=prompt_rev.id, model_id=mapped_model.model_id, temperature=0.7,
+                                          top_k=40, completion_text=f"Completion {i}", tags={}, prefill=None, beam_token=None,
+                                          is_truncated=False, context_length=2048, max_tokens=512)
+            temp_dataset.session.add(completion)
             temp_dataset.commit()
 
-            PromptCompletionRating.create(temp_dataset, completion, facet, 8, "")
+            PromptCompletionRating.set_rating(temp_dataset, completion, facet, 8)
             temp_dataset.commit()
 
-            PromptCompletionLogprobs.create(temp_dataset, completion, model_id="test-model", min_logprob=-0.5, avg_logprob=-0.3,
-                                            sum_logprob=-1.0)
+            alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
+            logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=mapped_model.model_id,
+                                                sampled_logprobs=None, sampled_logprobs_json=[], alternative_logprobs=None,
+                                                alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=-0.5, avg_logprob=-0.3)
+            temp_dataset.session.add(logprobs)
             temp_dataset.commit()
 
         # Create template with 50% limit
@@ -451,19 +488,25 @@ class TestExportWithThresholds:
 
         # Create 10 samples, all meeting thresholds
         for i in range(10):
-            prompt_rev = PromptRevision.get_or_create(temp_dataset, f"Prompt {i}")
-            sample = Sample.create_if_unique(temp_dataset, f"Sample {i}", prompt_rev, "test_group")
+            prompt_rev = PromptRevision.get_or_create(temp_dataset, f"Prompt {i}", 2048, 512)
+            Sample.create_if_unique(temp_dataset, f"Sample {i}", prompt_rev, "test_group")
             temp_dataset.commit()
 
-            completion = PromptCompletion.create(temp_dataset, prompt_revision=prompt_rev, completion_text=f"Completion {i}",
-                                                 model_id=mapped_model.model_id)
+            sha256 = hashlib.sha256(f"Completion {i}".encode("utf-8")).hexdigest()
+            completion = PromptCompletion(sha256=sha256, prompt_revision_id=prompt_rev.id, model_id=mapped_model.model_id, temperature=0.7,
+                                          top_k=40, completion_text=f"Completion {i}", tags={}, prefill=None, beam_token=None,
+                                          is_truncated=False, context_length=2048, max_tokens=512)
+            temp_dataset.session.add(completion)
             temp_dataset.commit()
 
-            PromptCompletionRating.create(temp_dataset, completion, facet, 8, "")
+            PromptCompletionRating.set_rating(temp_dataset, completion, facet, 8)
             temp_dataset.commit()
 
-            PromptCompletionLogprobs.create(temp_dataset, completion, model_id=mapped_model.model_id, min_logprob=-0.5, avg_logprob=-0.3,
-                                            sum_logprob=-1.0)
+            alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
+            logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=mapped_model.model_id,
+                                                sampled_logprobs=None, sampled_logprobs_json=[], alternative_logprobs=None,
+                                                alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=-0.5, avg_logprob=-0.3)
+            temp_dataset.session.add(logprobs)
             temp_dataset.commit()
 
         # Create template with count limit of 3

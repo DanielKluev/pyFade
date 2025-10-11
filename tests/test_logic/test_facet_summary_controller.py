@@ -18,11 +18,12 @@ def test_empty_facet_report(app_with_dataset, temp_dataset):
     facet = Facet.create(temp_dataset, "Empty Facet", "No samples")
     temp_dataset.commit()
 
-    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, "test-model")
+    mapped_model = app_with_dataset.providers_manager.get_mock_model()
+    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, mapped_model)
     report = controller.generate_report()
 
     assert report.facet_name == "Empty Facet"
-    assert report.target_model_id == "test-model"
+    assert report.target_model_id == mapped_model.model_id
     assert report.sft_total_samples == 0
     assert report.sft_finished_samples == 0
     assert report.sft_unfinished_samples == 0
@@ -43,7 +44,8 @@ def test_sample_with_no_ratings(app_with_dataset, temp_dataset):
     create_test_completion_with_params(temp_dataset, prompt)
     temp_dataset.commit()
 
-    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, "test-model")
+    mapped_model = app_with_dataset.providers_manager.get_mock_model()
+    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, mapped_model)
     report = controller.generate_report()
 
     # Sample has no ratings, so it shouldn't appear in the report
@@ -66,7 +68,8 @@ def test_sample_with_low_rating(app_with_dataset, temp_dataset):
     # Add low rating
     PromptCompletionRating.set_rating(temp_dataset, completion, facet, 5)
 
-    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, "test-model")
+    mapped_model = app_with_dataset.providers_manager.get_mock_model()
+    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, mapped_model)
     report = controller.generate_report()
 
     assert report.sft_total_samples == 1
@@ -95,7 +98,8 @@ def test_sample_with_high_rating_no_logprobs(app_with_dataset, temp_dataset):
     # Add high rating
     PromptCompletionRating.set_rating(temp_dataset, completion, facet, 8)
 
-    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, "test-model")
+    mapped_model = app_with_dataset.providers_manager.get_mock_model()
+    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, mapped_model)
     report = controller.generate_report()
 
     assert report.sft_total_samples == 1
@@ -121,11 +125,12 @@ def test_sample_with_high_rating_bad_logprobs(app_with_dataset, temp_dataset):
     # Add high rating
     PromptCompletionRating.set_rating(temp_dataset, completion, facet, 8)
 
+    mapped_model = app_with_dataset.providers_manager.get_mock_model()
     # Add logprobs that don't meet thresholds
-    create_test_logprobs(temp_dataset, completion.id, "test-model", min_logprob=-2.0, avg_logprob=-1.75)
+    create_test_logprobs(temp_dataset, completion.id, mapped_model.model_id, min_logprob=-2.0, avg_logprob=-1.75)
     temp_dataset.commit()
 
-    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, "test-model")
+    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, mapped_model)
     report = controller.generate_report()
 
     assert report.sft_total_samples == 1
@@ -153,11 +158,12 @@ def test_sample_ready_for_sft(app_with_dataset, temp_dataset):
     # Add high rating
     PromptCompletionRating.set_rating(temp_dataset, completion, facet, 8)
 
+    mapped_model = app_with_dataset.providers_manager.get_mock_model()
     # Add good logprobs
-    create_test_logprobs(temp_dataset, completion.id, "test-model", min_logprob=-0.2, avg_logprob=-0.15)
+    create_test_logprobs(temp_dataset, completion.id, mapped_model.model_id, min_logprob=-0.2, avg_logprob=-0.15)
     temp_dataset.commit()
 
-    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, "test-model")
+    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, mapped_model)
     report = controller.generate_report()
 
     assert report.sft_total_samples == 1
@@ -184,7 +190,8 @@ def test_sample_ready_for_dpo(app_with_dataset, temp_dataset):
 
     PromptCompletionRating.set_rating(temp_dataset, completion1, facet, 9)
 
-    create_test_logprobs(temp_dataset, completion1.id, "test-model", min_logprob=-0.2, avg_logprob=-0.15)
+    mapped_model = app_with_dataset.providers_manager.get_mock_model()
+    create_test_logprobs(temp_dataset, completion1.id, mapped_model.model_id, min_logprob=-0.2, avg_logprob=-0.15)
     temp_dataset.commit()
 
     # Low-rated completion (for rejected in DPO)
@@ -193,7 +200,7 @@ def test_sample_ready_for_dpo(app_with_dataset, temp_dataset):
 
     PromptCompletionRating.set_rating(temp_dataset, completion2, facet, 4)
 
-    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, "test-model")
+    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, mapped_model)
     report = controller.generate_report()
 
     assert report.dpo_total_samples == 1
@@ -218,10 +225,11 @@ def test_sample_ready_for_sft_not_dpo(app_with_dataset, temp_dataset):
 
     PromptCompletionRating.set_rating(temp_dataset, completion, facet, 9)
 
-    create_test_logprobs(temp_dataset, completion.id, "test-model", min_logprob=-0.2, avg_logprob=-0.15)
+    mapped_model = app_with_dataset.providers_manager.get_mock_model()
+    create_test_logprobs(temp_dataset, completion.id, mapped_model.model_id, min_logprob=-0.2, avg_logprob=-0.15)
     temp_dataset.commit()
 
-    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, "test-model")
+    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, mapped_model)
     report = controller.generate_report()
 
     # Should be ready for SFT
