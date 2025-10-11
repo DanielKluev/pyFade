@@ -179,7 +179,7 @@ class WidgetExportTemplate(CrudFormWidget):
         encryption_layout.setContentsMargins(12, 12, 12, 12)
         encryption_layout.setHorizontalSpacing(12)
 
-        self.encrypt_checkbox = QCheckBox("Encrypt exported files with SQLCipher", parent=encryption_group)
+        self.encrypt_checkbox = QCheckBox("Encrypt exported files (encrypted ZIP)", parent=encryption_group)
         encryption_layout.addWidget(self.encrypt_checkbox, 0, 0, 1, 2)
 
         password_label = QLabel("Password (optional):", parent=encryption_group)

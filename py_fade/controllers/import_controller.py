@@ -10,6 +10,7 @@ import logging
 import pathlib
 from typing import TYPE_CHECKING
 
+import pyzipper
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.prompt import PromptRevision
@@ -64,13 +65,18 @@ class ImportController:
         Add a new data source to the controller.
         Detects format if not provided, binds appropriate parser.
         Returns the parser instance so caller can inspect properties.
+        
+        If source_path is an encrypted ZIP file, it will be decrypted first.
         """
         source_path = pathlib.Path(source_path)
         if not source_path or not source_path.exists():
             raise FileNotFoundError(f"Source path does not exist: {source_path}")
 
+        # Check if this is an encrypted ZIP file
+        actual_path, is_encrypted = self._handle_encrypted_zip(source_path)
+
         if not data_format:
-            data_format = self.detect_format(source_path)
+            data_format = self.detect_format(actual_path)
             if not data_format:
                 raise ValueError(f"Could not detect format for source: {source_path}")
 
@@ -78,9 +84,9 @@ class ImportController:
             raise ValueError(f"Unsupported format '{data_format}' for source: {source_path}")
 
         parser_class = SUPPORTED_FORMATS[data_format]
-        parser_instance = parser_class(source_path)
+        parser_instance = parser_class(actual_path)
         self.sources.append(parser_instance)
-        self.log.info("Added source %s with format %s", source_path, data_format)
+        self.log.info("Added source %s with format %s%s", source_path, data_format, " (encrypted)" if is_encrypted else "")
         return parser_instance
 
     def detect_format(self, source_path: pathlib.Path) -> str | None:
@@ -452,3 +458,108 @@ class ImportController:
 
         self.log.info("Facet backup import completed: %d items imported", imported_count)
         return imported_count
+
+    def _handle_encrypted_zip(self, source_path: pathlib.Path) -> tuple[pathlib.Path, bool]:
+        """
+        Handle encrypted ZIP files by decrypting them to a temporary location.
+        
+        Args:
+            source_path: Path to potential ZIP file
+            
+        Returns:
+            Tuple of (actual_path_to_use, is_encrypted)
+            If not encrypted, returns (source_path, False)
+            If encrypted, decrypts and returns (temp_decrypted_path, True)
+        
+        Raises:
+            ValueError: If encrypted but wrong password or decryption failed
+        """
+        # Check if this is a ZIP file
+        if source_path.suffix.lower() != '.zip':
+            return source_path, False
+
+        # Try to open as ZIP
+        try:
+            with pyzipper.AESZipFile(source_path, 'r') as zf:
+                # Get list of files in ZIP
+                file_list = zf.namelist()
+                if not file_list:
+                    # Empty ZIP, not relevant
+                    return source_path, False
+
+                first_file = file_list[0]
+
+                # Try to read the first file without password to check if encrypted
+                is_encrypted = False
+                try:
+                    _ = zf.read(first_file)
+                    # Successfully read without password, not encrypted
+                    self.log.debug("ZIP file %s is not encrypted", source_path)
+                except RuntimeError as e:
+                    # Check if the error indicates encryption
+                    error_str = str(e).lower()
+                    if 'password' in error_str or 'encrypted' in error_str:
+                        is_encrypted = True
+                        self.log.info("ZIP file %s is encrypted, requesting password", source_path)
+                    else:
+                        # Some other error, re-raise
+                        raise
+
+                if is_encrypted:
+                    # File is encrypted, need to decrypt
+                    return self._decrypt_zip(source_path, zf, file_list)
+
+                # File is not encrypted, extract to temp location
+                import tempfile  # pylint: disable=import-outside-toplevel
+                temp_dir = pathlib.Path(tempfile.mkdtemp(prefix='pyfade_import_'))
+                extracted_path = temp_dir / first_file
+                zf.extract(first_file, temp_dir)
+                return extracted_path, False
+
+        except pyzipper.zipfile.BadZipFile:
+            # Not a valid ZIP file, return as-is
+            return source_path, False
+
+    def _decrypt_zip(self, source_path: pathlib.Path, zf: pyzipper.AESZipFile, file_list: list[str]) -> tuple[pathlib.Path, bool]:
+        """
+        Decrypt an encrypted ZIP file by prompting for password.
+        
+        Args:
+            source_path: Path to encrypted ZIP
+            zf: Open AESZipFile instance
+            file_list: List of files in the ZIP
+            
+        Returns:
+            Tuple of (decrypted_temp_path, True)
+            
+        Raises:
+            ValueError: If password is wrong or decryption fails
+        """
+        # Prompt user for password
+        from PyQt6.QtWidgets import QInputDialog, QLineEdit  # pylint: disable=import-outside-toplevel
+        password, ok = QInputDialog.getText(None, "Encrypted Import", f"Enter password to decrypt {source_path.name}:",
+                                            QLineEdit.EchoMode.Password)
+        if not ok or not password:
+            raise ValueError("Password is required to import encrypted file")
+
+        # Try to decrypt with the password
+        try:
+            zf.setpassword(password.encode('utf-8'))
+            first_file = file_list[0]
+
+            # Extract to temporary location
+            import tempfile  # pylint: disable=import-outside-toplevel
+            temp_dir = pathlib.Path(tempfile.mkdtemp(prefix='pyfade_import_encrypted_'))
+
+            # Decrypt and extract
+            decrypted_data = zf.read(first_file)
+            extracted_path = temp_dir / first_file
+            extracted_path.write_bytes(decrypted_data)
+
+            self.log.info("Successfully decrypted %s to %s", source_path, extracted_path)
+            return extracted_path, True
+
+        except RuntimeError as e:
+            if 'Bad password' in str(e):
+                raise ValueError("Incorrect password for encrypted file") from e
+            raise ValueError(f"Failed to decrypt file: {e}") from e

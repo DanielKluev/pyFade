@@ -512,7 +512,7 @@ class ImportWizard(BaseWizard):  # pylint: disable=too-many-public-methods
         Open file dialog to add files for import.
         """
         files, _ = QFileDialog.getOpenFileNames(self, "Select Import Files", "",
-                                                "JSON Files (*.json);;JSONL Files (*.jsonl);;All Files (*.*)")
+                                                "JSON Files (*.json);;JSONL Files (*.jsonl);;ZIP Files (*.zip);;All Files (*.*)")
 
         for file_path in files:
             path = pathlib.Path(file_path)
