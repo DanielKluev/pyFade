@@ -70,14 +70,17 @@ class TestExportWithThresholds:
                              avg_logprob_threshold=-0.3)
         temp_dataset.commit()
 
+        # Get mock model for proper model_id
+        mapped_model = app_with_dataset.providers_manager.get_mock_model()
+
         # Create sample with completions
         prompt_rev = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
         Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "test_group")
         temp_dataset.commit()
 
         # Create completion with rating=8 (meets threshold) and good logprobs
-        completion = create_test_completion_with_logprobs(temp_dataset, prompt_rev, "Good completion", "test-model", facet, rating=8,
-                                                          min_logprob=-0.4, avg_logprob=-0.2)
+        completion = create_test_completion_with_logprobs(temp_dataset, prompt_rev, "Good completion", mapped_model.model_id, facet,
+                                                          rating=8, min_logprob=-0.4, avg_logprob=-0.2)
 
         # Create template with None for thresholds (should use facet defaults)
         template = ExportTemplate.create(

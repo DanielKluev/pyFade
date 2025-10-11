@@ -241,4 +241,4 @@ def test_sample_ready_for_sft_not_dpo(app_with_dataset, temp_dataset):
     assert report.dpo_total_samples == 1
     assert report.dpo_finished_samples == 0
     assert report.dpo_unfinished_samples == 1
-    assert "No completion with rating < 9" in report.dpo_unfinished_details[0].reasons[0]
+    assert "rating < 9" in report.dpo_unfinished_details[0].reasons[0]

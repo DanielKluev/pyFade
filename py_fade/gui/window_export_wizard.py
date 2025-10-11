@@ -448,6 +448,42 @@ class ExportWizard(BaseWizard):
         self.update_results_display()
         self.show_step(self.STEP_RESULTS)
 
+    def _format_facet_summary_html(self, facet_summary) -> list[str]:
+        """
+        Format a single facet summary as HTML lines.
+
+        Returns a list of HTML strings for the facet summary.
+        """
+        html_lines = [f"<hr><h4>Facet: {facet_summary.facet_name}</h4>"]
+
+        # Exported samples
+        if facet_summary.exported_samples:
+            html_lines.append(f"<p><b>Exported Samples ({len(facet_summary.exported_samples)}):</b></p>")
+            html_lines.append("<ul>")
+            for sample_info in facet_summary.exported_samples:
+                display_name = f"{sample_info.group_path or ''}/{sample_info.sample_title}"
+                html_lines.append(f"<li>{display_name}</li>")
+            html_lines.append("</ul>")
+        else:
+            html_lines.append("<p><i>No samples exported from this facet.</i></p>")
+
+        # Failed samples
+        if facet_summary.failed_samples:
+            html_lines.append(f"<p><b>Failed Samples ({len(facet_summary.failed_samples)}):</b></p>")
+            html_lines.append("<ul>")
+            for sample_info, reasons in facet_summary.failed_samples:
+                display_name = f"{sample_info.group_path or ''}/{sample_info.sample_title}"
+                html_lines.append(f"<li>{display_name}")
+                if reasons:
+                    html_lines.append("<ul>")
+                    for reason in reasons:
+                        html_lines.append(f"<li style='color: #d32f2f;'>{reason}</li>")
+                    html_lines.append("</ul>")
+                html_lines.append("</li>")
+            html_lines.append("</ul>")
+
+        return html_lines
+
     def update_results_display(self):
         """
         Update the results display with export outcome.
@@ -467,33 +503,7 @@ class ExportWizard(BaseWizard):
             detailed_results = self.export_results.get("detailed_results")
             if detailed_results:
                 for facet_summary in detailed_results.facet_summaries:
-                    results_html.append(f"<hr><h4>Facet: {facet_summary.facet_name}</h4>")
-
-                    # Exported samples
-                    if facet_summary.exported_samples:
-                        results_html.append(f"<p><b>Exported Samples ({len(facet_summary.exported_samples)}):</b></p>")
-                        results_html.append("<ul>")
-                        for sample_info in facet_summary.exported_samples:
-                            display_name = f"{sample_info.group_path or ''}/{sample_info.sample_title}"
-                            results_html.append(f"<li>{display_name}</li>")
-                        results_html.append("</ul>")
-                    else:
-                        results_html.append("<p><i>No samples exported from this facet.</i></p>")
-
-                    # Failed samples
-                    if facet_summary.failed_samples:
-                        results_html.append(f"<p><b>Failed Samples ({len(facet_summary.failed_samples)}):</b></p>")
-                        results_html.append("<ul>")
-                        for sample_info, reasons in facet_summary.failed_samples:
-                            display_name = f"{sample_info.group_path or ''}/{sample_info.sample_title}"
-                            results_html.append(f"<li>{display_name}")
-                            if reasons:
-                                results_html.append("<ul>")
-                                for reason in reasons:
-                                    results_html.append(f"<li style='color: #d32f2f;'>{reason}</li>")
-                                results_html.append("</ul>")
-                            results_html.append("</li>")
-                        results_html.append("</ul>")
+                    results_html.extend(self._format_facet_summary_html(facet_summary))
 
             results_html.append(
                 "<p>The export operation completed successfully. You can now use the exported file for your training or analysis tasks.</p>"
