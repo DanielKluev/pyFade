@@ -3,12 +3,14 @@ Middle layer to control export operation.
 Handles the logic of exporting data from pyFADE to various formats.
 """
 
+import io
 import logging
 import pathlib
 import random
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+import pyzipper
 from sqlalchemy import exists
 
 from py_fade.dataset.dataset import DatasetDatabase
@@ -188,9 +190,15 @@ class ExportController:
         if not conversations:
             raise ValueError("No eligible samples found for export")
 
-        sharegpt_format = ShareGPTFormat(self.output_path)
-        sharegpt_format.set_samples(conversations)
-        sharegpt_format.save()
+        # Check if encryption is enabled
+        if self.export_template.encrypt:
+            # Export to encrypted ZIP
+            self._export_encrypted(conversations)
+        else:
+            # Normal export without encryption
+            sharegpt_format = ShareGPTFormat(self.output_path)
+            sharegpt_format.set_samples(conversations)
+            sharegpt_format.save()
 
         self.export_results.total_exported = len(conversations)
         self.log.info("Export completed: %d samples written to %s", len(conversations), self.output_path)
@@ -400,3 +408,80 @@ class ExportController:
             ExportController instance without an export template
         """
         return cls(app, dataset, export_template=None)
+
+    def _export_encrypted(self, conversations: list[CommonConversation]) -> None:
+        """
+        Export conversations to an encrypted ZIP file.
+        
+        The plaintext data is serialized in memory and then encrypted directly into the ZIP file.
+        Plaintext is never written to disk.
+        
+        Args:
+            conversations: List of conversations to export
+        
+        Raises:
+            ValueError: If password is not available
+        """
+        # Get password - from template or prompt user
+        password = self.export_template.encryption_password
+        if not password:
+            # Import here to avoid circular dependency and only when needed
+            from PyQt6.QtWidgets import QInputDialog, QLineEdit  # pylint: disable=import-outside-toplevel
+            password, ok = QInputDialog.getText(None, "Encryption Password", "Enter password for encrypted export:",
+                                                QLineEdit.EchoMode.Password)
+            if not ok or not password:
+                raise ValueError("Encryption password is required for encrypted export")
+
+        # Determine the data filename inside the ZIP (same name as output but without .zip)
+        if self.output_path.suffix.lower() == '.zip':
+            data_filename = self.output_path.stem
+        else:
+            # If output path doesn't end with .zip, append .zip
+            data_filename = self.output_path.name
+            self.output_path = self.output_path.parent / (self.output_path.name + '.zip')
+
+        # Determine format from original filename
+        data_path_obj = pathlib.Path(data_filename)
+        if data_path_obj.suffix.lower() not in ['.json', '.jsonl', '.parquet']:
+            # Default to .jsonl if no recognized extension
+            data_filename += '.jsonl'
+
+        self.log.info("Creating encrypted ZIP at %s with data file %s", self.output_path, data_filename)
+
+        # Serialize data in memory
+        buffer = io.BytesIO()
+        temp_path = pathlib.Path(data_filename)
+        sharegpt_format = ShareGPTFormat(temp_path)
+        sharegpt_format.set_samples(conversations)
+
+        # Serialize to memory based on format
+        if temp_path.suffix.lower() == '.jsonl':
+            records = sharegpt_format._serialize_samples()  # pylint: disable=protected-access
+            for record in records:
+                import json  # pylint: disable=import-outside-toplevel
+                buffer.write(json.dumps(record, ensure_ascii=False).encode('utf-8'))
+                buffer.write(b'\n')
+        elif temp_path.suffix.lower() == '.json':
+            records = sharegpt_format._serialize_samples()  # pylint: disable=protected-access
+            import json  # pylint: disable=import-outside-toplevel
+            buffer.write(json.dumps(records, ensure_ascii=False, indent=2).encode('utf-8'))
+            buffer.write(b'\n')
+        elif temp_path.suffix.lower() == '.parquet':
+            # For Parquet, we need to write to a temporary BytesIO and read it back
+            import json  # pylint: disable=import-outside-toplevel
+            import pandas as pd  # pylint: disable=import-outside-toplevel
+            records = sharegpt_format._serialize_samples()  # pylint: disable=protected-access
+            parquet_ready = []
+            for record in records:
+                parquet_ready.append({'id': record.get('id'), 'conversations': json.dumps(record.get('conversations'), ensure_ascii=False)})
+            dataframe = pd.DataFrame(parquet_ready)
+            dataframe.to_parquet(buffer, index=False)
+        else:
+            raise ValueError(f"Unsupported format for encryption: {temp_path.suffix}")
+
+        # Create encrypted ZIP file
+        with pyzipper.AESZipFile(self.output_path, 'w', compression=pyzipper.ZIP_DEFLATED, encryption=pyzipper.WZ_AES) as zf:
+            zf.setpassword(password.encode('utf-8'))
+            zf.writestr(data_filename, buffer.getvalue())
+
+        self.log.info("Successfully created encrypted export at %s", self.output_path)
