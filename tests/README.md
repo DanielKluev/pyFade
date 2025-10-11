@@ -189,7 +189,9 @@ pytest tests/test_logic/test_app_config.py::TestAppConfigDefaults::test_default_
 
 ## Coverage Report
 
-Current coverage: **77%** (9835 statements, 2297 missed)
+**Current coverage: 77%** (9,835 statements total, 2,297 missed)
+
+*Note: These numbers reflect the state after improvements in this PR, including the new test_app_config.py with 21 tests.*
 
 ### Well-Covered Modules (90%+)
 - ✅ `app_config.py` - 100%
@@ -230,9 +232,11 @@ Note: External provider modules (ollama, llama_cpp) are intentionally not fully 
 
 ## Quality Metrics
 
+*As of this test suite maintenance PR:*
+
 ### Pytest Results
-- ✅ **481 tests passed**
-- 🟡 **4 tests skipped** (require optional dependencies)
+- ✅ **481 tests passed** (485 total, 4 skipped for optional dependencies)
+- 🟡 **4 tests skipped** (require optional dependencies like sqlcipher, llama-cpp)
 - ❌ **0 tests failed**
 
 ### Pylint Scores
