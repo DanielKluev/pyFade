@@ -186,6 +186,10 @@ class ExportController:
 
         # Write using ShareGPTFormat
         if not conversations:
+            # Log failure details
+            for facet_summary in self.export_results.facet_summaries:
+                for sample_info, reasons in facet_summary.failed_samples:
+                    self.log.error("Sample %d (%s) failed export: %s", sample_info.sample_id, sample_info.sample_title, reasons)
             raise ValueError("No eligible samples found for export")
 
         sharegpt_format = ShareGPTFormat(self.output_path)
@@ -231,35 +235,30 @@ class ExportController:
             max_rating = max(rating for _, rating in rated_completions)
             return None, [f"No completion with rating >= {min_rating} (max rating: {max_rating})"]
 
-        # For exports, we need to pick a model to check logprobs
-        # Use the first available provider model
-        target_model_id = None
-        if hasattr(self.app, 'providers_manager') and self.app.providers_manager.model_provider_map:
-            target_model_id = list(self.app.providers_manager.model_provider_map.keys())[0]
-
         # Check logprob thresholds for high-rated completions
+        # Use each completion's own model_id for logprob checks
         valid_completions = []
         for completion in high_rated:
-            if target_model_id:
-                logprobs = completion.get_logprobs_for_model_id(target_model_id)
-                if logprobs and logprobs.min_logprob >= min_logprob and logprobs.avg_logprob >= avg_logprob:
+            # Check if completion has logprobs for its own model_id
+            logprobs = completion.get_logprobs_for_model_id(completion.model_id)
+            if logprobs:
+                if logprobs.min_logprob >= min_logprob and logprobs.avg_logprob >= avg_logprob:
                     valid_completions.append((completion, logprobs))
             else:
-                # No model available, skip logprob check
+                # No logprobs available, skip logprob check and accept completion if it meets rating threshold
                 valid_completions.append((completion, None))
 
         if not valid_completions:
             reasons = ["No high-rated completion meets logprob thresholds"]
             for completion in high_rated:
-                if target_model_id:
-                    logprobs = completion.get_logprobs_for_model_id(target_model_id)
-                    if not logprobs:
-                        reasons.append(f"  Completion {completion.id}: No logprobs for target model")
-                    else:
-                        if logprobs.min_logprob < min_logprob:
-                            reasons.append(f"  Completion {completion.id}: min_logprob {logprobs.min_logprob:.3f} < {min_logprob}")
-                        if logprobs.avg_logprob < avg_logprob:
-                            reasons.append(f"  Completion {completion.id}: avg_logprob {logprobs.avg_logprob:.3f} < {avg_logprob}")
+                logprobs = completion.get_logprobs_for_model_id(completion.model_id)
+                if not logprobs:
+                    reasons.append(f"  Completion {completion.id}: No logprobs available")
+                else:
+                    if logprobs.min_logprob < min_logprob:
+                        reasons.append(f"  Completion {completion.id}: min_logprob {logprobs.min_logprob:.3f} < {min_logprob}")
+                    if logprobs.avg_logprob < avg_logprob:
+                        reasons.append(f"  Completion {completion.id}: avg_logprob {logprobs.avg_logprob:.3f} < {avg_logprob}")
             return None, reasons
 
         # Get best valid completion (highest rated among those that pass thresholds)

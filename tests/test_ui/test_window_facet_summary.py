@@ -10,7 +10,6 @@ import pytest
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.facet import Facet
 from py_fade.gui.window_facet_summary import FacetSummaryWindow
-from tests.conftest import app_with_dataset
 from tests.helpers.data_helpers import create_test_sample_with_completion, create_test_completion_with_params
 
 if TYPE_CHECKING:
@@ -70,7 +69,7 @@ def test_facet_summary_window_displays_sft_ready_sample(app_with_dataset: "pyFad
     mapped_model = app_with_dataset.providers_manager.get_mock_model()
 
     # Create a sample ready for SFT
-    create_test_sample_with_completion(temp_dataset, facet, rating=8, min_logprob=-0.2, avg_logprob=-0.15)
+    create_test_sample_with_completion(temp_dataset, facet, rating=8, min_logprob=-0.2, avg_logprob=-0.15, model_id=mapped_model.model_id)
     temp_dataset.commit()
     window = FacetSummaryWindow(app_with_dataset, temp_dataset, facet, mapped_model)
     qt_app.processEvents()
@@ -94,7 +93,8 @@ def test_facet_summary_window_displays_dpo_ready_sample(app_with_dataset: "pyFad
     mapped_model = app_with_dataset.providers_manager.get_mock_model()
 
     # Create sample with good completion and a lower-rated one
-    sample1, _ = create_test_sample_with_completion(temp_dataset, facet, rating=9, min_logprob=-0.2, avg_logprob=-0.15)
+    sample1, _ = create_test_sample_with_completion(temp_dataset, facet, rating=9, min_logprob=-0.2, avg_logprob=-0.15,
+                                                     model_id=mapped_model.model_id)
 
     # Add another completion with lower rating to the same sample
     completion2 = create_test_completion_with_params(temp_dataset, sample1.prompt_revision, sha256="b" * 64,

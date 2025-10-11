@@ -21,6 +21,8 @@ from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.export_template import ExportTemplate
+from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
+from py_fade.data_formats.base_data_classes import CompletionTopLogprobs
 from py_fade.controllers.import_controller import ImportController
 from py_fade.controllers.export_controller import ExportController
 
@@ -95,6 +97,18 @@ def test_full_cycle_lm_eval(app_with_dataset: "pyFadeApp", temp_dataset: "Datase
     expected_models = {"gemma3:12b-u1", "gemma3:12b-it-q4_K_M"}
     actual_models = set(completion_model_ids)
     assert actual_models == expected_models, f"Expected models {expected_models}, got {actual_models}"
+
+    # Add logprobs to completions to pass export thresholds
+    for completion in completions:
+        alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
+        # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
+        # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
+        logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=completion.model_id,
+                                            sampled_logprobs=None, sampled_logprobs_json=[], alternative_logprobs=None,
+                                            alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=-0.5, avg_logprob=-0.2)
+        # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
+        temp_dataset.session.add(logprobs)
+    temp_dataset.commit()
 
     # Create export template for math facet, SFT style
     facet_config = {"facet_id": facet_math.id, "limit_type": "count", "limit_value": 100, "order": "random"}
