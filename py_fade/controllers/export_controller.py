@@ -235,7 +235,9 @@ class ExportController:
         # Use the first available provider model
         target_model_id = None
         if hasattr(self.app, 'providers_manager') and self.app.providers_manager.model_provider_map:
-            target_model_id = list(self.app.providers_manager.model_provider_map.keys())[0]
+            # Get the first mapped model and extract its model_id
+            first_mapped_model = next(iter(self.app.providers_manager.model_provider_map.values()))
+            target_model_id = first_mapped_model.model_id
 
         # Check logprob thresholds for high-rated completions
         valid_completions = []

@@ -145,13 +145,13 @@ class InferenceProvidersManager:
         """
         if provider_key not in providers_map:
             self.log.error("Provider key %s not recognized for model %s.", provider_key, model_id)
-            return
+            return None
         if providers_map[provider_key] is None:
             self.log.error(
                 "Provider %s is not supported. Install required dependencies or configure correctly.",
                 provider_key,
             )
-            return
+            return None
         if provider_key not in self.providers:
             provider_instance = providers_map[provider_key](default_temperature=self.default_temperature, default_top_k=self.default_top_k)
             self.providers[provider_key] = provider_instance

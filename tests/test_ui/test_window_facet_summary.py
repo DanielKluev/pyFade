@@ -10,7 +10,6 @@ import pytest
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.facet import Facet
 from py_fade.gui.window_facet_summary import FacetSummaryWindow
-from tests.conftest import app_with_dataset
 from tests.helpers.data_helpers import create_test_sample_with_completion, create_test_completion_with_params
 
 if TYPE_CHECKING:

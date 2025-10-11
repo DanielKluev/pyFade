@@ -308,7 +308,7 @@ def create_test_logprobs(temp_dataset, completion_id: int, model_id: str, min_lo
 
 def create_test_sample_with_completion(temp_dataset, facet, rating: int, min_logprob: float, avg_logprob: float, title: str = "Test Sample",
                                        notes: str = "Test sample", prompt_text: str = "Test prompt",
-                                       completion_text: str = "Test completion", model_id: str = "test-model"):
+                                       completion_text: str = "Test completion", model_id: str = "mock-echo-model"):
     """
     Create a sample with a rated completion and logprobs for testing.
 
