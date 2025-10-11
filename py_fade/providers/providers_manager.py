@@ -64,6 +64,7 @@ class InferenceProvidersManager:
     providers: dict[str, BasePrefillAwareProvider]
     model_provider_map: dict[str, MappedModel]
     current_local_model: (MappedModel | None)  # Track currently used local model from local providers (llama_cpp, ollama)
+    mock_model: MappedModel | None = None
 
     def __init__(
         self,
@@ -92,7 +93,7 @@ class InferenceProvidersManager:
         Reload models mapped to providers from configuration.
         """
         # Add mock provider and mock model.
-        self.add_model("mock-echo-model", "mock")
+        self.mock_model = self.add_model("mock-echo-model", "mock")
 
         # Iterate through models_config
         for model_params in models_configs:
@@ -137,7 +138,7 @@ class InferenceProvidersManager:
                         model_id,
                     )
 
-    def add_model(self, model_id: str, provider_key: str, provider_params: dict | None = None):
+    def add_model(self, model_id: str, provider_key: str, provider_params: dict | None = None) -> MappedModel | None:
         """
         Add a model with specified provider and parameters.
         Builds MappedModel and stores in models and model_provider_map.
@@ -164,6 +165,7 @@ class InferenceProvidersManager:
         self.models[model_id][provider_key] = mapped_model
         self.model_provider_map[mapped_model.path] = mapped_model
         self.log.info("Added model %s with provider %s.", model_id, provider_key)
+        return mapped_model
 
     def count_tokens(self, text: str, model_id: str | None = None) -> int:
         """
@@ -175,3 +177,8 @@ class InferenceProvidersManager:
     def get_mapped_model(self, model_path: str) -> MappedModel | None:
         """Get MappedModel by its full path identifier."""
         return self.model_provider_map.get(model_path, None)
+
+    def get_mock_model(self) -> MappedModel:
+        """Get the mock model instance."""
+        assert self.mock_model is not None, "Mock model is not initialized."
+        return self.mock_model

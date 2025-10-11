@@ -447,6 +447,8 @@ class TestExportWithThresholds:
         facet = Facet.create(temp_dataset, "Test Facet", "Test facet description", min_rating=5)
         temp_dataset.commit()
 
+        mapped_model = app_with_dataset.providers_manager.get_mock_model()
+
         # Create 10 samples, all meeting thresholds
         for i in range(10):
             prompt_rev = PromptRevision.get_or_create(temp_dataset, f"Prompt {i}")
@@ -454,13 +456,13 @@ class TestExportWithThresholds:
             temp_dataset.commit()
 
             completion = PromptCompletion.create(temp_dataset, prompt_revision=prompt_rev, completion_text=f"Completion {i}",
-                                                 model_id="test-model")
+                                                 model_id=mapped_model.model_id)
             temp_dataset.commit()
 
             PromptCompletionRating.create(temp_dataset, completion, facet, 8, "")
             temp_dataset.commit()
 
-            PromptCompletionLogprobs.create(temp_dataset, completion, model_id="test-model", min_logprob=-0.5, avg_logprob=-0.3,
+            PromptCompletionLogprobs.create(temp_dataset, completion, model_id=mapped_model.model_id, min_logprob=-0.5, avg_logprob=-0.3,
                                             sum_logprob=-1.0)
             temp_dataset.commit()
 
