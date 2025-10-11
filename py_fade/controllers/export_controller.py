@@ -242,25 +242,33 @@ class ExportController:
         # Check logprob thresholds for high-rated completions
         valid_completions = []
         for completion in high_rated:
-            if target_model_id:
+            if target_model_id and (min_logprob is not None or avg_logprob is not None):
+                # Only check logprobs if thresholds are set
                 logprobs = completion.get_logprobs_for_model_id(target_model_id)
-                if logprobs and logprobs.min_logprob >= min_logprob and logprobs.avg_logprob >= avg_logprob:
-                    valid_completions.append((completion, logprobs))
+                if logprobs:
+                    # Check thresholds only if they are set
+                    passes_min = min_logprob is None or logprobs.min_logprob >= min_logprob
+                    passes_avg = avg_logprob is None or logprobs.avg_logprob >= avg_logprob
+                    if passes_min and passes_avg:
+                        valid_completions.append((completion, logprobs))
+                else:
+                    # No logprobs available - accept the completion anyway (we can't validate)
+                    valid_completions.append((completion, None))
             else:
-                # No model available, skip logprob check
+                # No model available or no logprob thresholds set, skip logprob check
                 valid_completions.append((completion, None))
 
         if not valid_completions:
             reasons = ["No high-rated completion meets logprob thresholds"]
             for completion in high_rated:
-                if target_model_id:
+                if target_model_id and (min_logprob is not None or avg_logprob is not None):
                     logprobs = completion.get_logprobs_for_model_id(target_model_id)
                     if not logprobs:
                         reasons.append(f"  Completion {completion.id}: No logprobs for target model")
                     else:
-                        if logprobs.min_logprob < min_logprob:
+                        if min_logprob is not None and logprobs.min_logprob < min_logprob:
                             reasons.append(f"  Completion {completion.id}: min_logprob {logprobs.min_logprob:.3f} < {min_logprob}")
-                        if logprobs.avg_logprob < avg_logprob:
+                        if avg_logprob is not None and logprobs.avg_logprob < avg_logprob:
                             reasons.append(f"  Completion {completion.id}: avg_logprob {logprobs.avg_logprob:.3f} < {avg_logprob}")
             return None, reasons
 

@@ -47,9 +47,12 @@ def create_test_completion_with_logprobs(dataset: "DatasetDatabase", prompt_rev:
 
     # Add logprobs - construct manually
     alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
+    # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
+    # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
     logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=model_id, sampled_logprobs=None,
                                         sampled_logprobs_json=None, alternative_logprobs=None,
                                         alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=min_logprob, avg_logprob=avg_logprob)
+    # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
     dataset.session.add(logprobs)
     dataset.commit()
 
