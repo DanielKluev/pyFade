@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+- **Encrypted Export/Import**: Added AES-encrypted ZIP export/import functionality
+  - Export templates can now encrypt exported datasets with a password using pyzipper library
+  - Import wizard supports automatic detection and decryption of encrypted ZIP files
+  - Plaintext data never touches disk when encryption is enabled
+  - Password can be pre-configured in export template or prompted during export/import
+  - Updated UI text to clarify encryption uses "encrypted ZIP" instead of SQLCipher
+  - Comprehensive test coverage with 8 new unit tests for encrypted export/import
+
 ### Fixed
 - **New Completion Frame Save Bug Fixes**: Fixed three critical bugs in the new completion frame save functionality
   - Bug 1: Manual mode now correctly saves edited text instead of reverting to original generated text
