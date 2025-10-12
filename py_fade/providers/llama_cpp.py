@@ -227,6 +227,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         """Unload current model if any."""
         if self.current_model:
             self.log.info("Unloading current model: %s", self.current_model_id)
+            self.current_model.close()
             del self.current_model
             self.current_model = None
             self.current_model_id = None
