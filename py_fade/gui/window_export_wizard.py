@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QGroupBox,
     QWidget,
+    QComboBox,
 )
 
 from py_fade.gui.components.wizard_base import BaseWizard
@@ -75,9 +76,10 @@ class ExportWizard(BaseWizard):
     """
 
     STEP_TEMPLATE_SELECTION = 0
-    STEP_OUTPUT_SELECTION = 1
-    STEP_EXPORT_PROGRESS = 2
-    STEP_RESULTS = 3
+    STEP_MODEL_SELECTION = 1
+    STEP_OUTPUT_SELECTION = 2
+    STEP_EXPORT_PROGRESS = 3
+    STEP_RESULTS = 4
 
     def __init__(self, parent: QWidget | None, app: "pyFadeApp", dataset: "DatasetDatabase"):
         # Initialize export-specific attributes
@@ -85,12 +87,14 @@ class ExportWizard(BaseWizard):
         self.export_worker: ExportWorkerThread | None = None
 
         self.selected_template: ExportTemplate | None = None
+        self.selected_model_id: str | None = None
         self.output_path: pathlib.Path | None = None
         self.export_results: dict = {}
 
         # Initialize UI widget attributes to avoid pylint warnings
         self.template_list = None
         self.template_details = None
+        self.model_combo = None
         self.output_path_input = None
         self.browse_button = None
         self.progress_bar = None
@@ -111,11 +115,15 @@ class ExportWizard(BaseWizard):
         template_selection_widget = self.create_template_selection_widget()
         self.content_stack.addWidget(template_selection_widget)
 
-        # Step 1: Output selection
+        # Step 1: Model selection
+        model_selection_widget = self.create_model_selection_widget()
+        self.content_stack.addWidget(model_selection_widget)
+
+        # Step 2: Output selection
         output_selection_widget = self.create_output_selection_widget()
         self.content_stack.addWidget(output_selection_widget)
 
-        # Step 2: Export progress
+        # Step 3: Export progress
         progress_widget = self.create_progress_widget("Exporting data using the selected template. Please wait...",
                                                       "Ready to start export...")
         self.content_stack.addWidget(progress_widget)
@@ -124,7 +132,7 @@ class ExportWizard(BaseWizard):
         self.progress_bar = progress_widget.findChild(QProgressBar, "progress_bar")
         self.progress_label = progress_widget.findChild(QLabel, "progress_label")
 
-        # Step 3: Results
+        # Step 4: Results
         results_widget = self.create_results_widget("Export completed!")
         self.content_stack.addWidget(results_widget)
 
@@ -166,6 +174,52 @@ class ExportWizard(BaseWizard):
         layout.addWidget(details_group)
 
         return widget
+
+    def create_model_selection_widget(self) -> QWidget:
+        """
+        Create the model selection step widget.
+        """
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Instructions
+        instructions = QLabel("Select the target model for logprobs validation. "\
+                            "This model will be used to validate completion quality during export. "\
+                            "Only completions with logprobs matching this model will be considered.", widget)
+        instructions.setWordWrap(True)
+        layout.addWidget(instructions)
+
+        # Model selection
+        model_group = QGroupBox("Target Model", widget)
+        model_layout = QVBoxLayout(model_group)
+
+        model_label = QLabel("Choose the model to use for logprobs validation:", widget)
+        model_layout.addWidget(model_label)
+
+        self.model_combo = QComboBox(widget)
+        self.model_combo.currentIndexChanged.connect(self.on_model_selection_changed)
+
+        # Populate with available model IDs (not paths)
+        if hasattr(self.app, 'providers_manager') and self.app.providers_manager.models:
+            for model_id in self.app.providers_manager.models.keys():
+                self.model_combo.addItem(model_id)
+
+        model_layout.addWidget(self.model_combo)
+
+        layout.addWidget(model_group)
+
+        layout.addStretch()
+        return widget
+
+    def on_model_selection_changed(self):
+        """
+        Handle model selection change.
+        """
+        if self.model_combo and self.model_combo.count() > 0:
+            self.selected_model_id = self.model_combo.currentText()
+        else:
+            self.selected_model_id = None
+        self.update_next_button()
 
     def create_output_selection_widget(self) -> QWidget:
         """
@@ -344,6 +398,9 @@ class ExportWizard(BaseWizard):
         if step == self.STEP_TEMPLATE_SELECTION:
             self.next_button.setText("Next →")
             self.update_next_button()
+        elif step == self.STEP_MODEL_SELECTION:
+            self.next_button.setText("Next →")
+            self.update_next_button()
         elif step == self.STEP_OUTPUT_SELECTION:
             self.next_button.setText("Export")
             self.update_next_button()
@@ -366,6 +423,8 @@ class ExportWizard(BaseWizard):
 
         if current_step == self.STEP_TEMPLATE_SELECTION:
             self.next_button.setEnabled(self.selected_template is not None)
+        elif current_step == self.STEP_MODEL_SELECTION:
+            self.next_button.setEnabled(self.selected_model_id is not None)
         elif current_step == self.STEP_OUTPUT_SELECTION:
             self.next_button.setEnabled(self.output_path is not None)
         else:
@@ -397,8 +456,8 @@ class ExportWizard(BaseWizard):
             # Import here to avoid circular dependency
             from py_fade.controllers.export_controller import ExportController  # pylint: disable=import-outside-toplevel
 
-            # Create export controller
-            self.export_controller = ExportController(self.app, self.dataset, self.selected_template)
+            # Create export controller with selected target model
+            self.export_controller = ExportController(self.app, self.dataset, self.selected_template, self.selected_model_id)
             self.export_controller.set_output_path(self.output_path)
 
             # Start export in background thread
