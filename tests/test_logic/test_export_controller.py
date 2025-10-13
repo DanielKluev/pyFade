@@ -407,3 +407,65 @@ class TestExportWithThresholds:
 
         finally:
             temp_path.unlink(missing_ok=True)
+
+    def test_export_controller_uses_target_model_id(self, temp_dataset: "DatasetDatabase", app_with_dataset: "pyFadeApp"):
+        """
+        Test that ExportController uses the provided target_model_id for logprobs validation.
+        """
+        # Get mock model
+        mapped_model = app_with_dataset.providers_manager.get_mock_model()
+
+        # Create facet with sample
+        facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, app_with_dataset, facet_min_rating=7, facet_min_logprob=-0.5,
+                                                              facet_avg_logprob=-0.3)
+
+        # Create completion with good logprobs for mock-echo-model
+        create_completion_with_rating_and_logprobs(temp_dataset, prompt_rev, "Test completion", mapped_model.model_id, facet, rating=8,
+                                                   min_logprob=-0.4, avg_logprob=-0.2)
+
+        # Create export template
+        template = create_simple_export_template(temp_dataset, facet)
+
+        # Export with target_model_id specified
+        export_controller, temp_path = create_and_run_export_test(app_with_dataset, temp_dataset, template,
+                                                                  target_model_id=mapped_model.model_id)
+
+        try:
+            exported_count = export_controller.run_export()
+
+            # Should successfully export with specified model
+            assert exported_count == 1
+            assert export_controller.target_model_id == mapped_model.model_id
+
+        finally:
+            temp_path.unlink(missing_ok=True)
+
+    def test_export_controller_fallback_without_target_model(self, temp_dataset: "DatasetDatabase", app_with_dataset: "pyFadeApp"):
+        """
+        Test that ExportController falls back to first available model when target_model_id is None.
+        """
+        # Get mock model
+        mapped_model = app_with_dataset.providers_manager.get_mock_model()
+
+        # Create facet with sample
+        facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, app_with_dataset, facet_min_rating=7)
+
+        create_completion_with_rating_and_logprobs(temp_dataset, prompt_rev, "Test completion", mapped_model.model_id, facet, rating=8,
+                                                   min_logprob=-0.4, avg_logprob=-0.2)
+
+        # Create export template
+        template = create_simple_export_template(temp_dataset, facet)
+
+        # Export without target_model_id (should fall back)
+        export_controller, temp_path = create_and_run_export_test(app_with_dataset, temp_dataset, template, target_model_id=None)
+
+        try:
+            exported_count = export_controller.run_export()
+
+            # Should successfully export with fallback model
+            assert exported_count == 1
+            # target_model_id should remain None (fallback is used internally)
+            assert export_controller.target_model_id is None
+
+        finally:
+            temp_path.unlink(missing_ok=True)
