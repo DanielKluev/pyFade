@@ -101,6 +101,17 @@ def test_export_wizard_navigation_forward(app_with_dataset, temp_dataset, qtbot)
     qtbot.wait(100)
     assert wizard.next_button.isEnabled()
 
+    # Navigate to model selection
+    wizard.next_button.click()  # Qt.LeftButton
+    qtbot.wait(100)
+
+    assert wizard.content_stack.currentIndex() == ExportWizard.STEP_MODEL_SELECTION
+    assert wizard.back_button.isEnabled()
+    assert wizard.next_button.text() == "Next →"
+    # Next button should be enabled if model is available (mock model should be there)
+    if wizard.model_combo and wizard.model_combo.count() > 0:
+        assert wizard.next_button.isEnabled()
+
     # Navigate to output selection
     wizard.next_button.click()  # Qt.LeftButton
     qtbot.wait(100)
@@ -121,11 +132,18 @@ def test_export_wizard_navigation_backward(app_with_dataset, temp_dataset, qtbot
     wizard = ExportWizard(None, app_with_dataset, temp_dataset)
     qtbot.addWidget(wizard)
 
-    # Navigate to step 2
+    # Navigate to step 2 (output selection)
     wizard.template_list.setCurrentRow(0)
     wizard.show_step(ExportWizard.STEP_OUTPUT_SELECTION)
 
-    # Go back
+    # Go back to model selection
+    wizard.back_button.click()  # Qt.LeftButton
+    qtbot.wait(100)
+
+    assert wizard.content_stack.currentIndex() == ExportWizard.STEP_MODEL_SELECTION
+    assert wizard.back_button.isEnabled()
+
+    # Go back to template selection
     wizard.back_button.click()  # Qt.LeftButton
     qtbot.wait(100)
 
@@ -252,7 +270,11 @@ def test_export_wizard_full_flow_success(app_with_dataset, temp_dataset, qtbot, 
     wizard.template_list.setCurrentRow(0)
     qtbot.wait(100)
 
-    # Step 2: Set output path
+    # Step 2: Select model (should be auto-selected if available)
+    wizard.show_step(ExportWizard.STEP_MODEL_SELECTION)
+    qtbot.wait(100)
+
+    # Step 3: Set output path
     test_path = tmp_path / "test_export.jsonl"
     wizard.output_path = test_path
     wizard.output_path_input.setText(str(test_path))

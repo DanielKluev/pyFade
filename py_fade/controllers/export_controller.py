@@ -68,7 +68,8 @@ class ExportController:
     and how to structure the output data. Also supports direct facet backup export.
     """
 
-    def __init__(self, app: "PyFadeApp", dataset: "DatasetDatabase", export_template: "ExportTemplate | None" = None) -> None:
+    def __init__(self, app: "PyFadeApp", dataset: "DatasetDatabase", export_template: "ExportTemplate | None" = None,
+                 target_model_id: str | None = None) -> None:
         """
         Initialize the controller, binding to the app, dataset, and optionally export template.
         
@@ -76,11 +77,13 @@ class ExportController:
             app: The main application instance
             dataset: Dataset database to export from
             export_template: Export template to use (required for template-based export, optional for facet backup)
+            target_model_id: Model ID to use for logprobs validation (optional, falls back to first available model)
         """
         self.log = logging.getLogger("ExportController")
         self.app = app
         self.dataset = dataset
         self.export_template = export_template
+        self.target_model_id = target_model_id
         self.output_path = None
         self.export_results: ExportResults | None = None
 
@@ -239,13 +242,13 @@ class ExportController:
             max_rating = max(rating for _, rating in rated_completions)
             return None, [f"No completion with rating >= {min_rating} (max rating: {max_rating})"]
 
-        # For exports, we need to pick a model to check logprobs
-        # Use the first available provider model
-        target_model_id = None
-        if hasattr(self.app, 'providers_manager') and self.app.providers_manager.model_provider_map:
-            # Get the first mapped model and extract its model_id
+        # For exports, use the target model ID specified in constructor or fall back to first available model
+        target_model_id = self.target_model_id
+        if not target_model_id and hasattr(self.app, 'providers_manager') and self.app.providers_manager.model_provider_map:
+            # Get the first mapped model and extract its model_id as fallback
             first_mapped_model = next(iter(self.app.providers_manager.model_provider_map.values()))
             target_model_id = first_mapped_model.model_id
+            self.log.debug("No target model specified, using fallback model: %s", target_model_id)
 
         # Check logprob thresholds for high-rated completions
         valid_completions = []
