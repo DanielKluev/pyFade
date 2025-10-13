@@ -42,7 +42,7 @@ class TestExportWithThresholds:
         mapped_model = app_with_dataset.providers_manager.get_mock_model()
 
         # Create facet with sample
-        facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, app_with_dataset, facet_min_rating=8, facet_min_logprob=-0.5,
+        facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, facet_min_rating=8, facet_min_logprob=-0.5,
                                                               facet_avg_logprob=-0.3)
 
         # Create completion with rating=8 (meets threshold) and good logprobs
@@ -89,7 +89,7 @@ class TestExportWithThresholds:
         mapped_model = app_with_dataset.providers_manager.get_mock_model()
 
         # Create facet with lenient thresholds and sample
-        facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, app_with_dataset, facet_min_rating=5, facet_min_logprob=-1.0,
+        facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, facet_min_rating=5, facet_min_logprob=-1.0,
                                                               facet_avg_logprob=-0.5)
 
         # Create completion with rating=6 (meets facet threshold but not override)
@@ -153,7 +153,7 @@ class TestExportWithThresholds:
         mapped_model = app_with_dataset.providers_manager.get_mock_model()
 
         # Create facet
-        facet, _prompt_rev = setup_facet_sample_and_completion(temp_dataset, app_with_dataset, facet_min_rating=7)
+        facet, _prompt_rev = setup_facet_sample_and_completion(temp_dataset, facet_min_rating=7)
 
         # Create multiple samples with different ratings
         samples_data = [
@@ -230,7 +230,7 @@ class TestExportWithThresholds:
         mapped_model = app_with_dataset.providers_manager.get_mock_model()
 
         # Create facet
-        facet, _prompt_rev = setup_facet_sample_and_completion(temp_dataset, app_with_dataset, facet_min_rating=5, facet_min_logprob=-0.6,
+        facet, _prompt_rev = setup_facet_sample_and_completion(temp_dataset, facet_min_rating=5, facet_min_logprob=-0.6,
                                                                facet_avg_logprob=-0.4)
 
         # Create samples with different logprobs
@@ -315,7 +315,7 @@ class TestExportWithThresholds:
         mapped_model = app_with_dataset.providers_manager.get_mock_model()
 
         # Create facet
-        facet, _prompt_rev = setup_facet_sample_and_completion(temp_dataset, app_with_dataset, facet_min_rating=5)
+        facet, _prompt_rev = setup_facet_sample_and_completion(temp_dataset, facet_min_rating=5)
 
         # Create 10 samples, all meeting thresholds
         for i in range(10):
@@ -416,7 +416,7 @@ class TestExportWithThresholds:
         mapped_model = app_with_dataset.providers_manager.get_mock_model()
 
         # Create facet with sample
-        facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, app_with_dataset, facet_min_rating=7, facet_min_logprob=-0.5,
+        facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, facet_min_rating=7, facet_min_logprob=-0.5,
                                                               facet_avg_logprob=-0.3)
 
         # Create completion with good logprobs for mock-echo-model
@@ -448,7 +448,7 @@ class TestExportWithThresholds:
         mapped_model = app_with_dataset.providers_manager.get_mock_model()
 
         # Create facet with sample
-        facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, app_with_dataset, facet_min_rating=7)
+        facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, facet_min_rating=7)
 
         create_completion_with_rating_and_logprobs(temp_dataset, prompt_rev, "Test completion", mapped_model.model_id, facet, rating=8,
                                                    min_logprob=-0.4, avg_logprob=-0.2)

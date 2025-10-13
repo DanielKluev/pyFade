@@ -36,7 +36,6 @@ def create_test_template(temp_dataset):
 
 def setup_facet_sample_and_completion(
     dataset: "DatasetDatabase",
-    app: "pyFadeApp",
     facet_min_rating: int | None = None,
     facet_min_logprob: float | None = None,
     facet_avg_logprob: float | None = None,
@@ -45,11 +44,10 @@ def setup_facet_sample_and_completion(
     Set up a facet with a sample ready for completion testing.
 
     This helper reduces code duplication by consolidating the common pattern
-    of creating a facet, getting the mock model, and creating a sample with prompt.
+    of creating a facet and a sample with prompt.
 
     Args:
         dataset: The dataset to create entities in
-        app: The pyFadeApp instance (for accessing providers_manager)
         facet_min_rating: Optional minimum rating threshold for facet
         facet_min_logprob: Optional minimum logprob threshold for facet
         facet_avg_logprob: Optional average logprob threshold for facet
