@@ -13,7 +13,7 @@ from py_fade.controllers.export_controller import ExportController
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.prompt import PromptRevision
-from tests.helpers.export_wizard_helpers import create_test_template
+from tests.helpers.export_wizard_helpers import create_test_template, setup_facet_sample_and_completion, create_and_run_export_test
 from tests.helpers.data_helpers import create_completion_with_rating_and_logprobs
 
 
@@ -140,18 +140,12 @@ def test_export_controller_uses_target_model_id(app_with_dataset, temp_dataset):
     """
     Test that ExportController uses the provided target_model_id for logprobs validation.
     """
-    # Create facet
-    facet = Facet.create(temp_dataset, "Test Facet", "Test facet description", min_rating=7, min_logprob_threshold=-0.5,
-                         avg_logprob_threshold=-0.3)
-    temp_dataset.commit()
-
     # Get mock model
     mapped_model = app_with_dataset.providers_manager.get_mock_model()
 
-    # Create sample with completion
-    prompt_rev = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "test_group")
-    temp_dataset.commit()
+    # Create facet with sample
+    facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, app_with_dataset, facet_min_rating=7, facet_min_logprob=-0.5,
+                                                          facet_avg_logprob=-0.3)
 
     # Create completion with good logprobs for mock-echo-model
     create_completion_with_rating_and_logprobs(temp_dataset, prompt_rev, "Test completion", mapped_model.model_id, facet, rating=8,
@@ -173,12 +167,10 @@ def test_export_controller_uses_target_model_id(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Export with target_model_id specified
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
-        temp_path = pathlib.Path(f.name)
+    export_controller, temp_path = create_and_run_export_test(app_with_dataset, temp_dataset, template,
+                                                              target_model_id=mapped_model.model_id)
 
     try:
-        export_controller = ExportController(app_with_dataset, temp_dataset, template, target_model_id=mapped_model.model_id)
-        export_controller.set_output_path(temp_path)
         exported_count = export_controller.run_export()
 
         # Should successfully export with specified model
@@ -193,17 +185,11 @@ def test_export_controller_fallback_without_target_model(app_with_dataset, temp_
     """
     Test that ExportController falls back to first available model when target_model_id is None.
     """
-    # Create facet
-    facet = Facet.create(temp_dataset, "Test Facet", "Test facet description", min_rating=7)
-    temp_dataset.commit()
-
     # Get mock model
     mapped_model = app_with_dataset.providers_manager.get_mock_model()
 
-    # Create sample with completion
-    prompt_rev = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "test_group")
-    temp_dataset.commit()
+    # Create facet with sample
+    facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, app_with_dataset, facet_min_rating=7)
 
     create_completion_with_rating_and_logprobs(temp_dataset, prompt_rev, "Test completion", mapped_model.model_id, facet, rating=8,
                                                min_logprob=-0.4, avg_logprob=-0.2)
@@ -262,15 +248,11 @@ def test_export_wizard_complete_flow_with_model_selection(app_with_dataset, temp
     """
     Test complete wizard flow including model selection.
     """
-    # Create test data
-    facet = Facet.create(temp_dataset, "Test Facet", "Test facet description", min_rating=5)
-    temp_dataset.commit()
-
+    # Get mock model
     mapped_model = app_with_dataset.providers_manager.get_mock_model()
 
-    prompt_rev = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "test_group")
-    temp_dataset.commit()
+    # Create facet with sample
+    facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, app_with_dataset, facet_min_rating=5)
 
     create_completion_with_rating_and_logprobs(temp_dataset, prompt_rev, "Test completion", mapped_model.model_id, facet, rating=8,
                                                min_logprob=-0.4, avg_logprob=-0.2)
