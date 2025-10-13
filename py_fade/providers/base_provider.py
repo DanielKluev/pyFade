@@ -10,7 +10,7 @@ from py_fade.providers.llm_response import LLMResponse
 
 LOGGER = logging.getLogger("BasePrefillAwareProvider")
 
-CL100K_BASE_ENCODING = None
+CL100K_BASE_ENCODING = None  # pylint: disable=invalid-name # Constant with cached tokenizer instance
 try:
     LOGGER.debug("Loading tokenizer: cl100k_base...")
     CL100K_BASE_ENCODING = get_encoding("cl100k_base")
