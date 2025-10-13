@@ -366,3 +366,143 @@ def test_export_wizard_update_template_details(app_with_dataset, temp_dataset, q
     assert "JSONL (ShareGPT)" in details_html
     assert "Gemma3, Llama3" in details_html
     assert f"Facet ID {facet.id}" in details_html
+
+
+def test_export_wizard_model_selection_step_exists(app_with_dataset, temp_dataset, qtbot):
+    """
+    Test that model selection step is present in the wizard.
+    """
+    # Create a test template
+    _facet, _template = create_test_template(temp_dataset)
+
+    wizard = ExportWizard(None, app_with_dataset, temp_dataset)
+    qtbot.addWidget(wizard)
+
+    # Verify model selection step exists
+    assert hasattr(wizard, 'STEP_MODEL_SELECTION')
+    assert wizard.STEP_MODEL_SELECTION == 1
+
+    # Verify model selection widget is created
+    assert wizard.model_combo is not None
+
+
+def test_export_wizard_model_selection_populated(app_with_dataset, temp_dataset, qtbot):
+    """
+    Test that model selection combobox is populated with available models.
+    """
+    _facet, _template = create_test_template(temp_dataset)
+
+    wizard = ExportWizard(None, app_with_dataset, temp_dataset)
+    qtbot.addWidget(wizard)
+
+    # Navigate to model selection step
+    wizard.show_step(ExportWizard.STEP_MODEL_SELECTION)
+    qtbot.wait(100)
+
+    # Should have at least mock model
+    assert wizard.model_combo.count() > 0
+
+    # Mock model should be present
+    model_ids = [wizard.model_combo.itemText(i) for i in range(wizard.model_combo.count())]
+    assert "mock-echo-model" in model_ids
+
+
+def test_export_wizard_model_selection_auto_selected(app_with_dataset, temp_dataset, qtbot):
+    """
+    Test that first model is auto-selected when navigating to model selection step.
+    """
+    _facet, _template = create_test_template(temp_dataset)
+
+    wizard = ExportWizard(None, app_with_dataset, temp_dataset)
+    qtbot.addWidget(wizard)
+
+    # Navigate to model selection step
+    wizard.show_step(ExportWizard.STEP_MODEL_SELECTION)
+    qtbot.wait(100)
+
+    # First model should be selected
+    if wizard.model_combo.count() > 0:
+        assert wizard.model_combo.currentIndex() == 0
+        assert wizard.selected_model_id is not None
+        assert wizard.next_button.isEnabled()
+
+
+def test_export_wizard_model_selection_changed(app_with_dataset, temp_dataset, qtbot):
+    """
+    Test model selection change handler.
+    """
+    _facet, _template = create_test_template(temp_dataset)
+
+    wizard = ExportWizard(None, app_with_dataset, temp_dataset)
+    qtbot.addWidget(wizard)
+
+    wizard.show_step(ExportWizard.STEP_MODEL_SELECTION)
+    qtbot.wait(100)
+
+    # Change model selection
+    if wizard.model_combo.count() > 0:
+        original_model = wizard.model_combo.currentText()
+        wizard.model_combo.setCurrentIndex(0)
+        qtbot.wait(100)
+
+        # Selected model should be updated
+        assert wizard.selected_model_id == original_model
+
+
+def test_export_wizard_passes_model_to_controller(app_with_dataset, temp_dataset, qtbot, tmp_path):
+    """
+    Test that selected model is passed to ExportController.
+    """
+    _facet, _template = create_test_template(temp_dataset)
+
+    wizard = ExportWizard(None, app_with_dataset, temp_dataset)
+    qtbot.addWidget(wizard)
+
+    # Set up wizard state
+    wizard.selected_template = _template
+    wizard.show_step(ExportWizard.STEP_MODEL_SELECTION)
+    qtbot.wait(100)
+    wizard.selected_model_id = "mock-echo-model"
+    test_path = tmp_path / "test_export.jsonl"
+    wizard.output_path = test_path
+
+    # Mock ExportController constructor to capture arguments
+    with patch('py_fade.controllers.export_controller.ExportController') as mock_controller_cls:
+        mock_instance = Mock(spec=ExportController)
+        mock_instance.export_results = None
+        mock_instance.run_export.return_value = 1
+        mock_controller_cls.return_value = mock_instance
+
+        # Trigger export (this will call start_export internally)
+        # We need to trigger it but not wait for the worker thread
+        wizard.start_export()
+        qtbot.wait(100)
+
+        # Verify controller was created with correct model_id
+        mock_controller_cls.assert_called_once()
+        call_args = mock_controller_cls.call_args
+        assert call_args[0][0] == app_with_dataset  # app
+        assert call_args[0][1] == temp_dataset  # dataset
+        assert call_args[0][2] == _template  # template
+        assert call_args[0][3] == "mock-echo-model"  # target_model_id
+
+
+def test_export_wizard_model_selection_next_button_state(app_with_dataset, temp_dataset, qtbot):
+    """
+    Test that next button is correctly enabled/disabled based on model selection.
+    """
+    _facet, _template = create_test_template(temp_dataset)
+
+    wizard = ExportWizard(None, app_with_dataset, temp_dataset)
+    qtbot.addWidget(wizard)
+
+    # Navigate to model selection step
+    wizard.show_step(ExportWizard.STEP_MODEL_SELECTION)
+    qtbot.wait(100)
+
+    # Next button should be enabled if model is available
+    if wizard.model_combo.count() > 0:
+        assert wizard.next_button.isEnabled()
+    else:
+        # If no models available, next button should be disabled
+        assert not wizard.next_button.isEnabled()

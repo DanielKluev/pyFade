@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 import pytest
 
 from py_fade.controllers.export_controller import ExportController
-from py_fade.dataset.export_template import ExportTemplate
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.prompt import PromptRevision
@@ -23,6 +22,7 @@ from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.data_formats.base_data_classes import CompletionTopLogprobs
 from tests.helpers.data_helpers import create_completion_with_rating_and_logprobs
+from tests.helpers.export_wizard_helpers import setup_facet_sample_and_completion, create_and_run_export_test, create_simple_export_template
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -38,41 +38,19 @@ class TestExportWithThresholds:
         """
         Test that export template uses facet default thresholds when min_rating is None.
         """
-        # Create facet with specific thresholds
-        facet = Facet.create(temp_dataset, "Test Facet", "Test facet description", min_rating=8, min_logprob_threshold=-0.5,
-                             avg_logprob_threshold=-0.3)
-        temp_dataset.commit()
-
         # Get mock model for proper model_id
         mapped_model = app_with_dataset.providers_manager.get_mock_model()
 
-        # Create sample with completions
-        prompt_rev = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-        Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "test_group")
-        temp_dataset.commit()
+        # Create facet with sample
+        facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, facet_min_rating=8, facet_min_logprob=-0.5,
+                                                              facet_avg_logprob=-0.3)
 
         # Create completion with rating=8 (meets threshold) and good logprobs
         create_completion_with_rating_and_logprobs(temp_dataset, prompt_rev, "Good completion", mapped_model.model_id, facet, rating=8,
                                                    min_logprob=-0.4, avg_logprob=-0.2)
 
         # Create template with None for thresholds (should use facet defaults)
-        template = ExportTemplate.create(
-            temp_dataset,
-            name="Test Template",
-            description="Test template",
-            training_type="SFT",
-            output_format="JSONL (ShareGPT)",
-            model_families=["Llama3"],
-            facets=[{
-                "facet_id": facet.id,
-                "limit_type": "percentage",
-                "limit_value": 100,
-                "order": "random",
-                "min_rating": None,  # Should use facet.min_rating = 8
-                "min_logprob": None,  # Should use facet.min_logprob_threshold = -0.5
-                "avg_logprob": None,  # Should use facet.avg_logprob_threshold = -0.3
-            }])
-        temp_dataset.commit()
+        template = create_simple_export_template(temp_dataset, facet)
 
         # Export
         with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
@@ -107,18 +85,12 @@ class TestExportWithThresholds:
         """
         Test that export template can override facet thresholds with specific values.
         """
-        # Create facet with lenient thresholds
-        facet = Facet.create(temp_dataset, "Test Facet", "Test facet description", min_rating=5, min_logprob_threshold=-1.0,
-                             avg_logprob_threshold=-0.5)
-        temp_dataset.commit()
-
         # Get mock model for proper model_id
         mapped_model = app_with_dataset.providers_manager.get_mock_model()
 
-        # Create sample with completions
-        prompt_rev = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-        Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "test_group")
-        temp_dataset.commit()
+        # Create facet with lenient thresholds and sample
+        facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, facet_min_rating=5, facet_min_logprob=-1.0,
+                                                              facet_avg_logprob=-0.5)
 
         # Create completion with rating=6 (meets facet threshold but not override)
         sha256 = hashlib.sha256("Medium completion".encode("utf-8")).hexdigest()
@@ -144,23 +116,7 @@ class TestExportWithThresholds:
         temp_dataset.commit()
 
         # Create template with stricter override thresholds
-        template = ExportTemplate.create(
-            temp_dataset,
-            name="Test Template",
-            description="Test template",
-            training_type="SFT",
-            output_format="JSONL (ShareGPT)",
-            model_families=["Llama3"],
-            facets=[{
-                "facet_id": facet.id,
-                "limit_type": "percentage",
-                "limit_value": 100,
-                "order": "random",
-                "min_rating": 8,  # Override: stricter than facet's 5
-                "min_logprob": -0.3,  # Override: stricter than facet's -1.0
-                "avg_logprob": -0.2,  # Override: stricter than facet's -0.5
-            }])
-        temp_dataset.commit()
+        template = create_simple_export_template(temp_dataset, facet, min_rating=8, min_logprob=-0.3, avg_logprob=-0.2)
 
         # Export
         with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
@@ -193,12 +149,11 @@ class TestExportWithThresholds:
         """
         Test that export correctly filters samples based on rating threshold.
         """
-        # Create facet
-        facet = Facet.create(temp_dataset, "Test Facet", "Test facet description", min_rating=7)
-        temp_dataset.commit()
-
         # Get mock model for proper model_id
         mapped_model = app_with_dataset.providers_manager.get_mock_model()
+
+        # Create facet
+        facet, _prompt_rev = setup_facet_sample_and_completion(temp_dataset, facet_min_rating=7)
 
         # Create multiple samples with different ratings
         samples_data = [
@@ -234,23 +189,7 @@ class TestExportWithThresholds:
             temp_dataset.commit()
 
         # Create template
-        template = ExportTemplate.create(
-            temp_dataset,
-            name="Test Template",
-            description="Test template",
-            training_type="SFT",
-            output_format="JSONL (ShareGPT)",
-            model_families=["Llama3"],
-            facets=[{
-                "facet_id": facet.id,
-                "limit_type": "percentage",
-                "limit_value": 100,
-                "order": "random",
-                "min_rating": None,  # Use facet default (7)
-                "min_logprob": None,
-                "avg_logprob": None,
-            }])
-        temp_dataset.commit()
+        template = create_simple_export_template(temp_dataset, facet)
 
         # Export
         with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
@@ -287,13 +226,12 @@ class TestExportWithThresholds:
         """
         Test that export correctly filters samples based on logprob thresholds.
         """
-        # Create facet
-        facet = Facet.create(temp_dataset, "Test Facet", "Test facet description", min_rating=5, min_logprob_threshold=-0.6,
-                             avg_logprob_threshold=-0.4)
-        temp_dataset.commit()
-
         # Get mock model for proper model_id
         mapped_model = app_with_dataset.providers_manager.get_mock_model()
+
+        # Create facet
+        facet, _prompt_rev = setup_facet_sample_and_completion(temp_dataset, facet_min_rating=5, facet_min_logprob=-0.6,
+                                                               facet_avg_logprob=-0.4)
 
         # Create samples with different logprobs
         samples_data = [
@@ -330,23 +268,7 @@ class TestExportWithThresholds:
             temp_dataset.commit()
 
         # Create template
-        template = ExportTemplate.create(
-            temp_dataset,
-            name="Test Template",
-            description="Test template",
-            training_type="SFT",
-            output_format="JSONL (ShareGPT)",
-            model_families=["Llama3"],
-            facets=[{
-                "facet_id": facet.id,
-                "limit_type": "percentage",
-                "limit_value": 100,
-                "order": "random",
-                "min_rating": None,
-                "min_logprob": None,  # Use facet default (-0.6)
-                "avg_logprob": None,  # Use facet default (-0.4)
-            }])
-        temp_dataset.commit()
+        template = create_simple_export_template(temp_dataset, facet)
 
         # Export
         with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
@@ -389,12 +311,11 @@ class TestExportWithThresholds:
         """
         Test that export respects percentage limit configuration.
         """
-        # Create facet
-        facet = Facet.create(temp_dataset, "Test Facet", "Test facet description", min_rating=5)
-        temp_dataset.commit()
-
         # Get mock model for proper model_id
         mapped_model = app_with_dataset.providers_manager.get_mock_model()
+
+        # Create facet
+        facet, _prompt_rev = setup_facet_sample_and_completion(temp_dataset, facet_min_rating=5)
 
         # Create 10 samples, all meeting thresholds
         for i in range(10):
@@ -423,31 +344,12 @@ class TestExportWithThresholds:
             temp_dataset.commit()
 
         # Create template with 50% limit
-        template = ExportTemplate.create(
-            temp_dataset,
-            name="Test Template",
-            description="Test template",
-            training_type="SFT",
-            output_format="JSONL (ShareGPT)",
-            model_families=["Llama3"],
-            facets=[{
-                "facet_id": facet.id,
-                "limit_type": "percentage",
-                "limit_value": 50,  # Only 50% = 5 samples
-                "order": "random",
-                "min_rating": None,
-                "min_logprob": None,
-                "avg_logprob": None,
-            }])
-        temp_dataset.commit()
+        template = create_simple_export_template(temp_dataset, facet, limit_type="percentage", limit_value=50)
 
         # Export
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
-            temp_path = pathlib.Path(f.name)
+        export_controller, temp_path = create_and_run_export_test(app_with_dataset, temp_dataset, template)
 
         try:
-            export_controller = ExportController(app_with_dataset, temp_dataset, template)
-            export_controller.set_output_path(temp_path)
             exported_count = export_controller.run_export()
 
             # Should export exactly 5 samples (50% of 10)
@@ -484,23 +386,7 @@ class TestExportWithThresholds:
                                                        min_logprob=-0.5, avg_logprob=-0.3)
 
         # Create template with count limit of 3
-        template = ExportTemplate.create(
-            temp_dataset,
-            name="Test Template",
-            description="Test template",
-            training_type="SFT",
-            output_format="JSONL (ShareGPT)",
-            model_families=["Llama3"],
-            facets=[{
-                "facet_id": facet.id,
-                "limit_type": "count",
-                "limit_value": 3,  # Only 3 samples
-                "order": "random",
-                "min_rating": None,
-                "min_logprob": None,
-                "avg_logprob": None,
-            }])
-        temp_dataset.commit()
+        template = create_simple_export_template(temp_dataset, facet, limit_type="count", limit_value=3)
 
         # Export
         with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
@@ -518,6 +404,68 @@ class TestExportWithThresholds:
             # Check facet summary
             facet_summary = export_controller.export_results.facet_summaries[0]
             assert len(facet_summary.exported_samples) == 3
+
+        finally:
+            temp_path.unlink(missing_ok=True)
+
+    def test_export_controller_uses_target_model_id(self, temp_dataset: "DatasetDatabase", app_with_dataset: "pyFadeApp"):
+        """
+        Test that ExportController uses the provided target_model_id for logprobs validation.
+        """
+        # Get mock model
+        mapped_model = app_with_dataset.providers_manager.get_mock_model()
+
+        # Create facet with sample
+        facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, facet_min_rating=7, facet_min_logprob=-0.5,
+                                                              facet_avg_logprob=-0.3)
+
+        # Create completion with good logprobs for mock-echo-model
+        create_completion_with_rating_and_logprobs(temp_dataset, prompt_rev, "Test completion", mapped_model.model_id, facet, rating=8,
+                                                   min_logprob=-0.4, avg_logprob=-0.2)
+
+        # Create export template
+        template = create_simple_export_template(temp_dataset, facet)
+
+        # Export with target_model_id specified
+        export_controller, temp_path = create_and_run_export_test(app_with_dataset, temp_dataset, template,
+                                                                  target_model_id=mapped_model.model_id)
+
+        try:
+            exported_count = export_controller.run_export()
+
+            # Should successfully export with specified model
+            assert exported_count == 1
+            assert export_controller.target_model_id == mapped_model.model_id
+
+        finally:
+            temp_path.unlink(missing_ok=True)
+
+    def test_export_controller_fallback_without_target_model(self, temp_dataset: "DatasetDatabase", app_with_dataset: "pyFadeApp"):
+        """
+        Test that ExportController falls back to first available model when target_model_id is None.
+        """
+        # Get mock model
+        mapped_model = app_with_dataset.providers_manager.get_mock_model()
+
+        # Create facet with sample
+        facet, prompt_rev = setup_facet_sample_and_completion(temp_dataset, facet_min_rating=7)
+
+        create_completion_with_rating_and_logprobs(temp_dataset, prompt_rev, "Test completion", mapped_model.model_id, facet, rating=8,
+                                                   min_logprob=-0.4, avg_logprob=-0.2)
+
+        # Create export template
+        template = create_simple_export_template(temp_dataset, facet)
+
+        # Export without target_model_id (should fall back)
+        export_controller, temp_path = create_and_run_export_test(app_with_dataset, temp_dataset, template, target_model_id=None)
+
+        try:
+            exported_count = export_controller.run_export()
+
+            # Should successfully export with fallback model
+            assert exported_count == 1
+            # target_model_id should remain None (fallback is used internally)
+            assert export_controller.target_model_id is None
 
         finally:
             temp_path.unlink(missing_ok=True)
