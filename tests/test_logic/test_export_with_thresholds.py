@@ -22,7 +22,7 @@ from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.data_formats.base_data_classes import CompletionTopLogprobs
 from tests.helpers.data_helpers import create_completion_with_rating_and_logprobs
-from tests.helpers.export_wizard_helpers import setup_facet_sample_and_completion, create_and_run_export_test
+from tests.helpers.export_wizard_helpers import setup_facet_sample_and_completion, create_and_run_export_test, create_simple_export_template
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -50,24 +50,7 @@ class TestExportWithThresholds:
                                                    min_logprob=-0.4, avg_logprob=-0.2)
 
         # Create template with None for thresholds (should use facet defaults)
-        from py_fade.dataset.export_template import ExportTemplate  # pylint: disable=import-outside-toplevel
-        template = ExportTemplate.create(
-            temp_dataset,
-            name="Test Template",
-            description="Test template",
-            training_type="SFT",
-            output_format="JSONL (ShareGPT)",
-            model_families=["Llama3"],
-            facets=[{
-                "facet_id": facet.id,
-                "limit_type": "percentage",
-                "limit_value": 100,
-                "order": "random",
-                "min_rating": None,  # Should use facet.min_rating = 8
-                "min_logprob": None,  # Should use facet.min_logprob_threshold = -0.5
-                "avg_logprob": None,  # Should use facet.avg_logprob_threshold = -0.3
-            }])
-        temp_dataset.commit()
+        template = create_simple_export_template(temp_dataset, facet)
 
         # Export
         with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
@@ -133,24 +116,7 @@ class TestExportWithThresholds:
         temp_dataset.commit()
 
         # Create template with stricter override thresholds
-        from py_fade.dataset.export_template import ExportTemplate  # pylint: disable=import-outside-toplevel
-        template = ExportTemplate.create(
-            temp_dataset,
-            name="Test Template",
-            description="Test template",
-            training_type="SFT",
-            output_format="JSONL (ShareGPT)",
-            model_families=["Llama3"],
-            facets=[{
-                "facet_id": facet.id,
-                "limit_type": "percentage",
-                "limit_value": 100,
-                "order": "random",
-                "min_rating": 8,  # Override: stricter than facet's 5
-                "min_logprob": -0.3,  # Override: stricter than facet's -1.0
-                "avg_logprob": -0.2,  # Override: stricter than facet's -0.5
-            }])
-        temp_dataset.commit()
+        template = create_simple_export_template(temp_dataset, facet, min_rating=8, min_logprob=-0.3, avg_logprob=-0.2)
 
         # Export
         with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
@@ -223,24 +189,7 @@ class TestExportWithThresholds:
             temp_dataset.commit()
 
         # Create template
-        from py_fade.dataset.export_template import ExportTemplate  # pylint: disable=import-outside-toplevel
-        template = ExportTemplate.create(
-            temp_dataset,
-            name="Test Template",
-            description="Test template",
-            training_type="SFT",
-            output_format="JSONL (ShareGPT)",
-            model_families=["Llama3"],
-            facets=[{
-                "facet_id": facet.id,
-                "limit_type": "percentage",
-                "limit_value": 100,
-                "order": "random",
-                "min_rating": None,  # Use facet default (7)
-                "min_logprob": None,
-                "avg_logprob": None,
-            }])
-        temp_dataset.commit()
+        template = create_simple_export_template(temp_dataset, facet)
 
         # Export
         with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
@@ -319,24 +268,7 @@ class TestExportWithThresholds:
             temp_dataset.commit()
 
         # Create template
-        from py_fade.dataset.export_template import ExportTemplate  # pylint: disable=import-outside-toplevel
-        template = ExportTemplate.create(
-            temp_dataset,
-            name="Test Template",
-            description="Test template",
-            training_type="SFT",
-            output_format="JSONL (ShareGPT)",
-            model_families=["Llama3"],
-            facets=[{
-                "facet_id": facet.id,
-                "limit_type": "percentage",
-                "limit_value": 100,
-                "order": "random",
-                "min_rating": None,
-                "min_logprob": None,  # Use facet default (-0.6)
-                "avg_logprob": None,  # Use facet default (-0.4)
-            }])
-        temp_dataset.commit()
+        template = create_simple_export_template(temp_dataset, facet)
 
         # Export
         with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
@@ -412,24 +344,7 @@ class TestExportWithThresholds:
             temp_dataset.commit()
 
         # Create template with 50% limit
-        from py_fade.dataset.export_template import ExportTemplate  # pylint: disable=import-outside-toplevel
-        template = ExportTemplate.create(
-            temp_dataset,
-            name="Test Template",
-            description="Test template",
-            training_type="SFT",
-            output_format="JSONL (ShareGPT)",
-            model_families=["Llama3"],
-            facets=[{
-                "facet_id": facet.id,
-                "limit_type": "percentage",
-                "limit_value": 50,  # Only 50% = 5 samples
-                "order": "random",
-                "min_rating": None,
-                "min_logprob": None,
-                "avg_logprob": None,
-            }])
-        temp_dataset.commit()
+        template = create_simple_export_template(temp_dataset, facet, limit_type="percentage", limit_value=50)
 
         # Export
         export_controller, temp_path = create_and_run_export_test(app_with_dataset, temp_dataset, template)
@@ -471,24 +386,7 @@ class TestExportWithThresholds:
                                                        min_logprob=-0.5, avg_logprob=-0.3)
 
         # Create template with count limit of 3
-        from py_fade.dataset.export_template import ExportTemplate  # pylint: disable=import-outside-toplevel
-        template = ExportTemplate.create(
-            temp_dataset,
-            name="Test Template",
-            description="Test template",
-            training_type="SFT",
-            output_format="JSONL (ShareGPT)",
-            model_families=["Llama3"],
-            facets=[{
-                "facet_id": facet.id,
-                "limit_type": "count",
-                "limit_value": 3,  # Only 3 samples
-                "order": "random",
-                "min_rating": None,
-                "min_logprob": None,
-                "avg_logprob": None,
-            }])
-        temp_dataset.commit()
+        template = create_simple_export_template(temp_dataset, facet, limit_type="count", limit_value=3)
 
         # Export
         with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:

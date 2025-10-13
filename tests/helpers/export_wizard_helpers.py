@@ -105,3 +105,51 @@ def create_and_run_export_test(
     export_controller.set_output_path(temp_path)
 
     return export_controller, temp_path
+
+
+def create_simple_export_template(
+    dataset: "DatasetDatabase",
+    facet: Facet,
+    limit_type: str = "percentage",
+    limit_value: float = 100,
+    order: str = "random",
+    min_rating: int | None = None,
+    min_logprob: float | None = None,
+    avg_logprob: float | None = None,
+    name: str = "Test Template",
+    description: str = "Test template",
+) -> ExportTemplate:
+    """
+    Create a simple export template for testing with the given facet.
+
+    This helper consolidates the common pattern of creating templates with
+    similar structure but different threshold values.
+
+    Args:
+        dataset: The dataset to create the template in
+        facet: The facet to include in the template
+        limit_type: Type of limit ('percentage' or 'count')
+        limit_value: Limit value
+        order: Order method ('random', 'newest', etc.)
+        min_rating: Optional minimum rating override
+        min_logprob: Optional minimum logprob override
+        avg_logprob: Optional average logprob override
+        name: Template name
+        description: Template description
+
+    Returns:
+        The created ExportTemplate
+    """
+    template = ExportTemplate.create(
+        dataset, name=name, description=description, training_type="SFT", output_format="JSONL (ShareGPT)", model_families=["Llama3"],
+        facets=[{
+            "facet_id": facet.id,
+            "limit_type": limit_type,
+            "limit_value": limit_value,
+            "order": order,
+            "min_rating": min_rating,
+            "min_logprob": min_logprob,
+            "avg_logprob": avg_logprob,
+        }])
+    dataset.commit()
+    return template

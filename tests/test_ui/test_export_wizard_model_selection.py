@@ -13,7 +13,8 @@ from py_fade.controllers.export_controller import ExportController
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.prompt import PromptRevision
-from tests.helpers.export_wizard_helpers import create_test_template, setup_facet_sample_and_completion, create_and_run_export_test
+from tests.helpers.export_wizard_helpers import (create_test_template, setup_facet_sample_and_completion, create_and_run_export_test,
+                                                 create_simple_export_template)
 from tests.helpers.data_helpers import create_completion_with_rating_and_logprobs
 
 
@@ -152,19 +153,7 @@ def test_export_controller_uses_target_model_id(app_with_dataset, temp_dataset):
                                                min_logprob=-0.4, avg_logprob=-0.2)
 
     # Create export template
-    from py_fade.dataset.export_template import ExportTemplate  # pylint: disable=import-outside-toplevel
-    template = ExportTemplate.create(
-        temp_dataset, name="Test Template", description="Test template", training_type="SFT", output_format="JSONL (ShareGPT)",
-        model_families=["Llama3"], facets=[{
-            "facet_id": facet.id,
-            "limit_type": "percentage",
-            "limit_value": 100,
-            "order": "random",
-            "min_rating": None,
-            "min_logprob": None,
-            "avg_logprob": None,
-        }])
-    temp_dataset.commit()
+    template = create_simple_export_template(temp_dataset, facet)
 
     # Export with target_model_id specified
     export_controller, temp_path = create_and_run_export_test(app_with_dataset, temp_dataset, template,
@@ -195,15 +184,7 @@ def test_export_controller_fallback_without_target_model(app_with_dataset, temp_
                                                min_logprob=-0.4, avg_logprob=-0.2)
 
     # Create export template
-    from py_fade.dataset.export_template import ExportTemplate  # pylint: disable=import-outside-toplevel
-    template = ExportTemplate.create(temp_dataset, name="Test Template", description="Test template", training_type="SFT",
-                                     output_format="JSONL (ShareGPT)", model_families=["Llama3"], facets=[{
-                                         "facet_id": facet.id,
-                                         "limit_type": "percentage",
-                                         "limit_value": 100,
-                                         "order": "random",
-                                     }])
-    temp_dataset.commit()
+    template = create_simple_export_template(temp_dataset, facet)
 
     # Export without target_model_id (should fall back)
     with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
@@ -258,15 +239,7 @@ def test_export_wizard_complete_flow_with_model_selection(app_with_dataset, temp
                                                min_logprob=-0.4, avg_logprob=-0.2)
 
     # Create template
-    from py_fade.dataset.export_template import ExportTemplate  # pylint: disable=import-outside-toplevel
-    template = ExportTemplate.create(temp_dataset, name="Test Template", description="Test template", training_type="SFT",
-                                     output_format="JSONL (ShareGPT)", model_families=["Llama3"], facets=[{
-                                         "facet_id": facet.id,
-                                         "limit_type": "percentage",
-                                         "limit_value": 100,
-                                         "order": "random",
-                                     }])
-    temp_dataset.commit()
+    template = create_simple_export_template(temp_dataset, facet)
 
     wizard = ExportWizard(None, app_with_dataset, temp_dataset)
     qtbot.addWidget(wizard)
