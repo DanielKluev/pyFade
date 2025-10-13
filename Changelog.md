@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Added
+- **Export Wizard Model Selection**: Added model selection step to export wizard for explicit target model choice
+  - New model selection step in export wizard between template selection and output path
+  - Model combobox populated with all available model IDs from providers manager
+  - ExportController now accepts target_model_id parameter for logprobs validation
+  - Export wizard passes selected model_id to export controller
+  - Falls back to first available model if no model is explicitly selected
+  - Export templates remain model-agnostic for reusability across model variants
+  - Comprehensive test coverage with 9 new unit tests for model selection feature
+  - Updated all existing export wizard tests to handle new step
 - **Encrypted Export/Import**: Added AES-encrypted ZIP export/import functionality
   - Export templates can now encrypt exported datasets with a password using pyzipper library
   - Import wizard supports automatic detection and decryption of encrypted ZIP files
