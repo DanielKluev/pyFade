@@ -80,6 +80,11 @@ def decode_logprobs_to_top_logprobs(model: "Llama", logprobs: NDArray, top_k: in
     return result
 
 
+class CorruptedContextError(Exception):
+    """Raised when the model context appears to be corrupted, producing invalid tokens."""
+    pass
+
+
 class ResponseBuilder:
     """
     Helper class to build LLMResponse from generation parameters and token scores.
@@ -168,6 +173,9 @@ class ResponseBuilder:
             position_alternatives = decode_logprobs_to_top_logprobs(model, position_logprobs, self.keep_top_logprobs)
             self.alternative_logprobs.append(position_alternatives)
             print(f"Token '{token_str}' (ID {token_id}) logprob: {token_logprob:<.4f}, top alternatives: {position_alternatives[:5]}")
+
+        if sampled_tokens == [0]:  # Sometimes context get corrupted and model outputs invalid token 0
+            raise CorruptedContextError("Model context appears to be corrupted, producing invalid token 0.")
 
         self.previous_turn_score_offset = len(scores)
 
@@ -348,17 +356,21 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
 
         last_choice = {}
         response_builder = ResponseBuilder(model_id, temperature, top_k, max_tokens, prompt, tokens_prompt, prefill, tokens_prefill)
-        with response_builder.patch_sampler(model):
-            for response in model.create_completion(tokens_all, max_tokens=max_tokens, temperature=temperature, top_k=top_k, logprobs=None,
-                                                    stream=True):
-                last_choice = self._decode_response_last_choice(response)  # type: ignore
-                token_str = last_choice.get("text", "")
-                response_builder.process_scores_batch(model, model._scores, token_str, last_choice)  # pylint: disable=protected-access
-                #print(f"Scores len = {len(model._scores)}, last score = {model._scores[-1]}")  # pylint: disable=protected-access
-                #print(response)
-            stop_reason = last_choice.get("finish_reason", "unknown")
-            result = response_builder.build_response(model, stop_reason)
-        return result
+        try:
+            with response_builder.patch_sampler(model):
+                for response in model.create_completion(tokens_all, max_tokens=max_tokens, temperature=temperature, top_k=top_k,
+                                                        logprobs=None, stream=True):
+                    last_choice = self._decode_response_last_choice(response)  # type: ignore
+                    token_str = last_choice.get("text", "")
+                    response_builder.process_scores_batch(model, model._scores, token_str, last_choice)  # pylint: disable=protected-access
+                    #print(f"Scores len = {len(model._scores)}, last score = {model._scores[-1]}")  # pylint: disable=protected-access
+                    #print(response)
+                stop_reason = last_choice.get("finish_reason", "unknown")
+                result = response_builder.build_response(model, stop_reason)
+            return result
+        except CorruptedContextError as cce:
+            self.unload_current_model()  # Unload corrupted model
+            raise cce
 
     def evaluate_completion(self, model_id: str, prompt: CommonConversation, completion: CompletionPrefill,
                             **kwargs) -> CommonCompletionLogprobs:
