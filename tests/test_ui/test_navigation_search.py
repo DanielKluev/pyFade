@@ -343,3 +343,28 @@ def test_search_whitespace_only_shows_all(temp_dataset, ensure_google_icon_font,
                 found_samples.append(child.text(0))
 
     assert len(found_samples) == 3
+
+
+def test_search_all_view_types_do_not_crash(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that all view types handle search without crashing.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create some test data
+    prompt_rev = PromptRevision.get_or_create(temp_dataset, "test prompt", 2048, 512)
+    temp_dataset.commit()
+    Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
+    temp_dataset.commit()
+
+    tree = WidgetNavigationTree()
+    search_filter = DataFilter([{"type": "text_search", "value": "test"}])
+
+    # Test all view types
+    view_types = ["Samples by Group", "Samples by Facet", "Samples by Tag", "Facets", "Tags", "Prompts", "Export Templates"]
+
+    for view_type in view_types:
+        criteria = {"show": view_type, "data_filter": search_filter}
+        # Should not crash
+        tree.update_content(criteria, temp_dataset)
+        qt_app.processEvents()
