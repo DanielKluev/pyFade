@@ -226,4 +226,8 @@ class DPOController:
             PromptCompletionPairwiseRanking or None
         """
         from py_fade.dataset.completion_pairwise_ranks import PromptCompletionPairwiseRanking  # pylint: disable=import-outside-toplevel
-        return PromptCompletionPairwiseRanking.get(self.dataset, better_comp, worse_comp, self.facet)
+        try:
+            return PromptCompletionPairwiseRanking.get(self.dataset, better_comp, worse_comp, self.facet)
+        except Exception:  # pylint: disable=broad-except
+            # Table might not exist in older databases, ignore
+            return None

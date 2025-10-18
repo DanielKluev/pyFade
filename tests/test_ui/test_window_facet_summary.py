@@ -10,7 +10,7 @@ import pytest
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.facet import Facet
 from py_fade.gui.window_facet_summary import FacetSummaryWindow
-from tests.helpers.data_helpers import create_test_sample_with_completion, create_test_completion_with_params
+from tests.helpers.data_helpers import create_test_sample_with_completion, create_test_completion_with_params, create_test_logprobs
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -99,6 +99,8 @@ def test_facet_summary_window_displays_dpo_ready_sample(app_with_dataset: "pyFad
     completion2 = create_test_completion_with_params(temp_dataset, sample1.prompt_revision, sha256="b" * 64,
                                                      completion_text="Bad completion")
     PromptCompletionRating.set_rating(temp_dataset, completion2, facet, 4)
+    # Add logprobs for rejected completion (required by DPO spec)
+    create_test_logprobs(temp_dataset, completion2.id, mapped_model.model_id, min_logprob=-0.3, avg_logprob=-0.2)
     temp_dataset.commit()
 
     window = FacetSummaryWindow(app_with_dataset, temp_dataset, facet, mapped_model)

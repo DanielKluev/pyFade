@@ -199,6 +199,9 @@ def test_sample_ready_for_dpo(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     PromptCompletionRating.set_rating(temp_dataset, completion2, facet, 4)
+    # Add logprobs for rejected completion (required by DPO spec)
+    create_test_logprobs(temp_dataset, completion2.id, mapped_model.model_id, min_logprob=-0.3, avg_logprob=-0.2)
+    temp_dataset.commit()
 
     controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, mapped_model)
     report = controller.generate_report()
