@@ -15,6 +15,7 @@ from sqlalchemy import exists
 
 from py_fade.controllers.dpo_controller import DPOController
 from py_fade.dataset.dataset import DatasetDatabase
+from py_fade.dataset.facet import Facet
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_rating import PromptCompletionRating
@@ -26,7 +27,6 @@ from py_fade.data_formats.facet_backup import FacetBackupFormat
 if TYPE_CHECKING:
     from py_fade.app import PyFadeApp
     from py_fade.dataset.export_template import ExportTemplate
-    from py_fade.dataset.facet import Facet
 
 
 @dataclass
@@ -131,7 +131,7 @@ class ExportController:
             facet_id = facet_config["facet_id"]
 
             # Get the facet object
-            from py_fade.dataset.facet import Facet  # pylint: disable=import-outside-toplevel
+            # Use Facet imported at module level
             facet = Facet.get_by_id(self.dataset, facet_id)
             if not facet:
                 self.log.warning("Facet %d not found, skipping", facet_id)
@@ -235,7 +235,7 @@ class ExportController:
             facet_id = facet_config["facet_id"]
 
             # Get the facet object
-            from py_fade.dataset.facet import Facet  # pylint: disable=import-outside-toplevel
+            # Use Facet imported at module level
             facet = Facet.get_by_id(self.dataset, facet_id)
             if not facet:
                 self.log.warning("Facet %d not found, skipping", facet_id)
@@ -526,7 +526,7 @@ class ExportController:
             raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         # Get the facet - import here to avoid circular dependency
-        from py_fade.dataset.facet import Facet  # pylint: disable=import-outside-toplevel
+            # Use Facet imported at module level
         facet = Facet.get_by_id(self.dataset, facet_id)
         if not facet:
             raise ValueError(f"Facet with ID {facet_id} not found")
