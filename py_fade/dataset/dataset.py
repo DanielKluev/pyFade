@@ -265,10 +265,10 @@ class DatasetDatabase:
         if not self.session:
             raise RuntimeError("Session is not initialized. Call initialize() first.")
 
-        query = self.session.query(PromptRevision).all()
+        query = self.session.query(PromptRevision)
         if data_filter:
             query = data_filter.apply_to_query(query)
-        return query
+        return query.all()
 
     def add_response_as_prompt_and_completion(self, prompt_text: str, response: LLMResponse) -> tuple[PromptRevision, PromptCompletion]:
         """
