@@ -47,12 +47,10 @@ class ShareGPTFormat(BaseDataFormat):
         elif suffix == ".parquet":
             self.format = "parquet"
         else:
-            raise ValueError(
-                f"Unsupported file extension '{self.serialized_file_path.suffix}'. "
-                "Use .json, .jsonl, or .parquet for ShareGPT format."
-            )
+            raise ValueError(f"Unsupported file extension '{self.serialized_file_path.suffix}'. "
+                             "Use .json, .jsonl, or .parquet for ShareGPT format.")
 
-    def load(self, file_path: str|pathlib.Path|None = None) -> int:
+    def load(self, file_path: str | pathlib.Path | None = None) -> int:
         """
         Load samples from the ShareGPT formatted file.
         """
@@ -74,9 +72,7 @@ class ShareGPTFormat(BaseDataFormat):
             raise ValueError(f"Unsupported format '{self.format}'")
 
         if not self._samples:
-            raise ValueError(
-                f"No valid ShareGPT conversations found in {self.serialized_file_path}."
-            )
+            raise ValueError(f"No valid ShareGPT conversations found in {self.serialized_file_path}.")
 
         self._loaded = True
         return len(self._samples)
@@ -159,9 +155,7 @@ class ShareGPTFormat(BaseDataFormat):
             elif isinstance(decoded, dict):
                 records = [decoded]
             else:
-                self.log.warning(
-                    "Unexpected JSON root type %s in %s", type(decoded).__name__, self.serialized_file_path
-                )
+                self.log.warning("Unexpected JSON root type %s in %s", type(decoded).__name__, self.serialized_file_path)
 
         self._populate_samples(records)
 
@@ -176,16 +170,12 @@ class ShareGPTFormat(BaseDataFormat):
                 try:
                     parsed = json.loads(stripped)
                 except json.JSONDecodeError as exc:
-                    self.log.warning(
-                        "Skipping invalid JSON at %s:%d due to %s", self.serialized_file_path, line_number, exc
-                    )
+                    self.log.warning("Skipping invalid JSON at %s:%d due to %s", self.serialized_file_path, line_number, exc)
                     continue
                 if isinstance(parsed, dict):
                     records.append(parsed)
                 else:
-                    self.log.debug(
-                        "Skipping JSONL entry at %s:%d because it is not a dict", self.serialized_file_path, line_number
-                    )
+                    self.log.debug("Skipping JSONL entry at %s:%d because it is not a dict", self.serialized_file_path, line_number)
 
         self._populate_samples(records)
 
@@ -216,9 +206,7 @@ class ShareGPTFormat(BaseDataFormat):
         for record_index, record in enumerate(records):
             conversations = self._normalize_conversations(record.get("conversations"))
             if conversations is None:
-                self.log.debug(
-                    "Record %d in %s missing 'conversations' list; skipping", record_index, self.serialized_file_path
-                )
+                self.log.debug("Record %d in %s missing 'conversations' list; skipping", record_index, self.serialized_file_path)
                 continue
 
             messages: list[CommonMessage] = []
@@ -276,7 +264,6 @@ class ShareGPTFormat(BaseDataFormat):
                 payload = {
                     "from": self._denormalize_role(message.role),
                     "value": message.content,
-                    "content": message.content,
                 }
                 messages.append(payload)
 
@@ -305,12 +292,10 @@ class ShareGPTFormat(BaseDataFormat):
         records = self._serialize_samples()
         parquet_ready = []
         for record in records:
-            parquet_ready.append(
-                {
-                    "id": record.get("id"),
-                    "conversations": json.dumps(record.get("conversations"), ensure_ascii=False),
-                }
-            )
+            parquet_ready.append({
+                "id": record.get("id"),
+                "conversations": json.dumps(record.get("conversations"), ensure_ascii=False),
+            })
         dataframe = pd.DataFrame(parquet_ready)
         dataframe.to_parquet(path, index=False)
 
