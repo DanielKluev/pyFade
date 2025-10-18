@@ -13,18 +13,20 @@ from typing import TYPE_CHECKING
 import pyzipper
 from sqlalchemy import exists
 
+from py_fade.controllers.dpo_controller import DPOController
 from py_fade.dataset.dataset import DatasetDatabase
+from py_fade.dataset.facet import Facet
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.data_formats.base_data_classes import CommonMessage, CommonConversation
 from py_fade.data_formats.share_gpt_format import ShareGPTFormat
+from py_fade.data_formats.dpo_data_format import DPODataFormat, DPOPair
 from py_fade.data_formats.facet_backup import FacetBackupFormat
 
 if TYPE_CHECKING:
     from py_fade.app import PyFadeApp
     from py_fade.dataset.export_template import ExportTemplate
-    from py_fade.dataset.facet import Facet
 
 
 @dataclass
@@ -97,7 +99,7 @@ class ExportController:
     def run_export(self) -> int:
         """
         Run the export based on the template configuration.
-        Returns the number of samples exported.
+        Returns the number of samples (or pairs for DPO) exported.
         """
         if not self.export_template:
             raise ValueError("Export template must be set for template-based export")
@@ -108,6 +110,16 @@ class ExportController:
         if not self.dataset.session:
             raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
+        # Check training type and route to appropriate export method
+        if self.export_template.training_type == "DPO":
+            return self._run_dpo_export()
+        return self._run_sft_export()
+
+    def _run_sft_export(self) -> int:
+        """
+        Run SFT export - exports conversations with best completions.
+        Returns the number of samples exported.
+        """
         # Initialize export results
         self.export_results = ExportResults()
 
@@ -119,7 +131,7 @@ class ExportController:
             facet_id = facet_config["facet_id"]
 
             # Get the facet object
-            from py_fade.dataset.facet import Facet  # pylint: disable=import-outside-toplevel
+            # Use Facet imported at module level
             facet = Facet.get_by_id(self.dataset, facet_id)
             if not facet:
                 self.log.warning("Facet %d not found, skipping", facet_id)
@@ -204,8 +216,144 @@ class ExportController:
             sharegpt_format.save()
 
         self.export_results.total_exported = len(conversations)
-        self.log.info("Export completed: %d samples written to %s", len(conversations), self.output_path)
+        self.log.info("SFT export completed: %d samples written to %s", len(conversations), self.output_path)
         return len(conversations)
+
+    def _run_dpo_export(self) -> int:
+        """
+        Run DPO export - exports chosen/rejected pairs for preference learning.
+        Returns the number of pairs exported.
+        """
+        # Initialize export results
+        self.export_results = ExportResults()
+
+        # Collect all DPO pairs
+        all_pairs: list[DPOPair] = []
+        exported_sample_ids = set()  # Track which samples have been exported
+
+        for facet_config in self.export_template.facets_json:
+            facet_id = facet_config["facet_id"]
+
+            # Get the facet object
+            # Use Facet imported at module level
+            facet = Facet.get_by_id(self.dataset, facet_id)
+            if not facet:
+                self.log.warning("Facet %d not found, skipping", facet_id)
+                continue
+
+            # Create facet summary
+            facet_summary = FacetExportSummary(facet_id=facet.id, facet_name=facet.name)
+            self.export_results.facet_summaries.append(facet_summary)
+
+            # Get target model ID for logprobs validation
+            target_model_id = self.target_model_id
+            if not target_model_id and hasattr(self.app, 'providers_manager') and self.app.providers_manager.model_provider_map:
+                first_mapped_model = next(iter(self.app.providers_manager.model_provider_map.values()))
+                target_model_id = first_mapped_model.model_id
+                self.log.debug("No target model specified, using fallback model: %s", target_model_id)
+
+            if not target_model_id:
+                self.log.warning("No target model available for logprobs validation, skipping facet %d", facet_id)
+                continue
+
+            # Create DPO controller with facet thresholds (optionally overridden by template)
+            # Update facet thresholds temporarily if template overrides them
+            original_min_rating = facet.min_rating
+            original_min_logprob = facet.min_logprob_threshold
+            original_avg_logprob = facet.avg_logprob_threshold
+
+            min_rating = facet_config.get("min_rating")
+            if min_rating is not None:
+                facet.min_rating = min_rating
+            min_logprob = facet_config.get("min_logprob")
+            if min_logprob is not None:
+                facet.min_logprob_threshold = min_logprob
+            avg_logprob = facet_config.get("avg_logprob")
+            if avg_logprob is not None:
+                facet.avg_logprob_threshold = avg_logprob
+
+            dpo_controller = DPOController(self.dataset, facet, target_model_id)
+
+            # Get samples for this facet
+            samples = facet.get_samples(self.dataset)
+
+            # Apply ordering
+            order = facet_config.get("order", "random")
+            if order == "newest":
+                samples = sorted(samples, key=lambda s: s.date_created, reverse=True)
+            elif order == "oldest":
+                samples = sorted(samples, key=lambda s: s.date_created)
+            elif order == "random":
+                samples = list(samples)
+                random.shuffle(samples)
+
+            # Apply limit
+            limit_type = facet_config.get("limit_type", "percentage")
+            limit_value = facet_config.get("limit_value", 100)
+            if limit_type == "percentage":
+                max_samples = max(1, int(len(samples) * limit_value / 100.0))
+            else:
+                max_samples = int(limit_value)
+
+            # Process samples for this facet
+            exported_count = 0
+            for sample in samples:
+                if exported_count >= max_samples:
+                    break
+
+                # Skip if already exported by another facet
+                if sample.id in exported_sample_ids:
+                    continue
+
+                # Generate DPO pairs for this sample
+                result = dpo_controller.generate_pairs_for_sample(sample)
+
+                sample_info = SampleExportInfo(
+                    sample_id=sample.id,
+                    sample_title=sample.title,
+                    group_path=sample.group_path,
+                )
+
+                if result.pairs:
+                    # Add all pairs from this sample
+                    all_pairs.extend(result.pairs)
+                    exported_sample_ids.add(sample.id)
+                    facet_summary.exported_samples.append(sample_info)
+                    exported_count += 1
+
+                    # Log any pairwise ranking conflicts
+                    if result.pairwise_ranking_conflicts:
+                        for conflict in result.pairwise_ranking_conflicts:
+                            self.log.warning("Sample %d: %s", sample.id, conflict)
+                else:
+                    facet_summary.failed_samples.append((sample_info, result.failure_reasons))
+
+            # Restore original facet thresholds
+            facet.min_rating = original_min_rating
+            facet.min_logprob_threshold = original_min_logprob
+            facet.avg_logprob_threshold = original_avg_logprob
+
+        # Write using DPODataFormat
+        if not all_pairs:
+            raise ValueError("No eligible DPO pairs found for export")
+
+        # For DPO, we need a template function to convert prompts to strings
+        # For now, we'll use a simple function that just extracts the user message
+        def prompt_template(conversation: CommonConversation) -> str:
+            # Simple template: just return the user message content
+            # In a real export, this would apply the model's chat template
+            for msg in conversation.messages:
+                if msg.role == "user":
+                    return msg.content
+            return ""
+
+        dpo_format = DPODataFormat(self.output_path)
+        dpo_format.set_pairs(all_pairs)
+        dpo_format.save(template_func=prompt_template, output_format="jsonl")
+
+        self.export_results.total_exported = len(all_pairs)
+        self.log.info("DPO export completed: %d pairs written to %s", len(all_pairs), self.output_path)
+        return len(all_pairs)
 
     def _sample_to_conversation_with_validation(self, sample: Sample, facet: "Facet", min_rating: int, min_logprob: float,
                                                 avg_logprob: float) -> tuple[CommonConversation | None, list[str]]:
@@ -378,7 +526,7 @@ class ExportController:
             raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         # Get the facet - import here to avoid circular dependency
-        from py_fade.dataset.facet import Facet  # pylint: disable=import-outside-toplevel
+            # Use Facet imported at module level
         facet = Facet.get_by_id(self.dataset, facet_id)
         if not facet:
             raise ValueError(f"Facet with ID {facet_id} not found")

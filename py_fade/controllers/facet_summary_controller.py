@@ -10,6 +10,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from py_fade.controllers.dpo_controller import DPOController
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.providers.providers_manager import MappedModel
 
@@ -196,11 +197,10 @@ class FacetSummaryController:
 
     def _analyze_sample_for_dpo(self, sample: "Sample", report: FacetSummaryReport) -> None:
         """
-        Analyze a sample for DPO training readiness.
+        Analyze a sample for DPO training readiness using DPOController.
 
-        For DPO, there should be:
-        - At least one completion with rating >= min_rating that passes logprob thresholds
-        - At least one additional completion with rating < top passing completion's rating
+        Uses the unified DPO pair generation logic to determine if sample can produce
+        any valid DPO training pairs.
 
         Args:
             sample: Sample to analyze
@@ -208,72 +208,41 @@ class FacetSummaryController:
         """
         report.dpo_total_samples += 1
 
-        # Get completions with ratings for this facet
-        rated_completions = self._get_rated_completions(sample)
+        # Use DPO controller to check if sample can generate any pairs
+        dpo_controller = DPOController(self.dataset, self.facet, self.target_model.model_id)
+        result = dpo_controller.generate_pairs_for_sample(sample)
 
-        if not rated_completions:
+        if result.pairs:
+            # Sample is ready for DPO - has at least one valid pair
+            report.dpo_finished_samples += 1
+
+            # Calculate average loss across all chosen completions in generated pairs
+            # Get unique chosen completions and their logprobs
+            chosen_completions = set()
+            for pair in result.pairs:
+                # Find the completion that matches this chosen text
+                for comp in sample.completions:
+                    if comp.completion_text == pair.chosen:
+                        chosen_completions.add(comp)
+                        break
+
+            # Calculate total loss from unique chosen completions
+            total_loss = 0.0
+            for comp in chosen_completions:
+                logprobs = comp.get_logprobs_for_model_id(self.target_model.model_id)
+                if logprobs and logprobs.avg_logprob is not None:
+                    total_loss += abs(logprobs.avg_logprob)
+
+            report.dpo_total_loss += total_loss
+        else:
+            # Sample is not ready for DPO
             report.dpo_unfinished_samples += 1
             report.dpo_unfinished_details.append(
                 UnfinishedSampleInfo(
                     sample_id=sample.id,
                     sample_name=f"Sample #{sample.id} {sample.title}",
-                    reasons=["No rated completions found"],
+                    reasons=result.failure_reasons,
                 ))
-            return
-
-        # Find completions that meet rating threshold and logprob thresholds
-        high_rated = [comp for comp, rating in rated_completions if rating >= self.facet.min_rating]
-
-        if not high_rated:
-            report.dpo_unfinished_samples += 1
-            max_rating = max(rating for _, rating in rated_completions)
-            report.dpo_unfinished_details.append(
-                UnfinishedSampleInfo(
-                    sample_id=sample.id,
-                    sample_name=f"Sample #{sample.id} {sample.title}",
-                    reasons=[f"No completion with rating >= {self.facet.min_rating} (max rating: {max_rating})"],
-                ))
-            return
-
-        # Check logprob thresholds for high-rated completions
-        valid_completions = []
-        for completion in high_rated:
-            logprobs = completion.get_logprobs_for_model_id(self.target_model.model_id)
-            if (logprobs and logprobs.min_logprob >= self.facet.min_logprob_threshold and
-                    logprobs.avg_logprob >= self.facet.avg_logprob_threshold):
-                valid_completions.append((completion, logprobs))
-
-        if not valid_completions:
-            report.dpo_unfinished_samples += 1
-            reasons = ["No high-rated completion meets logprob thresholds"]
-            report.dpo_unfinished_details.append(
-                UnfinishedSampleInfo(
-                    sample_id=sample.id,
-                    sample_name=f"Sample #{sample.id} {sample.title}",
-                    reasons=reasons,
-                ))
-            return
-
-        # Find best valid completion (highest rated among those that pass thresholds)
-        best_completion, best_logprobs = max(valid_completions, key=lambda x: self._get_completion_rating(x[0]))
-        best_rating = self._get_completion_rating(best_completion)
-
-        # Check if there's at least one completion with lower rating
-        lower_rated = [comp for comp, rating in rated_completions if rating < best_rating]
-
-        if not lower_rated:
-            report.dpo_unfinished_samples += 1
-            report.dpo_unfinished_details.append(
-                UnfinishedSampleInfo(
-                    sample_id=sample.id,
-                    sample_name=f"Sample #{sample.id} {sample.title}",
-                    reasons=[f"No paired rejection completion (rating < {best_rating}, best passing completion rating: {best_rating})"],
-                ))
-            return
-
-        # Sample is ready for DPO
-        report.dpo_finished_samples += 1
-        report.dpo_total_loss += abs(best_logprobs.avg_logprob)
 
     def _get_rated_completions(self, sample: "Sample") -> list[tuple[PromptCompletion, int]]:
         """
