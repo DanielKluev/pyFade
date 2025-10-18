@@ -209,7 +209,7 @@ class WidgetNavigationTree(QWidget):
         session = dataset.get_session()
         facets = session.query(Facet).all()
 
-        # Apply search filter to facets if present
+        # Extract search value if present
         search_value: str | None = None
         for criteria in getattr(data_filter, "filters", []):
             if criteria.get("type") == "text_search":
@@ -218,19 +218,26 @@ class WidgetNavigationTree(QWidget):
                     search_value = probe
                     break
 
-        if search_value:
-            facets = [facet for facet in facets if search_value in facet.name.lower() or search_value in facet.description.lower()]
-
         # Create facet nodes and populate with samples
         for facet in facets:
             samples = facet.get_samples(dataset)
 
             # Apply search filter to samples if present
             if search_value:
-                samples = [
+                # Check if facet name or description matches
+                facet_matches = search_value in facet.name.lower() or search_value in facet.description.lower()
+
+                # Filter samples by search term
+                filtered_samples = [
                     sample for sample in samples
-                    if search_value in sample.title.lower() or (sample.group_path and search_value in sample.group_path.lower())
+                    if search_value in sample.title.lower() or (sample.group_path and search_value in sample.group_path.lower()) or
+                    (sample.prompt_revision and search_value in sample.prompt_revision.prompt_text.lower())
                 ]
+
+                # If facet name doesn't match, show only filtered samples
+                if not facet_matches:
+                    # Facet name doesn't match, show only matching samples
+                    samples = filtered_samples
 
             if not samples:
                 continue  # Skip facets with no matching samples
@@ -266,7 +273,8 @@ class WidgetNavigationTree(QWidget):
         if search_value:
             samples_without_facet = [
                 sample for sample in samples_without_facet
-                if search_value in sample.title.lower() or (sample.group_path and search_value in sample.group_path.lower())
+                if search_value in sample.title.lower() or (sample.group_path and search_value in sample.group_path.lower()) or
+                (sample.prompt_revision and search_value in sample.prompt_revision.prompt_text.lower())
             ]
 
         if samples_without_facet:

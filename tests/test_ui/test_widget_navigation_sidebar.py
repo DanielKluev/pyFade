@@ -27,8 +27,9 @@ def test_filter_panel_builds_text_search_filter(qt_app):
     assert criteria["data_filter"].filters == [{"type": "text_search", "value": "important"}]
 
 
-def test_navigation_tree_lists_facets(temp_dataset, qt_app):
+def test_navigation_tree_lists_facets(temp_dataset, ensure_google_icon_font, qt_app):
     """Test that navigation tree correctly lists facets from the dataset."""
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
     Facet.create(temp_dataset, "Evaluation", "Primary facet")
     temp_dataset.commit()
 
