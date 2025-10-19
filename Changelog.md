@@ -11,8 +11,7 @@
   - Auto-detection of template type from model ID or content markers via `strip_chat_template()`
   - Paired filtering correctly identifies regressions in tuned models vs base models
   - Comprehensive test coverage with 10 new unit tests for MMLU data and template stripping
-  - All 560 tests passing with zero failures
-  - Pylint score: 9.99/10 for py_fade, 10.00/10 for tests
+  - All tests passing with zero failures
 - **Sample Tags**: Implemented complete sample tagging functionality
   - Created many-to-many relationship between samples and tags via SampleTag association table
   - Added helper methods to Sample model: add_tag(), remove_tag(), get_tags(), has_tag()
