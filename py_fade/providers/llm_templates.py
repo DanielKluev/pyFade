@@ -76,6 +76,35 @@ def apply_template_qwen3(messages: CommonConversation) -> str:
     return prompt
 
 
+def apply_template_llama3(messages: CommonConversation) -> str:
+    """
+    Apply the Llama3 chat template to the given messages.
+
+    Roles: 'system', 'user', 'assistant'
+    Each turn looks like this:
+        <|start_header_id|>system<|end_header_id|>\n\n{content}<|eot_id|>
+
+    BOS token: <|begin_of_text|>
+    """
+    prompt = ""
+    previous_role = None
+    for i, message in enumerate(messages.messages):
+        role = message.role
+        content = message.content
+        if role not in ("system", "user", "assistant"):
+            raise ValueError(f"Unsupported role '{role}' for Llama3 template.")
+        if previous_role is not None and previous_role in (role, 'system'):
+            raise ValueError("Consecutive messages with the same role or system role in between are not allowed.")
+        if i == len(messages.messages) - 1 and role == "assistant":  # Last message is assistant, no end tag
+            prompt += f"<|start_header_id|>{role}<|end_header_id|>\n\n{content}"
+        else:
+            prompt += f"<|start_header_id|>{role}<|end_header_id|>\n\n{content}<|eot_id|>"
+    if messages.messages and messages.messages[-1].role == "user":  # If last message is user, start assistant turn
+        prompt += "<|start_header_id|>assistant<|end_header_id|>\n\n"
+
+    return prompt
+
+
 def apply_template_mistral(messages: CommonConversation) -> str:
     """
     Apply the Mistral chat template to the given messages.
@@ -101,6 +130,16 @@ def apply_template_mistral(messages: CommonConversation) -> str:
     return prompt.strip()
 
 
+def merged_plaintext(messages: CommonConversation) -> str:
+    """
+    Merge all messages into plain text without special formatting.
+    """
+    prompt = ""
+    for message in messages.messages:
+        prompt += message.content + "\n"
+    return prompt.strip()
+
+
 def get_template_function(model_id: str):
     """
     Get the template function by model ID.
@@ -111,4 +150,6 @@ def get_template_function(model_id: str):
         return apply_template_qwen3
     if "mistral" in model_id.lower():
         return apply_template_mistral
+    if "llama3" in model_id.lower():
+        return apply_template_llama3
     return None

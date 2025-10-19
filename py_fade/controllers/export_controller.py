@@ -23,6 +23,7 @@ from py_fade.data_formats.base_data_classes import CommonMessage, CommonConversa
 from py_fade.data_formats.share_gpt_format import ShareGPTFormat
 from py_fade.data_formats.dpo_data_format import DPODataFormat, DPOPair
 from py_fade.data_formats.facet_backup import FacetBackupFormat
+from py_fade.providers.llm_templates import get_template_function
 
 if TYPE_CHECKING:
     from py_fade.app import PyFadeApp
@@ -338,18 +339,14 @@ class ExportController:
             raise ValueError("No eligible DPO pairs found for export")
 
         # For DPO, we need a template function to convert prompts to strings
-        # For now, we'll use a simple function that just extracts the user message
-        def prompt_template(conversation: CommonConversation) -> str:
-            # Simple template: just return the user message content
-            # In a real export, this would apply the model's chat template
-            for msg in conversation.messages:
-                if msg.role == "user":
-                    return msg.content
-            return ""
+        if not self.target_model_id:
+            raise ValueError("Target model ID must be set for DPO export to get prompt template")
+        prompt_template = get_template_function(self.target_model_id)
+        prompt_template = None
 
         dpo_format = DPODataFormat(self.output_path)
         dpo_format.set_pairs(all_pairs)
-        dpo_format.save(template_func=prompt_template, output_format="jsonl")
+        dpo_format.save(template_func=prompt_template, output_format="jsonl", is_vlm=True)
 
         self.export_results.total_exported = len(all_pairs)
         self.log.info("DPO export completed: %d pairs written to %s", len(all_pairs), self.output_path)
@@ -526,7 +523,7 @@ class ExportController:
             raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
 
         # Get the facet - import here to avoid circular dependency
-            # Use Facet imported at module level
+        # Use Facet imported at module level
         facet = Facet.get_by_id(self.dataset, facet_id)
         if not facet:
             raise ValueError(f"Facet with ID {facet_id} not found")

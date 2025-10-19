@@ -10,12 +10,12 @@ from sqlalchemy.types import DateTime
 
 from py_fade.dataset.dataset_base import dataset_base
 from py_fade.dataset.prompt import PromptRevision
+from py_fade.dataset.sample_tag import SampleTag
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.dataset.data_filter import DataFilter
     from py_fade.dataset.tag import Tag
-    from py_fade.dataset.sample_tag import SampleTag
 
 
 class Sample(dataset_base):

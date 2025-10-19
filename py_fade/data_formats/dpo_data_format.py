@@ -21,6 +21,7 @@ from typing import Callable
 
 from py_fade.data_formats.base_data_classes import CommonConversation
 from py_fade.data_formats.base_data_format import BaseDataFormat
+from py_fade.providers.llm_templates import merged_plaintext
 
 
 @dataclass
@@ -80,7 +81,7 @@ class DPODataFormat(BaseDataFormat):
         raise NotImplementedError("DPO format loading is not yet implemented")
 
     def save(self, file_path: str | pathlib.Path | None = None, template_func: Callable[[CommonConversation], str] | None = None,
-             output_format: str = "jsonl") -> int:
+             output_format: str = "jsonl", is_vlm: bool = False) -> int:
         """
         Save all pairs in DPO format to the specified file as `output_format`.
 
@@ -104,7 +105,7 @@ class DPODataFormat(BaseDataFormat):
             raise ValueError("DPODataFormat.save: No pairs to save.")
 
         if not template_func:
-            raise ValueError("DPODataFormat.save: template_func is required to convert prompts to strings.")
+            template_func = merged_plaintext
 
         save_path = pathlib.Path(file_path) if file_path else self.file_path
 
@@ -116,6 +117,8 @@ class DPODataFormat(BaseDataFormat):
                     "chosen": pair.chosen,
                     "rejected": pair.rejected,
                 }
+                if is_vlm:
+                    entry["images"] = None
                 f.write(json.dumps(entry, ensure_ascii=False, indent=None) + "\n")
 
         return len(self._pairs)
