@@ -174,6 +174,22 @@ class WidgetSample(QWidget):
         notes_row_layout.addWidget(notes_label)
         notes_row_layout.addWidget(self.notes_field)
 
+        # Tags row (label and display on same line with edit button)
+        tags_row_layout = QHBoxLayout()
+        tags_label = QLabel("Tags:", self)
+        tags_label.setMinimumWidth(80)
+        tags_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.tags_display = QLabel("", self)
+        self.tags_display.setWordWrap(True)
+        self.tags_display.setStyleSheet("background-color: #f5f5f5; padding: 4px; border-radius: 4px;")
+        self.tags_display.setMinimumHeight(30)
+        self.edit_tags_button = QPushButtonWithIcon("label", "", parent=self, icon_size=20, button_size=32)
+        self.edit_tags_button.setToolTip("Edit Tags")
+        self.edit_tags_button.clicked.connect(self.edit_tags)
+        tags_row_layout.addWidget(tags_label)
+        tags_row_layout.addWidget(self.tags_display)
+        tags_row_layout.addWidget(self.edit_tags_button)
+
         # Context length and max tokens on same row
         tokens_row_layout = QHBoxLayout()
         context_label = QLabel("Context:", self)
@@ -248,6 +264,7 @@ class WidgetSample(QWidget):
         controls_layout.addLayout(title_row_layout)
         controls_layout.addLayout(group_row_layout)
         controls_layout.addLayout(notes_row_layout)
+        controls_layout.addLayout(tags_row_layout)
         controls_layout.addLayout(tokens_row_layout)
         controls_layout.addLayout(role_tag_buttons_layout)
         controls_layout.addLayout(buttons_row_layout)
@@ -400,6 +417,9 @@ class WidgetSample(QWidget):
             self.prompt_area.setReadOnly(True)
         else:
             self.prompt_area.setReadOnly(False)
+
+        # Update tags display
+        self.update_tags_display()
 
         # Update token usage after setting sample data
         self.update_token_usage()
@@ -749,6 +769,47 @@ class WidgetSample(QWidget):
             mapped_model=self.active_model,
         )
         self.beam_search_widget.show()
+
+    def update_tags_display(self) -> None:
+        """
+        Update the tags display label with the current sample's tags.
+
+        Shows tags as comma-separated names in the tags_display label.
+        If the sample is new (not saved), shows a message to save first.
+        """
+        if not self.sample or not self.sample.id:
+            self.tags_display.setText("<i>Save sample first to add tags</i>")
+            self.edit_tags_button.setEnabled(False)
+            return
+
+        self.edit_tags_button.setEnabled(True)
+
+        tags = self.sample.get_tags(self.dataset)
+        if tags:
+            tag_names = ", ".join(tag.name for tag in tags)
+            self.tags_display.setText(tag_names)
+        else:
+            self.tags_display.setText("<i>No tags</i>")
+
+    def edit_tags(self) -> None:
+        """
+        Open the tag selection dialog to edit tags for this sample.
+
+        Shows a modal dialog with checkboxes for all available tags.
+        Updates the tags display after the dialog is closed.
+        """
+        if not self.sample or not self.sample.id:
+            QMessageBox.warning(self, "Warning", "Please save the sample before adding tags.")
+            return
+
+        from py_fade.gui.dialog_sample_tags import SampleTagsDialog  # pylint: disable=import-outside-toplevel
+        dialog = SampleTagsDialog(self.dataset, self.sample, parent=self)
+        result = dialog.exec()
+
+        if result == QMessageBox.DialogCode.Accepted:
+            # Refresh tags display
+            self.update_tags_display()
+            self.log.debug("Tags updated for sample %s", self.sample.id)
 
     def set_active_context(self, facet: Facet | None, model_path: str | None) -> None:
         """Update widget state to reflect currently selected facet and model."""

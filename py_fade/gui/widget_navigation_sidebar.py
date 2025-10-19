@@ -150,6 +150,9 @@ class WidgetNavigationTree(QWidget):
         elif show == "Samples by Facet":
             self.current_item_type = "Sample"
             self._populate_samples_by_facet(data_filter, dataset)
+        elif show == "Samples by Tag":
+            self.current_item_type = "Sample"
+            self._populate_samples_by_tag(data_filter, dataset)
         elif show == "Facets":
             self.current_item_type = "Facet"
             self._populate_facets(data_filter, dataset)
@@ -292,6 +295,115 @@ class WidgetNavigationTree(QWidget):
                     current_path = f"{current_path}/{part}" if current_path else part
                     # Use "no_facet" prefix for unique keys
                     group_key = f"no_facet:{current_path}"
+                    if group_key not in group_roots:
+                        group_roots[group_key] = QTreeWidgetItem(current_parent, [part])
+                    current_parent = group_roots[group_key]
+
+                # Add sample under the group
+                sample_item = QTreeWidgetItem(current_parent, [sample.title])
+                sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+                sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+
+    def _populate_samples_by_tag(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
+        """
+        Populate tree with samples grouped by tag.
+
+        Root nodes are tags and "No Tag" node.
+        Under each tag, samples are grouped by their group_path.
+        Samples without any tags go under "No Tag" node.
+        """
+
+        # Get all tags
+        session = dataset.get_session()
+        tags = session.query(Tag).all()
+
+        # Extract search value if present
+        search_value: str | None = None
+        for criteria in getattr(data_filter, "filters", []):
+            if criteria.get("type") == "text_search":
+                probe = str(criteria.get("value", "")).strip().lower()
+                if probe:
+                    search_value = probe
+                    break
+
+        # Create tag nodes and populate with samples
+        for tag in tags:
+            samples = tag.get_samples(dataset)
+
+            # Apply search filter to samples if present
+            if search_value:
+                # Check if tag name or description matches
+                tag_matches = search_value in tag.name.lower() or search_value in tag.description.lower()
+
+                # Filter samples by search term
+                filtered_samples = [
+                    sample for sample in samples
+                    if search_value in sample.title.lower() or (sample.group_path and search_value in sample.group_path.lower()) or
+                    (sample.prompt_revision and search_value in sample.prompt_revision.prompt_text.lower())
+                ]
+
+                # If tag name doesn't match, show only filtered samples
+                if not tag_matches:
+                    # Tag name doesn't match, show only matching samples
+                    samples = filtered_samples
+
+            if not samples:
+                continue  # Skip tags with no matching samples
+
+            # Create tag root node
+            tag_item = QTreeWidgetItem(self.tree, [tag.name])
+            tag_item.setExpanded(False)  # Collapse by default
+
+            # Group samples by group_path under this tag
+            group_roots = {}
+            for sample in samples:
+                group_path = sample.group_path or "Ungrouped"
+                group_parts = group_path.split("/")
+                current_parent = tag_item
+                current_path = ""
+                for part in group_parts:
+                    current_path = f"{current_path}/{part}" if current_path else part
+                    # Use tag_id prefix to ensure unique keys per tag
+                    group_key = f"{tag.id}:{current_path}"
+                    if group_key not in group_roots:
+                        group_roots[group_key] = QTreeWidgetItem(current_parent, [part])
+                    current_parent = group_roots[group_key]
+
+                # Add sample under the group
+                sample_item = QTreeWidgetItem(current_parent, [sample.title])
+                sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+                sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+
+        # Add "No Tag" node for samples without any tags
+        # Get all samples
+        all_samples = Sample.fetch_with_filter(dataset, data_filter)
+
+        # Filter to only those without tags
+        samples_without_tags = [sample for sample in all_samples if not sample.get_tags(dataset)]
+
+        # Apply search filter to samples without tags
+        if search_value:
+            samples_without_tags = [
+                sample for sample in samples_without_tags
+                if search_value in sample.title.lower() or (sample.group_path and search_value in sample.group_path.lower()) or
+                (sample.prompt_revision and search_value in sample.prompt_revision.prompt_text.lower())
+            ]
+
+        if samples_without_tags:
+            no_tag_item = QTreeWidgetItem(self.tree, ["No Tag"])
+            no_tag_item.setExpanded(False)  # Collapse by default
+
+            # Group samples by group_path under "No Tag"
+            group_roots = {}
+            for sample in samples_without_tags:
+                group_path = sample.group_path or "Ungrouped"
+                group_parts = group_path.split("/")
+                current_parent = no_tag_item
+                current_path = ""
+                for part in group_parts:
+                    current_path = f"{current_path}/{part}" if current_path else part
+                    # Use "no_tag" prefix for unique keys
+                    group_key = f"no_tag:{current_path}"
                     if group_key not in group_roots:
                         group_roots[group_key] = QTreeWidgetItem(current_parent, [part])
                     current_parent = group_roots[group_key]
