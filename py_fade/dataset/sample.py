@@ -1,7 +1,8 @@
 """Dataset sample ORM model and helpers."""
 
 import datetime
-from typing import TYPE_CHECKING
+import logging
+from typing import TYPE_CHECKING, List
 
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -13,6 +14,8 @@ from py_fade.dataset.prompt import PromptRevision
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.dataset.data_filter import DataFilter
+    from py_fade.dataset.tag import Tag
+    from py_fade.dataset.sample_tag import SampleTag
 
 
 class Sample(dataset_base):
@@ -28,6 +31,11 @@ class Sample(dataset_base):
     date_created: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=datetime.datetime.now)
     prompt_revision_id: Mapped[int] = mapped_column(ForeignKey("prompt_revisions.id"), nullable=True)
     prompt_revision: Mapped["PromptRevision"] = relationship("PromptRevision", back_populates="samples", lazy="joined")
+
+    # Many-to-many relationship with tags
+    sample_tags: Mapped[List["SampleTag"]] = relationship("SampleTag", back_populates="sample", cascade="all, delete-orphan", lazy="select")
+
+    log = logging.getLogger("Sample")
 
     @classmethod
     def create_if_unique(cls, dataset: "DatasetDatabase", title: str, prompt_revision: PromptRevision, group_path: str | None = None,
@@ -103,3 +111,67 @@ class Sample(dataset_base):
         if self.prompt_revision:
             return self.prompt_revision.completions
         return []
+
+    def get_tags(self, dataset: "DatasetDatabase") -> List["Tag"]:
+        """
+        Get all tags associated with this sample.
+
+        Returns a list of Tag objects associated with this sample, ordered by tag name.
+        """
+        from py_fade.dataset.tag import Tag  # pylint: disable=import-outside-toplevel
+        session = dataset.get_session()
+        # Query tags through the sample_tags association
+        tags = session.query(Tag).join(Tag.sample_tags).filter_by(sample_id=self.id).order_by(Tag.name).all()
+        return list(tags)
+
+    def add_tag(self, dataset: "DatasetDatabase", tag: "Tag") -> None:
+        """
+        Add a tag to this sample.
+
+        Creates a SampleTag association between this sample and the specified tag.
+        If the association already exists, raises ValueError.
+
+        Args:
+            dataset: The dataset database instance
+            tag: The tag to add to this sample
+
+        Raises:
+            ValueError: If the sample is already tagged with this tag
+        """
+        from py_fade.dataset.sample_tag import SampleTag  # pylint: disable=import-outside-toplevel
+        SampleTag.create(dataset, self, tag)
+        self.log.debug("Added tag '%s' to sample %s", tag.name, self.id)
+
+    def remove_tag(self, dataset: "DatasetDatabase", tag: "Tag") -> None:
+        """
+        Remove a tag from this sample.
+
+        Deletes the SampleTag association between this sample and the specified tag.
+        If the association does not exist, raises ValueError.
+
+        Args:
+            dataset: The dataset database instance
+            tag: The tag to remove from this sample
+
+        Raises:
+            ValueError: If the sample is not tagged with this tag
+        """
+        from py_fade.dataset.sample_tag import SampleTag  # pylint: disable=import-outside-toplevel
+        SampleTag.delete_association(dataset, self, tag)
+        self.log.debug("Removed tag '%s' from sample %s", tag.name, self.id)
+
+    def has_tag(self, dataset: "DatasetDatabase", tag: "Tag") -> bool:
+        """
+        Check if this sample has a specific tag.
+
+        Args:
+            dataset: The dataset database instance
+            tag: The tag to check
+
+        Returns:
+            True if the sample has this tag, False otherwise
+        """
+        from py_fade.dataset.sample_tag import SampleTag  # pylint: disable=import-outside-toplevel
+        session = dataset.get_session()
+        exists = session.query(SampleTag).filter_by(sample_id=self.id, tag_id=tag.id).first() is not None
+        return exists

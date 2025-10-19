@@ -11,13 +11,15 @@ import logging
 from typing import TYPE_CHECKING, List
 
 from sqlalchemy import Integer, String, desc
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import DateTime
 
 from py_fade.dataset.dataset_base import dataset_base
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
+    from py_fade.dataset.sample import Sample
+    from py_fade.dataset.sample_tag import SampleTag
 
 
 class Tag(dataset_base):
@@ -36,6 +38,9 @@ class Tag(dataset_base):
     total_samples: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     date_created: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=datetime.datetime.now)
     scope: Mapped[str] = mapped_column(String, nullable=False, default=DEFAULT_SCOPE)
+
+    # Many-to-many relationship with samples
+    sample_tags: Mapped[List["SampleTag"]] = relationship("SampleTag", back_populates="tag", cascade="all, delete-orphan", lazy="select")
 
     log = logging.getLogger("Tag")
 
@@ -159,6 +164,31 @@ class Tag(dataset_base):
     def __str__(self) -> str:
         return (f"Tag(id={self.id}, name='{self.name}', scope='{self.scope}', "
                 f"samples={self.total_samples})")
+
+    def get_samples(self, dataset: "DatasetDatabase") -> List["Sample"]:
+        """
+        Get all samples associated with this tag.
+
+        Returns a list of Sample objects associated with this tag, ordered by sample creation date (newest first).
+        """
+        from py_fade.dataset.sample import Sample  # pylint: disable=import-outside-toplevel
+        session = dataset.get_session()
+        # Query samples through the sample_tags association
+        samples = session.query(Sample).join(Sample.sample_tags).filter_by(tag_id=self.id).order_by(desc(Sample.date_created)).all()
+        return list(samples)
+
+    def update_sample_count(self, dataset: "DatasetDatabase") -> None:
+        """
+        Update the total_samples count based on current associations.
+
+        This method recalculates the total_samples field by counting the number
+        of sample_tags associations for this tag.
+        """
+        session = dataset.get_session()
+        from py_fade.dataset.sample_tag import SampleTag  # pylint: disable=import-outside-toplevel
+        count = session.query(SampleTag).filter_by(tag_id=self.id).count()
+        self.total_samples = count
+        self.log.debug("Updated sample count for tag '%s' to %d", self.name, count)
 
     def __repr__(self) -> str:
         description_preview = self.description[:50]
