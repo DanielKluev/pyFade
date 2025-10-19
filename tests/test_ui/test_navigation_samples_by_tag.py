@@ -139,7 +139,7 @@ def test_navigation_samples_by_tag_displays_untagged_samples(
 
     # Create sample without tags
     prompt_revision = PromptRevision.get_or_create(dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(dataset, "Untagged Sample", prompt_revision)
+    _sample = Sample.create_if_unique(dataset, "Untagged Sample", prompt_revision)
     dataset.commit()
 
     # Create navigation tree

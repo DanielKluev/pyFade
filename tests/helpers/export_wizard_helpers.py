@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from py_fade.dataset.export_template import ExportTemplate
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.sample import Sample
+from py_fade.dataset.sample_tag import SampleTag  # noqa: F401 pylint: disable=unused-import
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.controllers.export_controller import ExportController
 

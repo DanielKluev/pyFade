@@ -70,7 +70,7 @@ class SampleTagsDialog(QDialog):
         layout.setSpacing(15)
 
         # Header
-        header_label = QLabel(f"<h3>Select Tags for Sample</h3>")
+        header_label = QLabel("<h3>Select Tags for Sample</h3>")
         layout.addWidget(header_label)
 
         # Sample info

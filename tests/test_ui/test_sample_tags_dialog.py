@@ -23,7 +23,7 @@ from py_fade.dataset.sample import Sample
 from py_fade.dataset.sample_tag import SampleTag  # noqa: F401 pylint: disable=unused-import
 from py_fade.dataset.tag import Tag
 from py_fade.gui.dialog_sample_tags import SampleTagsDialog
-from tests.helpers.ui_helpers import patch_message_boxes, setup_dataset_session
+from tests.helpers.ui_helpers import patch_message_boxes
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
