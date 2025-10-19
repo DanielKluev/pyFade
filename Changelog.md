@@ -3,6 +3,19 @@
 ## [Unreleased]
 
 ### Added
+- **Sample Tags**: Implemented complete sample tagging functionality
+  - Created many-to-many relationship between samples and tags via SampleTag association table
+  - Added helper methods to Sample model: add_tag(), remove_tag(), get_tags(), has_tag()
+  - Added helper methods to Tag model: get_samples(), update_sample_count()
+  - Created modal dialog (SampleTagsDialog) for selecting tags to add/remove from samples
+  - Added tags display and edit button to sample widget control panel
+  - Implemented "Samples by Tag" navigation view in sidebar
+  - Tags grouped hierarchically with samples organized by group_path under each tag
+  - "No Tag" node for samples without any tags
+  - Search filtering works across tags and samples
+  - Comprehensive test coverage with 37 new unit tests (16 database, 21 UI)
+  - All tests passing with zero failures
+  - Pylint score: 10.00/10 for both py_fade and tests packages
 - **Export Wizard Model Selection**: Added model selection step to export wizard for explicit target model choice
   - New model selection step in export wizard between template selection and output path
   - Model combobox populated with all available model IDs from providers manager
