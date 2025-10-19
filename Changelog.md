@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Added
+- **Expanded LM Eval Support**: Enhanced support for lm-evaluation-harness results with split subsets
+  - Multiple samples files per results file now supported (e.g., MMLU with per-subset samples)
+  - Improved model ID extraction from paths (extracts clean name from `/workspace/model-name`)
+  - Full prompt text extraction with chat template token stripping (Gemma3, Qwen3, Llama3, Mistral)
+  - Added template stripping functions: `strip_template_gemma3()`, `strip_template_qwen3()`, `strip_template_llama3()`, `strip_template_mistral()`
+  - Auto-detection of template type from model ID or content markers via `strip_chat_template()`
+  - Paired filtering correctly identifies regressions in tuned models vs base models
+  - Comprehensive test coverage with 10 new unit tests for MMLU data and template stripping
+  - All tests passing with zero failures
 - **Sample Tags**: Implemented complete sample tagging functionality
   - Created many-to-many relationship between samples and tags via SampleTag association table
   - Added helper methods to Sample model: add_tag(), remove_tag(), get_tags(), has_tag()

@@ -17,6 +17,7 @@ import pathlib
 from typing import Any, Dict, Iterable, List, Optional
 
 from py_fade.data_formats.base_data_format import BaseDataFormat
+from py_fade.providers.llm_templates import strip_chat_template
 
 MODULE_LOGGER = logging.getLogger(__name__)
 
@@ -51,13 +52,9 @@ class LMEvalSample:
     def is_success(self) -> Optional[bool]:
         """Return ``True`` for a correct sample, ``False`` for incorrect, ``None`` if unknown."""
 
-        numeric_metrics: List[float] = [
-            score for score in self.metrics.values() if isinstance(score, (int, float))
-        ]
+        numeric_metrics: List[float] = [score for score in self.metrics.values() if isinstance(score, (int, float))]
         if numeric_metrics:
-            return all(
-                math.isclose(score, 1.0, rel_tol=1e-9, abs_tol=1e-9) for score in numeric_metrics
-            )
+            return all(math.isclose(score, 1.0, rel_tol=1e-9, abs_tol=1e-9) for score in numeric_metrics)
 
         # Fallback to optional boolean flags produced by some harness versions.
         raw_flag = self.raw_sample.get("correct") or self.raw_sample.get("is_correct")
@@ -85,20 +82,15 @@ class LMEvalResult(BaseDataFormat):
     def set_path(self, path: pathlib.Path | str) -> None:
         """Set the base path for this data format instance."""
         self.result_json_path = pathlib.Path(path)
-        # Try to find samples JSONL file next to results JSON file.
-        match_pattern = self.result_json_path.stem.replace("results_", "*") + ".jsonl"
+        # Try to find samples JSONL file(s) next to results JSON file.
+        # For benchmarks with split subsets (like MMLU), there can be multiple sample files
+        # matching the pattern samples_*_{timestamp}.jsonl where * can include subset name.
+        timestamp_part = self.result_json_path.stem.replace("results_", "")
+        match_pattern = f"samples_*{timestamp_part}.jsonl"
         candidates = list(self.result_json_path.parent.glob(match_pattern))
         if not candidates:
-            raise ValueError(
-                f"Could not find matching samples JSONL file next to {self.result_json_path}"
-            )
-        if len(candidates) > 1:
-            candidate_list = ", ".join(str(candidate) for candidate in candidates)
-            raise ValueError(
-                "Found multiple matching samples JSONL files next to "
-                f"{self.result_json_path}: {candidate_list}"
-            )
-        self.samples_jsonl_path = candidates[0]
+            raise ValueError(f"Could not find matching samples JSONL file(s) next to {self.result_json_path}")
+        self.samples_jsonl_paths = sorted(candidates)
 
         # Reset attributes for new path
         self.model_id = None
@@ -107,7 +99,7 @@ class LMEvalResult(BaseDataFormat):
         self._samples_by_hash = {}
         self._loaded = False
 
-    def load(self, file_path: str|pathlib.Path|None = None) -> int:
+    def load(self, file_path: str | pathlib.Path | None = None) -> int:
         """Read the summary JSON and sample JSONL files into memory."""
         if file_path:
             self.set_path(file_path)
@@ -130,7 +122,7 @@ class LMEvalResult(BaseDataFormat):
         )
         return len(self.samples)
 
-    def save(self, file_path: str|pathlib.Path|None = None) -> int:
+    def save(self, file_path: str | pathlib.Path | None = None) -> int:
         """
         Save data to the destination.
 
@@ -138,10 +130,8 @@ class LMEvalResult(BaseDataFormat):
         not for exporting. This method is implemented for ABC compliance but raises
         NotImplementedError to indicate the format doesn't support saving.
         """
-        raise NotImplementedError(
-            "LMEvalResult format is read-only and does not support saving. "
-            "Use this format for loading and comparing lm-evaluation-harness results."
-        )
+        raise NotImplementedError("LMEvalResult format is read-only and does not support saving. "
+                                  "Use this format for loading and comparing lm-evaluation-harness results.")
 
     def compare(self, other: "LMEvalResult") -> Dict[str, List[LMEvalSample]]:
         """Compare two loaded results and return grouped differences.
@@ -204,7 +194,7 @@ class LMEvalResult(BaseDataFormat):
         if not prompt_hash:
             raise ValueError(f"Sample record missing 'prompt_hash': {sample_record}")
 
-        prompt_text = self._extract_prompt_text(sample_record)
+        prompt_text = self._extract_prompt_text(sample_record, self.model_id)
         target_text = sample_record.get("target", "")
         response_text = self._extract_response_text(sample_record)
         metrics = self._extract_metrics(sample_record)
@@ -219,20 +209,47 @@ class LMEvalResult(BaseDataFormat):
         )
 
     @staticmethod
-    def _extract_prompt_text(sample_record: Dict[str, Any]) -> str:
-        """Best-effort extraction of the human-readable prompt/question text."""
+    def _extract_prompt_text(sample_record: Dict[str, Any], model_id: Optional[str] = None) -> str:
+        """Best-effort extraction of the human-readable prompt/question text.
+
+        For vLLM outputs, attempts to extract the full templated prompt from
+        arguments.gen_args_0.arg_0 and strips chat template tokens to get the
+        clean prompt text.
+
+        Args:
+            sample_record: Raw sample dictionary from JSONL
+            model_id: Optional model identifier to help detect template type
+
+        Returns:
+            Clean prompt text without chat template tokens
+        """
 
         arguments = sample_record.get("arguments", {})
+
+        # First, try to extract from gen_args_0.arg_0 which contains the full templated prompt
+        # This is the vLLM format with chat template applied
+        for gen_args_key in arguments:
+            if gen_args_key.startswith("gen_args_"):
+                gen_args = arguments[gen_args_key]
+                if isinstance(gen_args, dict):
+                    arg_0 = gen_args.get("arg_0")
+                    if isinstance(arg_0, str) and arg_0.strip():
+                        # We have the full templated prompt, strip the template tokens
+                        return strip_chat_template(arg_0, model_id or "")
+
+        # Fall back to the conversation extraction method for other formats
         conversation_prompt = LMEvalResult._conversation_text(arguments)
         if conversation_prompt:
             return conversation_prompt
 
+        # Fall back to extracting from doc.question
         doc = sample_record.get("doc")
         if isinstance(doc, dict):
             question = doc.get("question")
             if isinstance(question, str) and question.strip():
                 return question
 
+        # Last resort: return raw prompt field
         MODULE_LOGGER.debug(
             "Falling back to raw prompt representation for sample %s",
             sample_record.get("prompt_hash"),
@@ -329,14 +346,15 @@ class LMEvalResult(BaseDataFormat):
         return stripped
 
     def _read_samples(self) -> Iterable[Dict[str, Any]]:
-        """Yield raw sample dictionaries from the JSONL file."""
+        """Yield raw sample dictionaries from all JSONL files."""
 
-        with self.samples_jsonl_path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                yield json.loads(line)
+        for jsonl_path in self.samples_jsonl_paths:
+            with jsonl_path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    yield json.loads(line)
 
     @staticmethod
     def _read_json(path: pathlib.Path) -> Dict[str, Any]:
@@ -351,12 +369,19 @@ class LMEvalResult(BaseDataFormat):
 
         model_name = summary.get("model_name")
         if isinstance(model_name, str) and model_name:
+            # Extract just the model name from paths like "/workspace/gemma3_12b_u2"
+            # Try to extract the last path component if it looks like a path
+            if "/" in model_name or "\\" in model_name:
+                model_name = pathlib.Path(model_name).name
             return model_name
 
         config = summary.get("config", {})
         if isinstance(config, dict):
             config_model = config.get("model")
             if isinstance(config_model, str) and config_model:
+                # Extract from path if needed
+                if "/" in config_model or "\\" in config_model:
+                    config_model = pathlib.Path(config_model).name
                 # Avoid returning generic wrappers such as "local-chat-completions".
                 if config_model.startswith("gemma") or config_model.startswith("llama"):
                     return config_model
@@ -365,7 +390,10 @@ class LMEvalResult(BaseDataFormat):
             if isinstance(model_args, str) and model_args:
                 for part in model_args.split(","):
                     if part.startswith("model="):
-                        return part.split("=", maxsplit=1)[1]
+                        model_path = part.split("=", maxsplit=1)[1]
+                        if "/" in model_path or "\\" in model_path:
+                            model_path = pathlib.Path(model_path).name
+                        return model_path
 
         configs = summary.get("configs")
         if isinstance(configs, dict):
@@ -374,6 +402,8 @@ class LMEvalResult(BaseDataFormat):
                 if isinstance(metadata, dict):
                     model = metadata.get("model")
                     if isinstance(model, str) and model:
+                        if "/" in model or "\\" in model:
+                            model = pathlib.Path(model).name
                         return model
 
         return None
@@ -408,7 +438,5 @@ class LMEvalResult(BaseDataFormat):
         """Raise if :meth:`load` has not been executed yet."""
 
         if not self._loaded:
-            raise RuntimeError(
-                f"LMEvalResult for {self.result_json_path} has not been loaded. "
-                "Call load() before comparing."
-            )
+            raise RuntimeError(f"LMEvalResult for {self.result_json_path} has not been loaded. "
+                               "Call load() before comparing.")

@@ -63,8 +63,11 @@ class TestImportController:
             f.flush()
 
             # Create matching samples file following the expected pattern
+            # Pattern: samples_*{timestamp}.jsonl where timestamp comes from results_{timestamp}.json
             result_stem = pathlib.Path(f.name).stem  # e.g., "results_abc123"
-            sample_name = result_stem.replace("results_", "") + ".jsonl"  # e.g., "abc123.jsonl"
+            timestamp_part = result_stem.replace("results_", "")  # e.g., "abc123"
+            # For simple case, use samples_{timestamp}.jsonl (subset name can be anything or omitted)
+            sample_name = f"samples_{timestamp_part}.jsonl"
             samples_path = pathlib.Path(f.name).parent / sample_name
             with open(samples_path, 'w', encoding='utf-8') as samples_file:
                 json.dump({"prompt_hash": "test", "doc": {"question": "test"}, "target": "test"}, samples_file)
