@@ -174,7 +174,7 @@ class ResponseBuilder:
             self.alternative_logprobs.append(position_alternatives)
             print(f"Token '{token_str}' (ID {token_id}) logprob: {token_logprob:<.4f}, top alternatives: {position_alternatives[:5]}")
 
-        if sampled_tokens == [0]:  # Sometimes context get corrupted and model outputs invalid token 0
+        if sampled_tokens == [0] and not token_str:  # Sometimes context get corrupted and model outputs invalid token 0
             raise CorruptedContextError("Model context appears to be corrupted, producing invalid token 0.")
 
         self.previous_turn_score_offset = len(scores)
