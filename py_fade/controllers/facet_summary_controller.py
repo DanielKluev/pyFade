@@ -106,6 +106,9 @@ class FacetSummaryController:
 
         # Analyze each sample for SFT and DPO readiness
         for sample in samples:
+            if sample.is_unfinished(self.dataset):
+                self.log.info("Skipping unfinished sample %s [%s]", sample.id, sample.title)
+                continue  # Skip unfinished samples
             self._analyze_sample_for_sft(sample, report)
             self._analyze_sample_for_dpo(sample, report)
 

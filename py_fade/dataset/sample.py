@@ -175,3 +175,13 @@ class Sample(dataset_base):
         session = dataset.get_session()
         exists = session.query(SampleTag).filter_by(sample_id=self.id, tag_id=tag.id).first() is not None
         return exists
+
+    def is_unfinished(self, dataset: "DatasetDatabase") -> bool:
+        """
+        Check if the sample is unfinished.
+
+        A sample is considered unfinished if:
+        - It has no completions.
+        - There are "Work In Progress" tags (currently just check if any tag starts with "WIP").
+        """
+        return len(self.completions) == 0 or any(tag.name.startswith("WIP") for tag in self.get_tags(dataset))
