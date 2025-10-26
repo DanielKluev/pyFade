@@ -21,8 +21,13 @@ if TYPE_CHECKING:
 
 
 def create_test_template(temp_dataset):
-    """Helper function to create a test facet and export template."""
+    """Helper function to create a test facet, sample, and export template."""
     facet = Facet.create(temp_dataset, "Test Facet", "Test facet description")
+    temp_dataset.commit()
+
+    # Create sample with prompt so export has data to work with
+    prompt_rev = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
+    Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "test_group")
     temp_dataset.commit()
 
     template = ExportTemplate.create(dataset=temp_dataset, name="Test Template", description="Test template description",

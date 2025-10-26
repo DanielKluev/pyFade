@@ -60,16 +60,13 @@ def app_with_dataset(
     qt_app: QApplication,
 ) -> Generator["pyFadeApp", None, None]:
     """Instantiate a ``pyFadeApp`` that points at the temporary dataset."""
-    from tests.helpers.ui_helpers import setup_test_app_with_fake_home
+    from tests.helpers.ui_helpers import setup_test_app_with_fake_home, cleanup_app_widgets
 
     app = setup_test_app_with_fake_home(temp_dataset, tmp_path, monkeypatch)
     try:
         yield app
     finally:
-        if hasattr(app, "dataset_widget") and app.dataset_widget:
-            app.dataset_widget.deleteLater()
-        if hasattr(app, "launcher") and app.launcher:
-            app.launcher.deleteLater()
+        cleanup_app_widgets(app)
 
 
 @pytest.fixture(scope="session")
