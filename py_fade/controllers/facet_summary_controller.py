@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from py_fade.controllers.dpo_controller import DPOController
+from py_fade.controllers.facet_utils import get_rated_completions
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.providers.providers_manager import MappedModel
 
@@ -133,7 +134,7 @@ class FacetSummaryController:
         report.sft_total_samples += 1
 
         # Get completions with ratings for this facet
-        rated_completions = self._get_rated_completions(sample)
+        rated_completions = get_rated_completions(sample, self.facet)
 
         if not rated_completions:
             report.sft_unfinished_samples += 1
@@ -246,23 +247,6 @@ class FacetSummaryController:
                     sample_name=f"Sample #{sample.id} {sample.title}",
                     reasons=result.failure_reasons,
                 ))
-
-    def _get_rated_completions(self, sample: "Sample") -> list[tuple[PromptCompletion, int]]:
-        """
-        Get all completions with ratings for the current facet.
-
-        Args:
-            sample: Sample to get completions from
-
-        Returns:
-            List of (completion, rating) tuples
-        """
-        rated_completions = []
-        for completion in sample.completions:
-            rating_obj = completion.rating_for_facet(self.facet)
-            if rating_obj:
-                rated_completions.append((completion, rating_obj.rating))
-        return rated_completions
 
     def _get_completion_rating(self, completion: PromptCompletion) -> int:
         """

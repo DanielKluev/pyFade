@@ -138,7 +138,6 @@ class Sample(dataset_base):
         Raises:
             ValueError: If the sample is already tagged with this tag
         """
-        from py_fade.dataset.sample_tag import SampleTag  # pylint: disable=import-outside-toplevel
         SampleTag.create(dataset, self, tag)
         self.log.debug("Added tag '%s' to sample %s", tag.name, self.id)
 
@@ -156,7 +155,6 @@ class Sample(dataset_base):
         Raises:
             ValueError: If the sample is not tagged with this tag
         """
-        from py_fade.dataset.sample_tag import SampleTag  # pylint: disable=import-outside-toplevel
         SampleTag.delete_association(dataset, self, tag)
         self.log.debug("Removed tag '%s' from sample %s", tag.name, self.id)
 
@@ -171,7 +169,6 @@ class Sample(dataset_base):
         Returns:
             True if the sample has this tag, False otherwise
         """
-        from py_fade.dataset.sample_tag import SampleTag  # pylint: disable=import-outside-toplevel
         session = dataset.get_session()
         exists = session.query(SampleTag).filter_by(sample_id=self.id, tag_id=tag.id).first() is not None
         return exists
