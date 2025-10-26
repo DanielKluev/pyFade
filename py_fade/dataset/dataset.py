@@ -27,6 +27,8 @@ from py_fade.dataset.data_filter import DataFilter
 from py_fade.dataset.dataset_base import dataset_base
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
+from py_fade.dataset.sample_tag import SampleTag  # pylint: disable=unused-import # Required for SQLAlchemy metadata registration
+from py_fade.dataset.tag import Tag  # pylint: disable=unused-import # Required for SQLAlchemy metadata registration
 from py_fade.providers.llm_response import LLMResponse
 
 if TYPE_CHECKING:
