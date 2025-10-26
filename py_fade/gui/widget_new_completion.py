@@ -1,6 +1,7 @@
 """Widget for configuring and launching new completion generations."""
 
 import logging
+import traceback
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -26,7 +27,7 @@ from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.providers.providers_manager import MappedModel
 
 if TYPE_CHECKING:
-    from py_fade.app import pyFadeApp
+    from py_fade.app import PyFadeApp
     from py_fade.controllers.text_generation_controller import TextGenerationController
     from py_fade.dataset.completion import PromptCompletion
     from py_fade.providers.llm_response import LLMResponse
@@ -56,7 +57,7 @@ class NewCompletionFrame(QFrame):
     """
 
     completion_accepted = pyqtSignal(object)  # Signal emitted when completion is accepted and should be saved
-    app: "pyFadeApp"
+    app: "PyFadeApp"
     log: logging.Logger
     current_mode: CompletionMode
     generated_completion: "LLMResponse | None"
@@ -66,7 +67,7 @@ class NewCompletionFrame(QFrame):
     token_by_token_tokens: list[SinglePositionToken]  # Selected tokens for token-by-token
     has_truncated_completion: bool  # Track if current completion is truncated for continuation button
 
-    def __init__(self, parent: QWidget, app: "pyFadeApp"):
+    def __init__(self, parent: QWidget, app: "PyFadeApp"):
         super().__init__(parent)
         self.log = logging.getLogger(self.__class__.__name__)
         self.app = app
@@ -415,13 +416,19 @@ class NewCompletionFrame(QFrame):
             return
         prefill = self.prefill_edit.toPlainText().strip()
 
-        self.generated_completion = controller.generate(
-            prefill=prefill,
-            temperature=self.temp_spin.value(),
-            top_k=self.topk_spin.value(),
-            context_length=context_length,
-            max_tokens=max_tokens,
-        )
+        try:
+            self.generated_completion = controller.generate(
+                prefill=prefill,
+                temperature=self.temp_spin.value(),
+                top_k=self.topk_spin.value(),
+                context_length=context_length,
+                max_tokens=max_tokens,
+            )
+        except Exception as e:  # pylint: disable=broad-except
+            traceback.print_exc()
+            self.status_label.setText(f"Error: {e}")
+            self.generate_btn.setEnabled(True)
+            return
         self.display_completion()
 
     def _handle_token_by_token_mode(self) -> None:

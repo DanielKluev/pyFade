@@ -178,9 +178,12 @@ class TextGenerationController:
         """
         Generate a new completion using the mapped model and provider.
         """
+        completion_prefill = None
+        if prefill:
+            completion_prefill = CompletionPrefill(prefill_text=prefill, prefill_tokenized=None)
         generation_kwargs = {
             "prompt": self.prompt_conversation,
-            "prefill": prefill,
+            "prefill": completion_prefill,
             "temperature": temperature or self.default_temperature,
             "top_k": top_k or self.default_top_k,
             "context_length": context_length or self.default_context_length,
