@@ -3,6 +3,7 @@ Qt Widget for overall single sample display.
 """
 
 import logging
+import traceback
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, pyqtSignal
@@ -632,7 +633,12 @@ class WidgetSample(QWidget):
             context_length=max_context_length,
             max_tokens=completion.max_tokens,
         )
-        controller.evaluate_completion_logprobs(completion, save=True)
+        try:
+            controller.evaluate_completion_logprobs(completion, save=True)
+        except Exception as e:  # pylint: disable=broad-except
+            traceback.print_exc()
+            QMessageBox.critical(self, "Error", f"Failed to evaluate completion logprobs:\n{e}")
+            return
         completion_frame._update_status_icons()  # pylint: disable=protected-access
         completion_frame._update_action_buttons()  # pylint: disable=protected-access
 
