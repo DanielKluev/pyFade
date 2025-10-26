@@ -218,6 +218,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
     current_model_gguf_file: str | None
     current_model_logits_all: bool
     current_model_context_length: int
+    current_model_lora: str | None
 
     def __init__(self, default_temperature: float = 0.7, default_top_k: int = 40, default_context_length: int = 1024,
                  default_max_tokens: int = 128):
@@ -230,6 +231,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         self.current_model_gguf_file = None
         self.current_model_logits_all = False
         self.current_model_context_length = 0
+        self.current_model_lora = None
 
     def unload_current_model(self):
         """Unload current model if any."""
@@ -242,16 +244,18 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             self.current_model_gguf_file = None
             self.current_model_logits_all = False
             self.current_model_context_length = 0
+            self.current_model_lora = None
             time.sleep(2)  # Give some time for memory to be freed
 
     def load_model(self, model_id: str, gguf_file: str, n_gpu_layers: int = -1, verbose: bool = False, logits_all: bool = False,
-                   n_ctx: int = 1024) -> Optional["Llama"]:
+                   n_ctx: int = 1024, lora_file: str | None = None) -> Optional["Llama"]:
         """
         If current loaded model is same as requested, return it.
         Else unload current model and load the new one.
         """
         if (self.current_model and self.current_model_id == model_id and self.current_model_gguf_file == gguf_file and
-                self.current_model_logits_all == logits_all and n_ctx <= self.current_model_context_length):
+                self.current_model_logits_all == logits_all and n_ctx <= self.current_model_context_length and
+                self.current_model_lora == lora_file):
             return self.current_model  # Model already loaded
 
         if not IS_LLAMA_CPP_AVAILABLE or not llama_cpp:
@@ -273,12 +277,14 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
                 verbose=verbose,
                 logits_all=logits_all,
                 n_ctx=n_ctx,
+                lora_path=lora_file,
             )
             self.current_model = model
             self.current_model_id = model_id
             self.current_model_gguf_file = gguf_file
             self.current_model_logits_all = logits_all
             self.current_model_context_length = n_ctx
+            self.current_model_lora = lora_file
             return model
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.log.error("Failed to load Llama model from %s: %s", gguf_file, e)
@@ -300,6 +306,9 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             raise ValueError("gguf parameter must be provided for Llama.cpp models.")
         if not os.path.isfile(gguf_file):
             raise ValueError(f"gguf file does not exist: {gguf_file}")
+        lora_file = kwargs.get("lora", None)
+        if lora_file and not os.path.isfile(lora_file):
+            raise ValueError(f"lora file does not exist: {lora_file}")
 
         context_length = kwargs.get("context_length", self.default_context_length)
         model = self.load_model(
@@ -309,6 +318,7 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             verbose=True,
             logits_all=True,
             n_ctx=context_length,
+            lora_file=lora_file,
         )
         if not model:
             raise RuntimeError(f"Failed to load Llama model from {gguf_file}")

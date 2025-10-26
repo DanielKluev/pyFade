@@ -110,6 +110,7 @@ class InferenceProvidersManager:
 
             if "gguf" in model_params:
                 gguf_path = model_params["gguf"]
+                lora_file = model_params.get("lora", None)
                 if gguf_path == "USE_OLLAMA_REGISTRY":
                     if not self.ollama_registry:
                         self.log.error(
@@ -131,7 +132,11 @@ class InferenceProvidersManager:
                 # Add GGUF path for this model
                 # If llama_cpp is supported, add llama_cpp provider for this model
                 if IS_LLAMA_CPP_AVAILABLE:
-                    self.add_model(model_id, "llama_cpp_internal", {"gguf": str(gguf_path), "template_func": template_func})
+                    self.add_model(model_id, "llama_cpp_internal", {
+                        "gguf": str(gguf_path),
+                        "template_func": template_func,
+                        "lora": lora_file
+                    })
                 else:
                     self.log.error(
                         "Model %s requires llama_cpp provider, but llama-cpp-python is not installed.",
