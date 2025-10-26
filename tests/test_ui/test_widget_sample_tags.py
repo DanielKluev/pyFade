@@ -21,6 +21,7 @@ from py_fade.dataset.sample import Sample
 from py_fade.dataset.sample_tag import SampleTag  # noqa: F401 pylint: disable=unused-import
 from py_fade.dataset.tag import Tag
 from py_fade.gui.widget_sample import WidgetSample
+from tests.helpers.data_helpers import create_test_tags_and_samples
 from tests.helpers.ui_helpers import patch_message_boxes
 
 if TYPE_CHECKING:
@@ -109,16 +110,9 @@ def test_widget_sample_tags_display_with_tags(
     test_logger.setLevel(logging.DEBUG)
     patch_message_boxes(monkeypatch, test_logger)
 
-    # Create tags
+    # Create tags and sample
     dataset = app_with_dataset.current_dataset
-    tag1 = Tag.create(dataset, "Important", "Important samples", scope="samples")
-    tag2 = Tag.create(dataset, "Reviewed", "Reviewed samples", scope="both")
-    dataset.commit()
-
-    # Create a sample
-    prompt_revision = PromptRevision.get_or_create(dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(dataset, "Test Sample", prompt_revision)
-    dataset.commit()
+    tag1, tag2, sample, _sample2 = create_test_tags_and_samples(dataset)
 
     # Add tags to sample
     sample.add_tag(dataset, tag1)

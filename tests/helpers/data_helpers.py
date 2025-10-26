@@ -307,8 +307,8 @@ def create_test_logprobs(temp_dataset, completion_id: int, model_id: str, min_lo
 
 
 def create_completion_with_rating_and_logprobs(dataset: "DatasetDatabase", prompt_revision: PromptRevision, completion_text: str,
-                                              model_id: str, facet: Facet, rating: int, min_logprob: float,
-                                              avg_logprob: float) -> PromptCompletion:
+                                               model_id: str, facet: Facet, rating: int, min_logprob: float,
+                                               avg_logprob: float) -> PromptCompletion:
     """
     Create a completion with rating and logprobs for testing.
 
@@ -351,3 +351,36 @@ def create_test_sample_with_completion(temp_dataset, facet, rating: int, min_log
                                                             avg_logprob)
 
     return sample, completion
+
+
+def create_test_tags_and_samples(dataset: "DatasetDatabase") -> tuple:
+    """
+    Create standard test tags and samples for tests that need tagged sample setup.
+
+    This is a reusable helper to avoid code duplication in tests that set up
+    the same tag and sample structure.
+
+    Returns:
+        Tuple of (tag1, tag2, sample1, sample2) where:
+        - tag1: Tag named "Important" with scope="samples"
+        - tag2: Tag named "Reviewed" with scope="both"
+        - sample1: Sample titled "Sample 1" with prompt "Test prompt"
+        - sample2: Sample titled "Sample 2" with prompt "Test prompt 2"
+    """
+    from py_fade.dataset.tag import Tag  # pylint: disable=import-outside-toplevel
+
+    # Create tags
+    tag1 = Tag.create(dataset, "Important", "Important samples", scope="samples")
+    tag2 = Tag.create(dataset, "Reviewed", "Reviewed samples", scope="both")
+    dataset.commit()
+
+    # Create samples
+    prompt_revision = PromptRevision.get_or_create(dataset, "Test prompt", 2048, 512)
+    sample1 = Sample.create_if_unique(dataset, "Sample 1", prompt_revision)
+    dataset.commit()
+
+    prompt_revision2 = PromptRevision.get_or_create(dataset, "Test prompt 2", 2048, 512)
+    sample2 = Sample.create_if_unique(dataset, "Sample 2", prompt_revision2)
+    dataset.commit()
+
+    return tag1, tag2, sample1, sample2

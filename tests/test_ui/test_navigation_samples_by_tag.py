@@ -21,6 +21,7 @@ from py_fade.dataset.sample import Sample
 from py_fade.dataset.sample_tag import SampleTag  # noqa: F401 pylint: disable=unused-import
 from py_fade.dataset.tag import Tag
 from py_fade.gui.widget_navigation_sidebar import WidgetNavigationTree
+from tests.helpers.data_helpers import create_test_tags_and_samples
 from tests.helpers.ui_helpers import patch_message_boxes
 
 if TYPE_CHECKING:
@@ -80,19 +81,8 @@ def test_navigation_samples_by_tag_displays_tags(
 
     dataset = app_with_dataset.current_dataset
 
-    # Create tags
-    tag1 = Tag.create(dataset, "Important", "Important samples", scope="samples")
-    tag2 = Tag.create(dataset, "Reviewed", "Reviewed samples", scope="both")
-    dataset.commit()
-
-    # Create samples
-    prompt_revision = PromptRevision.get_or_create(dataset, "Test prompt", 2048, 512)
-    sample1 = Sample.create_if_unique(dataset, "Sample 1", prompt_revision)
-    dataset.commit()
-
-    prompt_revision2 = PromptRevision.get_or_create(dataset, "Test prompt 2", 2048, 512)
-    sample2 = Sample.create_if_unique(dataset, "Sample 2", prompt_revision2)
-    dataset.commit()
+    # Create standard test tags and samples
+    tag1, tag2, sample1, sample2 = create_test_tags_and_samples(dataset)
 
     # Add tags to samples
     sample1.add_tag(dataset, tag1)
@@ -299,12 +289,10 @@ def test_navigation_samples_by_tag_search_filter(
 
     dataset = app_with_dataset.current_dataset
 
-    # Create tags
-    tag1 = Tag.create(dataset, "Important", "Important samples", scope="samples")
-    tag2 = Tag.create(dataset, "Reviewed", "Reviewed samples", scope="both")
-    dataset.commit()
+    # Create standard test tags and samples
+    tag1, tag2, _sample1, _sample2 = create_test_tags_and_samples(dataset)
 
-    # Create samples
+    # Create samples with specific names for search test
     prompt_revision = PromptRevision.get_or_create(dataset, "Test prompt math", 2048, 512)
     sample1 = Sample.create_if_unique(dataset, "Math Sample", prompt_revision)
     dataset.commit()

@@ -82,7 +82,6 @@ def decode_logprobs_to_top_logprobs(model: "Llama", logprobs: NDArray, top_k: in
 
 class CorruptedContextError(Exception):
     """Raised when the model context appears to be corrupted, producing invalid tokens."""
-    pass
 
 
 class ResponseBuilder:
@@ -247,15 +246,34 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
             self.current_model_lora = None
             time.sleep(2)  # Give some time for memory to be freed
 
+    def _is_model_already_loaded(self, model_id: str, gguf_file: str, logits_all: bool, n_ctx: int, lora_file: str | None) -> bool:
+        """
+        Check if the requested model matches the currently loaded model.
+
+        Args:
+            model_id: Model identifier
+            gguf_file: Path to GGUF file
+            logits_all: Whether to return logits for all tokens
+            n_ctx: Context size
+            lora_file: Path to LoRA file (optional)
+
+        Returns:
+            True if the model is already loaded with compatible settings
+        """
+        if not self.current_model:
+            return False
+        model_matches = (self.current_model_id == model_id and self.current_model_gguf_file == gguf_file)
+        settings_compatible = (self.current_model_logits_all == logits_all and n_ctx <= self.current_model_context_length and
+                               self.current_model_lora == lora_file)
+        return model_matches and settings_compatible
+
     def load_model(self, model_id: str, gguf_file: str, n_gpu_layers: int = -1, verbose: bool = False, logits_all: bool = False,
                    n_ctx: int = 1024, lora_file: str | None = None) -> Optional["Llama"]:
         """
         If current loaded model is same as requested, return it.
         Else unload current model and load the new one.
         """
-        if (self.current_model and self.current_model_id == model_id and self.current_model_gguf_file == gguf_file and
-                self.current_model_logits_all == logits_all and n_ctx <= self.current_model_context_length and
-                self.current_model_lora == lora_file):
+        if self._is_model_already_loaded(model_id, gguf_file, logits_all, n_ctx, lora_file):
             return self.current_model  # Model already loaded
 
         if not IS_LLAMA_CPP_AVAILABLE or not llama_cpp:

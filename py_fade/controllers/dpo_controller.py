@@ -19,6 +19,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from py_fade.controllers.facet_utils import get_rated_completions
 from py_fade.data_formats.base_data_classes import CommonConversation, CommonMessage
 from py_fade.data_formats.dpo_data_format import DPOPair
 
@@ -76,7 +77,7 @@ class DPOController:
         result = DPOPairGenerationResult()
 
         # Get completions with ratings for this facet
-        rated_completions = self._get_rated_completions(sample)
+        rated_completions = get_rated_completions(sample, self.facet)
         if not rated_completions:
             result.failure_reasons.append("No rated completions found")
             return result
@@ -178,23 +179,6 @@ class DPOController:
 
         self.log.debug("Sample %d: Generated %d DPO pairs", sample.id, len(result.pairs))
         return result
-
-    def _get_rated_completions(self, sample: "Sample") -> list[tuple["PromptCompletion", int]]:
-        """
-        Get all completions with ratings for the current facet.
-
-        Args:
-            sample: Sample to get completions from
-
-        Returns:
-            List of (completion, rating) tuples
-        """
-        rated_completions = []
-        for completion in sample.completions:
-            rating_obj = completion.rating_for_facet(self.facet)
-            if rating_obj:
-                rated_completions.append((completion, rating_obj.rating))
-        return rated_completions
 
     def _sample_to_prompt_conversation(self, sample: "Sample") -> CommonConversation | None:
         """
