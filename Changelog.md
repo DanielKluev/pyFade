@@ -3,6 +3,19 @@
 ## [Unreleased]
 
 ### Added
+- **Model Manager Window**: Implemented GUI for managing LLM inference models
+  - New Preferences menu with "Manage Models..." action accessible from dataset window
+  - Three-tab interface for different model types: llama.cpp, Ollama, and Remote API (placeholder)
+  - llama.cpp tab supports GGUF file paths with optional LoRA adapters
+  - Ollama tab supports manual model entry and automatic import from local Ollama registry
+  - Full CRUD operations: Add, Edit, Remove models with form validation
+  - Browse buttons for file selection
+  - Model configuration validation (unique IDs, required backends)
+  - Save changes to application config YAML file
+  - Dynamic provider reload and GUI updates on save
+  - Comprehensive test coverage with 18 new unit tests
+  - All tests passing (578 total, 4 skipped)
+  - Pylint score: 10.00/10 for py_fade, 9.97/10 for tests
 - **Expanded LM Eval Support**: Enhanced support for lm-evaluation-harness results with split subsets
   - Multiple samples files per results file now supported (e.g., MMLU with per-subset samples)
   - Improved model ID extraction from paths (extracts clean name from `/workspace/model-name`)
