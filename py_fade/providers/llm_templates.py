@@ -145,7 +145,7 @@ def get_template_function(model_id: str):
     """
     Get the template function by model ID.
     """
-    if "gemma3" in model_id.lower():
+    if "gemma3" in model_id.lower() or "gemma2" in model_id.lower():
         return apply_template_gemma3
     if "qwen3" in model_id.lower():
         return apply_template_qwen3
