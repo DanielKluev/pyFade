@@ -113,6 +113,10 @@ class FacetSummaryController:
             self._analyze_sample_for_sft(sample, report)
             self._analyze_sample_for_dpo(sample, report)
 
+        # Log unfinished sample details
+        for unfinished in report.sft_unfinished_details:
+            self.log.info("SFT Unfinished Sample %s: %s", unfinished.sample_name, "; ".join(unfinished.reasons))
+
         self.log.info("Report generated: SFT %d/%d finished, DPO %d/%d finished", report.sft_finished_samples, report.sft_total_samples,
                       report.dpo_finished_samples, report.dpo_total_samples)
 
