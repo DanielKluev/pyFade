@@ -6,6 +6,7 @@ from .widget_crud_form_base import CrudButtonStyles, CrudFormWidget
 from .widget_label_with_icon import QLabelWithIcon, QLabelWithIconAndText
 from .widget_token_picker import WidgetTokenPicker
 from .widget_completion import CompletionFrame
+from .widget_toggle_button import QPushButtonToggle
 
 __all__ = [
     "CompletionRatingWidget",
@@ -16,4 +17,5 @@ __all__ = [
     "QLabelWithIconAndText",
     "WidgetTokenPicker",
     "CompletionFrame",
+    "QPushButtonToggle",
 ]

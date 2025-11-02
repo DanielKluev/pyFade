@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### Added
+- **Flat List View Toggle for Tags and Facets**: Added compact toggle button to navigation panel for flat sample listing
+  - New `QPushButtonToggle` reusable component with icon support and visual border feedback
+  - Toggle button appears only when viewing "Samples by Tag" or "Samples by Facet" modes
+  - Flat mode displays samples directly under tag/facet without group_path hierarchy
+  - Hierarchical mode (default) maintains existing group_path-based tree structure
+  - Preference persisted per-dataset in application config (nav_flat_list_mode)
+  - Added view_list and account_tree icons to Google Material Symbols icon map
+  - Comprehensive test coverage with 8 new unit tests (5 for toggle component, 3 for navigation)
+  - All tests passing (588 total, 4 skipped)
+  - Pylint score: 10.00/10 for both py_fade and tests
 - **Model Manager Window**: Implemented GUI for managing LLM inference models
   - New Preferences menu with "Manage Models..." action accessible from dataset window
   - Three-tab interface for different model types: llama.cpp, Ollama, and Remote API (placeholder)
