@@ -3,6 +3,19 @@
 ## [Unreleased]
 
 ### Added
+- **Expandable Detachable Sample Notes**: Implemented feature for editing notes in a separate expanded window
+  - New "Open in New" button in corner of notes field in WidgetSample
+  - Detached notes window (DetachedNotesWindow) provides maximized editing space
+  - Window is non-modal, allowing users to switch between completions and notes
+  - Bi-directional synchronization between main widget and detached window
+  - Save button in detached window to persist notes changes to database
+  - Notes editor fills entire window space for comfortable editing
+  - Changes automatically synced when closing detached window
+  - Reopening existing window brings it to front instead of creating duplicate
+  - Added open_in_new and open_in_full icons to Google Material Symbols icon map
+  - Comprehensive test coverage with 31 new unit tests (19 for window, 12 for integration)
+  - All tests passing (391 UI tests total)
+  - Pylint score: 10.00/10 for both py_fade and tests
 - **Flat List View Toggle for Tags and Facets**: Added compact toggle button to navigation panel for flat sample listing
   - New `QPushButtonToggle` reusable component with icon support and visual border feedback
   - Toggle button appears only when viewing "Samples by Tag" or "Samples by Facet" modes

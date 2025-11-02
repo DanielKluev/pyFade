@@ -39,6 +39,8 @@ common_icons_map = {
     "step": "\uf6fe",  # step / single step icon
     "view_list": "\ue8ef",  # list view icon
     "account_tree": "\ue97a",  # tree / hierarchy view icon
+    "open_in_new": "\ue89e",  # open in new window icon
+    "open_in_full": "\uf1ce",  # expand/fullscreen icon
 }
 
 # Important: icons_aliases holds higher priority than common_icons_map
