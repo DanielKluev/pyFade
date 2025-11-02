@@ -618,6 +618,7 @@ class WidgetNavigationSidebar(QWidget):
         self._previous_show_value = None
         self.setup_ui()
         self.connect_signals()
+        self._load_preferences()
         self._refresh_content()
 
     def setup_ui(self):
@@ -666,8 +667,52 @@ class WidgetNavigationSidebar(QWidget):
         """
 
         self.filter_panel.filter_changed.connect(self._on_filter_changed)
+        self.filter_panel.flat_list_toggle.toggled_state_changed.connect(self._on_flat_list_mode_changed)
         self.tree_view.item_selected.connect(self.item_selected.emit)
         self.tree_view.new_item_requested.connect(self.new_item_requested.emit)
+
+    def _dataset_pref_key(self) -> str:
+        """Get the preference key for the current dataset."""
+        return str(self.dataset.db_path.resolve())
+
+    def _load_preferences(self):
+        """Load persisted preferences for the current dataset."""
+        if not hasattr(self.app, "config"):
+            return
+        preferences = getattr(self.app.config, "dataset_preferences", {})
+        if not isinstance(preferences, dict):
+            return
+        dataset_prefs = preferences.get(self._dataset_pref_key(), {})
+        if not isinstance(dataset_prefs, dict):
+            return
+
+        # Restore flat_list_mode preference
+        flat_list_mode = dataset_prefs.get("nav_flat_list_mode")
+        if isinstance(flat_list_mode, bool):
+            self.filter_panel.flat_list_toggle.set_toggled(flat_list_mode)
+
+    def _persist_preferences(self):
+        """Persist preferences for the current dataset."""
+        if not hasattr(self.app, "config"):
+            return
+        preferences = getattr(self.app.config, "dataset_preferences", {})
+        if not isinstance(preferences, dict):
+            preferences = {}
+        dataset_key = self._dataset_pref_key()
+        dataset_prefs = preferences.get(dataset_key, {})
+        if not isinstance(dataset_prefs, dict):
+            dataset_prefs = {}
+
+        # Persist flat_list_mode preference
+        dataset_prefs["nav_flat_list_mode"] = self.filter_panel.flat_list_toggle.is_toggled()
+
+        preferences[dataset_key] = dataset_prefs
+        self.app.config.dataset_preferences = preferences
+        self.app.config.save()
+
+    def _on_flat_list_mode_changed(self, _toggled: bool):
+        """Handle flat list mode toggle changes by persisting the preference."""
+        self._persist_preferences()
 
     def set_dataset(self, dataset: "DatasetDatabase"):
         """

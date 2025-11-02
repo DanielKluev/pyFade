@@ -245,3 +245,37 @@ def test_navigation_sidebar_emits_selection(app_with_dataset, temp_dataset, ensu
     assert item_type in {"sample", "facet"}
     if item_type == "facet":
         assert item_id == facet.id
+
+
+def test_navigation_sidebar_persists_flat_list_mode(app_with_dataset, temp_dataset, ensure_google_icon_font, qt_app):
+    """Test that flat list mode preference is persisted and restored."""
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+    _ = temp_dataset  # Dataset is opened via app_with_dataset fixture, but not directly used in test
+
+    # Create a sidebar and toggle flat list mode on
+    sidebar1 = WidgetNavigationSidebar(None, app_with_dataset)
+    sidebar1.filter_panel.show_combo.setCurrentText("Samples by Tag")
+    sidebar1.filter_panel.flat_list_toggle.click()  # Toggle on
+    qt_app.processEvents()
+
+    # Verify it's toggled
+    assert sidebar1.filter_panel.flat_list_toggle.is_toggled()
+
+    # Create a new sidebar instance (simulating app restart or navigation)
+    sidebar2 = WidgetNavigationSidebar(None, app_with_dataset)
+    qt_app.processEvents()
+
+    # Verify the preference was restored
+    assert sidebar2.filter_panel.flat_list_toggle.is_toggled()
+
+    # Toggle off and verify persistence
+    sidebar2.filter_panel.flat_list_toggle.click()  # Toggle off
+    qt_app.processEvents()
+    assert not sidebar2.filter_panel.flat_list_toggle.is_toggled()
+
+    # Create another sidebar instance
+    sidebar3 = WidgetNavigationSidebar(None, app_with_dataset)
+    qt_app.processEvents()
+
+    # Verify the preference was restored (off state)
+    assert not sidebar3.filter_panel.flat_list_toggle.is_toggled()
