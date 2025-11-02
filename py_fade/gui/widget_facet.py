@@ -161,7 +161,7 @@ class WidgetFacet(CrudFormWidget):
         avg_logprob_label.setStyleSheet("font-weight: bold;")
         avg_logprob_label.setToolTip("Average logprob threshold for completions")
         self.avg_logprob_field = QDoubleSpinBox(parent=thresholds_group)
-        self.avg_logprob_field.setRange(-10.0, 0.0)
+        self.avg_logprob_field.setRange(-15.0, 0.0)
         self.avg_logprob_field.setSingleStep(0.1)
         self.avg_logprob_field.setDecimals(2)
         self.avg_logprob_field.setValue(-0.4)
