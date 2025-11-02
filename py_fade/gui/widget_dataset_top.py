@@ -41,6 +41,7 @@ from py_fade.dataset.prompt import PromptRevision
 # Dataset models
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.tag import Tag
+from py_fade.gui.gui_helpers import get_dataset_preferences, update_dataset_preferences
 from py_fade.gui.widget_export_template import WidgetExportTemplate
 from py_fade.gui.widget_facet import WidgetFacet
 
@@ -662,11 +663,10 @@ class WidgetDatasetTop(QMainWindow):
         self.facet_combo.blockSignals(True)
         self.facet_combo.clear()
         if not self.current_facet_id:
-            dataset_prefs = self.app.config.dataset_preferences.get(self._dataset_pref_key(), {})
-            if isinstance(dataset_prefs, dict):
-                facet_pref = dataset_prefs.get("facet_id")
-                if isinstance(facet_pref, int):
-                    self.current_facet_id = facet_pref
+            dataset_prefs = get_dataset_preferences(self.app, self._dataset_pref_key())
+            facet_pref = dataset_prefs.get("facet_id")
+            if isinstance(facet_pref, int):
+                self.current_facet_id = facet_pref
 
         for facet in available_facets:
             self._facet_map[facet.id] = facet
@@ -700,11 +700,10 @@ class WidgetDatasetTop(QMainWindow):
         self.model_combo.blockSignals(True)
         self.model_combo.clear()
         if not self.current_model_path:
-            dataset_prefs = self.app.config.dataset_preferences.get(self._dataset_pref_key(), {})
-            if isinstance(dataset_prefs, dict):
-                name = dataset_prefs.get("model_name")
-                if isinstance(name, str):
-                    self.current_model_path = name
+            dataset_prefs = get_dataset_preferences(self.app, self._dataset_pref_key())
+            name = dataset_prefs.get("model_name")
+            if isinstance(name, str):
+                self.current_model_path = name
 
         for model in self.app.available_models:
             self.model_combo.addItem(model)
@@ -744,18 +743,10 @@ class WidgetDatasetTop(QMainWindow):
     def _persist_context(self) -> None:
         if not hasattr(self.app, "config"):
             raise RuntimeError("Application configuration is not available.")
-        preferences = getattr(self.app.config, "dataset_preferences", {})
-        if not isinstance(preferences, dict):
-            preferences = {}
-        dataset_key = self._dataset_pref_key()
-        dataset_prefs = preferences.get(dataset_key, {})
-        if not isinstance(dataset_prefs, dict):
-            dataset_prefs = {}
-        dataset_prefs["facet_id"] = self.current_facet.id if self.current_facet else None
-        dataset_prefs["model_name"] = self.current_model_path
-        preferences[dataset_key] = dataset_prefs
-        self.app.config.dataset_preferences = preferences
-        self.app.config.save()
+        update_dataset_preferences(self.app, self._dataset_pref_key(), {
+            "facet_id": self.current_facet.id if self.current_facet else None,
+            "model_name": self.current_model_path,
+        })
 
     def _propagate_context_to_samples(self) -> None:
         for tab_info in self.tabs.values():

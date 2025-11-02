@@ -17,6 +17,7 @@ from py_fade.gui.widget_navigation_sidebar import (
     WidgetNavigationSidebar,
     WidgetNavigationTree,
 )
+from tests.helpers.data_helpers import add_tag_to_samples
 from tests.helpers.facet_backup_helpers import create_test_completion
 
 
@@ -186,10 +187,7 @@ def test_navigation_tree_samples_by_tag_flat_mode(temp_dataset, ensure_google_ic
     temp_dataset.commit()
 
     # Add tags to samples
-    sample1.add_tag(temp_dataset, tag)
-    sample2.add_tag(temp_dataset, tag)
-    sample3.add_tag(temp_dataset, tag)
-    temp_dataset.commit()
+    add_tag_to_samples(temp_dataset, tag, [sample1, sample2, sample3])
 
     tree = WidgetNavigationTree()
 
