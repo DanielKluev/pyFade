@@ -207,9 +207,9 @@ class TestWidgetSampleCompactLayout:
         assert widget.show_archived_checkbox not in completion_controls_widgets, \
             "Show archived checkbox should be moved from completion controls to main controls"
 
-    def test_role_tag_buttons_in_controls_panel(self, qt_app, app_with_dataset, ensure_google_icon_font):
+    def test_role_tag_buttons_in_prompt_panel(self, qt_app, app_with_dataset, ensure_google_icon_font):
         """
-        Test that role tag buttons (S, U, A) are in the controls panel as part of compact layout.
+        Test that role tag buttons (S, U, A) are in the prompt panel with token counter.
         """
         _ = ensure_google_icon_font  # Ensure Google icon font is loaded
         app = app_with_dataset
@@ -217,22 +217,23 @@ class TestWidgetSampleCompactLayout:
         widget.show()
         qt_app.processEvents()
 
-        # Find the controls frame
-        controls_frame = None
+        # Find the prompt frame (contains prompt_area and token_usage_label)
+        prompt_frame = None
         frames = widget.findChildren(QFrame)
         for frame in frames:
             if frame.__class__.__name__ == 'QSplitter':
                 continue
-            lineedits = frame.findChildren(QLineEdit)
-            if widget.id_field in lineedits:
-                controls_frame = frame
+            from py_fade.gui.components.widget_plain_text_edit import PlainTextEdit  # pylint: disable=import-outside-toplevel
+            text_edits = frame.findChildren(PlainTextEdit)
+            if widget.prompt_area in text_edits:
+                prompt_frame = frame
                 break
 
-        assert controls_frame is not None, "Controls frame should be found"
+        assert prompt_frame is not None, "Prompt frame should be found"
 
-        # Check that role tag buttons are in controls frame
-        buttons_in_controls = controls_frame.findChildren(QPushButtonWithIcon)
+        # Check that role tag buttons are in prompt frame
+        buttons_in_prompt = prompt_frame.findChildren(QPushButtonWithIcon)
 
-        assert widget.system_tag_button in buttons_in_controls, "System tag button should be in controls panel"
-        assert widget.user_tag_button in buttons_in_controls, "User tag button should be in controls panel"
-        assert widget.assistant_tag_button in buttons_in_controls, "Assistant tag button should be in controls panel"
+        assert widget.system_tag_button in buttons_in_prompt, "System tag button should be in prompt panel"
+        assert widget.user_tag_button in buttons_in_prompt, "User tag button should be in prompt panel"
+        assert widget.assistant_tag_button in buttons_in_prompt, "Assistant tag button should be in prompt panel"
