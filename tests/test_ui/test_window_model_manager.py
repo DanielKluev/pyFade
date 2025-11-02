@@ -10,7 +10,7 @@ Tests model management dialog functionality including:
 - Model validation
 - Provider reload on save
 """
-# pylint: disable=unused-argument
+# pylint: disable=unused-argument,redefined-outer-name
 from __future__ import annotations
 
 import logging
@@ -21,8 +21,8 @@ import pytest
 from PyQt6.QtWidgets import QMessageBox
 
 from py_fade.app import pyFadeApp
-from py_fade.gui.window_model_manager import ModelManagerWindow, LlamaCppModelsTab, OllamaModelsTab, RemoteAPIModelsTab
-from tests.helpers.ui_helpers import patch_message_boxes
+from py_fade.gui.window_model_manager import ModelManagerWindow
+from tests.helpers.ui_helpers import patch_message_boxes, setup_test_app_without_dataset, cleanup_app_widgets
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -31,19 +31,11 @@ if TYPE_CHECKING:
 @pytest.fixture
 def temp_app(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, qt_app: "QApplication") -> Generator[pyFadeApp, None, None]:
     """Create a minimal pyFadeApp instance for testing without a dataset."""
-    fake_home = tmp_path / "home"
-    fake_home.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(pathlib.Path, "home", lambda: fake_home)
-
-    config_path = fake_home / "config.yaml"
-    app = pyFadeApp(config_path=config_path)
+    app = setup_test_app_without_dataset(tmp_path, monkeypatch)
     try:
         yield app
     finally:
-        if hasattr(app, "dataset_widget") and app.dataset_widget:
-            app.dataset_widget.deleteLater()
-        if hasattr(app, "launcher") and app.launcher:
-            app.launcher.deleteLater()
+        cleanup_app_widgets(app)
 
 
 def test_model_manager_window_initialization(
@@ -90,8 +82,14 @@ def test_model_manager_loads_existing_config(
 
     # Set up test models in config
     temp_app.config.models = [
-        {"id": "test_gguf_model", "gguf": "/path/to/model.gguf"},
-        {"id": "test_ollama_model", "ollama_id": "llama3:8b"},
+        {
+            "id": "test_gguf_model",
+            "gguf": "/path/to/model.gguf"
+        },
+        {
+            "id": "test_ollama_model",
+            "ollama_id": "llama3:8b"
+        },
     ]
 
     dialog = ModelManagerWindow(None, temp_app)
@@ -377,8 +375,14 @@ def test_model_manager_save_validates_duplicate_ids(
 
     # Create models with duplicate IDs
     duplicate_models = [
-        {"id": "model1", "gguf": "/path/to/model1.gguf"},
-        {"id": "model1", "gguf": "/path/to/model2.gguf"},
+        {
+            "id": "model1",
+            "gguf": "/path/to/model1.gguf"
+        },
+        {
+            "id": "model1",
+            "gguf": "/path/to/model2.gguf"
+        },
     ]
 
     result = dialog._validate_models(duplicate_models)  # pylint: disable=protected-access
@@ -437,8 +441,14 @@ def test_model_manager_save_valid_models(
 
     # Create valid models
     valid_models = [
-        {"id": "model1", "gguf": "/path/to/model1.gguf"},
-        {"id": "model2", "ollama_id": "llama3:8b"},
+        {
+            "id": "model1",
+            "gguf": "/path/to/model1.gguf"
+        },
+        {
+            "id": "model2",
+            "ollama_id": "llama3:8b"
+        },
     ]
 
     result = dialog._validate_models(valid_models)  # pylint: disable=protected-access
@@ -561,9 +571,19 @@ def test_llamacpp_tab_loads_existing_models(
 
     # Set up test models
     test_models = [
-        {"id": "gguf_model_1", "gguf": "/path/to/model1.gguf"},
-        {"id": "gguf_model_2", "gguf": "/path/to/model2.gguf", "lora": "/path/to/lora.gguf"},
-        {"id": "ollama_only", "ollama_id": "llama3:8b"},  # Should not be loaded in this tab
+        {
+            "id": "gguf_model_1",
+            "gguf": "/path/to/model1.gguf"
+        },
+        {
+            "id": "gguf_model_2",
+            "gguf": "/path/to/model2.gguf",
+            "lora": "/path/to/lora.gguf"
+        },
+        {
+            "id": "ollama_only",
+            "ollama_id": "llama3:8b"
+        },  # Should not be loaded in this tab
     ]
 
     dialog = ModelManagerWindow(None, temp_app)
@@ -593,10 +613,23 @@ def test_ollama_tab_loads_existing_models(
 
     # Set up test models
     test_models = [
-        {"id": "ollama_model_1", "ollama_id": "llama3:8b"},
-        {"id": "ollama_model_2", "ollama_id": "MAIN_ID"},
-        {"id": "gguf_model", "gguf": "/path/to/model.gguf"},  # Should not be loaded in this tab
-        {"id": "both", "gguf": "/path/to/model.gguf", "ollama_id": "llama3:8b"},  # Should not be loaded (has gguf)
+        {
+            "id": "ollama_model_1",
+            "ollama_id": "llama3:8b"
+        },
+        {
+            "id": "ollama_model_2",
+            "ollama_id": "MAIN_ID"
+        },
+        {
+            "id": "gguf_model",
+            "gguf": "/path/to/model.gguf"
+        },  # Should not be loaded in this tab
+        {
+            "id": "both",
+            "gguf": "/path/to/model.gguf",
+            "ollama_id": "llama3:8b"
+        },  # Should not be loaded (has gguf)
     ]
 
     dialog = ModelManagerWindow(None, temp_app)

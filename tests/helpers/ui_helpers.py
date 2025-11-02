@@ -63,6 +63,40 @@ def setup_test_app_with_fake_home(
     return app
 
 
+def setup_test_app_without_dataset(
+    tmp_path: pathlib.Path,
+    monkeypatch: "pytest.MonkeyPatch",
+) -> "pyFadeApp":
+    """
+    Create a minimal pyFadeApp instance without a dataset for testing.
+
+    This helper reduces duplication in test setup by providing a common way
+    to create an app instance with a temporary home directory but no dataset.
+    """
+    from py_fade.app import pyFadeApp  # pylint: disable=import-outside-toplevel
+
+    fake_home = tmp_path / "home"
+    fake_home.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(pathlib.Path, "home", lambda: fake_home)
+
+    config_path = fake_home / "config.yaml"
+    app = pyFadeApp(config_path=config_path)
+    return app
+
+
+def cleanup_app_widgets(app: "pyFadeApp") -> None:
+    """
+    Clean up app widgets after tests.
+
+    This helper reduces duplication in test teardown by providing a common way
+    to clean up app widgets.
+    """
+    if hasattr(app, "dataset_widget") and app.dataset_widget:
+        app.dataset_widget.deleteLater()
+    if hasattr(app, "launcher") and app.launcher:
+        app.launcher.deleteLater()
+
+
 def setup_dataset_session(dataset: "DatasetDatabase") -> None:
     """
     Set up and commit the dataset session for testing.
