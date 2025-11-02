@@ -384,3 +384,51 @@ def create_test_tags_and_samples(dataset: "DatasetDatabase") -> tuple:
     dataset.commit()
 
     return tag1, tag2, sample1, sample2
+
+
+def create_samples_with_tag(dataset: "DatasetDatabase", tag, sample_titles: list[str] | None = None) -> list[Sample]:
+    """
+    Create multiple samples and add them to a tag.
+
+    This helper reduces code duplication when tests need to set up samples with a specific tag.
+
+    Args:
+        dataset: Dataset to create samples in
+        tag: Tag to add to all samples
+        sample_titles: List of sample titles. If None, creates 3 samples with default titles.
+
+    Returns:
+        List of created samples
+    """
+    if sample_titles is None:
+        sample_titles = ["Sample 1", "Sample 2", "Sample 3"]
+
+    samples = []
+    for i, title in enumerate(sample_titles, 1):
+        prompt_revision = PromptRevision.get_or_create(dataset, f"Test prompt {i}", 2048, 512)
+        sample = Sample.create_if_unique(dataset, title, prompt_revision)
+        dataset.commit()
+        samples.append(sample)
+
+    # Add tag to all samples
+    for sample in samples:
+        sample.add_tag(dataset, tag)
+    dataset.commit()
+
+    return samples
+
+
+def add_tag_to_samples(dataset: "DatasetDatabase", tag, samples: list[Sample]) -> None:
+    """
+    Add a tag to multiple samples.
+
+    This helper reduces code duplication when tests need to tag existing samples.
+
+    Args:
+        dataset: Dataset containing samples
+        tag: Tag to add to all samples
+        samples: List of samples to tag
+    """
+    for sample in samples:
+        sample.add_tag(dataset, tag)
+    dataset.commit()

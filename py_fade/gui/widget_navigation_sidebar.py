@@ -25,6 +25,7 @@ from py_fade.dataset.sample import Sample
 from py_fade.dataset.tag import Tag
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.gui.components.widget_toggle_button import QPushButtonToggle
+from py_fade.gui.gui_helpers import get_dataset_preferences, update_dataset_preferences
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -679,12 +680,7 @@ class WidgetNavigationSidebar(QWidget):
         """Load persisted preferences for the current dataset."""
         if not hasattr(self.app, "config"):
             return
-        preferences = getattr(self.app.config, "dataset_preferences", {})
-        if not isinstance(preferences, dict):
-            return
-        dataset_prefs = preferences.get(self._dataset_pref_key(), {})
-        if not isinstance(dataset_prefs, dict):
-            return
+        dataset_prefs = get_dataset_preferences(self.app, self._dataset_pref_key())
 
         # Restore flat_list_mode preference
         flat_list_mode = dataset_prefs.get("nav_flat_list_mode")
@@ -695,20 +691,9 @@ class WidgetNavigationSidebar(QWidget):
         """Persist preferences for the current dataset."""
         if not hasattr(self.app, "config"):
             return
-        preferences = getattr(self.app.config, "dataset_preferences", {})
-        if not isinstance(preferences, dict):
-            preferences = {}
-        dataset_key = self._dataset_pref_key()
-        dataset_prefs = preferences.get(dataset_key, {})
-        if not isinstance(dataset_prefs, dict):
-            dataset_prefs = {}
-
-        # Persist flat_list_mode preference
-        dataset_prefs["nav_flat_list_mode"] = self.filter_panel.flat_list_toggle.is_toggled()
-
-        preferences[dataset_key] = dataset_prefs
-        self.app.config.dataset_preferences = preferences
-        self.app.config.save()
+        update_dataset_preferences(self.app, self._dataset_pref_key(), {
+            "nav_flat_list_mode": self.filter_panel.flat_list_toggle.is_toggled(),
+        })
 
     def _on_flat_list_mode_changed(self, _toggled: bool):
         """Handle flat list mode toggle changes by persisting the preference."""

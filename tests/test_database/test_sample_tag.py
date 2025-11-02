@@ -28,6 +28,7 @@ from py_fade.dataset.prompt import PromptRevision
 # Import all models to ensure proper table creation
 from py_fade.dataset.facet import Facet  # noqa: F401 pylint: disable=unused-import
 from py_fade.dataset.completion import PromptCompletion  # noqa: F401 pylint: disable=unused-import
+from tests.helpers.data_helpers import create_samples_with_tag
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -265,28 +266,14 @@ def test_tag_get_samples(temp_dataset: "DatasetDatabase") -> None:
 
     Verifies that all samples associated with a tag can be retrieved.
     """
-    # Create multiple samples
-    prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    sample1 = Sample.create_if_unique(temp_dataset, "Sample 1", prompt_revision)
-    temp_dataset.commit()
-
-    prompt_revision2 = PromptRevision.get_or_create(temp_dataset, "Test prompt 2", 2048, 512)
-    sample2 = Sample.create_if_unique(temp_dataset, "Sample 2", prompt_revision2)
-    temp_dataset.commit()
-
-    prompt_revision3 = PromptRevision.get_or_create(temp_dataset, "Test prompt 3", 2048, 512)
-    sample3 = Sample.create_if_unique(temp_dataset, "Sample 3", prompt_revision3)
-    temp_dataset.commit()
-
     # Create a tag
     tag = Tag.create(temp_dataset, "Important", "Important samples")
     temp_dataset.commit()
 
-    # Add tag to samples
-    sample1.add_tag(temp_dataset, tag)
-    sample2.add_tag(temp_dataset, tag)
-    sample3.add_tag(temp_dataset, tag)
-    temp_dataset.commit()
+    # Create samples and add them to the tag
+    samples_list = create_samples_with_tag(temp_dataset, tag)
+    assert len(samples_list) == 3
+    sample1, sample2, sample3 = samples_list[0], samples_list[1], samples_list[2]
 
     # Get all samples for tag
     samples = tag.get_samples(temp_dataset)
