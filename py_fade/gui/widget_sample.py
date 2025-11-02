@@ -33,6 +33,7 @@ from py_fade.gui.components.widget_plain_text_edit import PlainTextEdit
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from py_fade.gui.widget_new_completion import NewCompletionFrame
+from py_fade.gui.window_detached_notes import DetachedNotesWindow
 from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow, EditorMode
 from py_fade.providers.providers_manager import MappedModel
 from py_fade.providers.flat_prefix_template import FLAT_PREFIX_SYSTEM, FLAT_PREFIX_USER, FLAT_PREFIX_ASSISTANT
@@ -96,6 +97,7 @@ class WidgetSample(QWidget):
         self.active_facet = active_facet
         self.active_model = active_model
         self.beam_search_widget: WidgetCompletionBeams | None = None
+        self.detached_notes_window: DetachedNotesWindow | None = None
         self.completion_frames = []
 
         self.setup_ui()
@@ -190,7 +192,7 @@ class WidgetSample(QWidget):
         group_row_layout.addWidget(group_label)
         group_row_layout.addWidget(self.group_field)
 
-        # Notes row (label and field on same line)
+        # Notes row (label and field on same line with expand button)
         notes_row_layout = QHBoxLayout()
         notes_label = QLabel("Notes:", self)
         notes_label.setMinimumWidth(80)
@@ -198,8 +200,12 @@ class WidgetSample(QWidget):
         self.notes_field = QPlainTextEdit(self)
         self.notes_field.setPlaceholderText("Add notes for annotators (not visible to models)...")
         self.notes_field.setMaximumHeight(60)  # About 2 lines high
+        self.open_notes_button = QPushButtonWithIcon("open_in_new", "", parent=self, icon_size=20, button_size=32)
+        self.open_notes_button.setToolTip("Open Notes in Detached Window")
+        self.open_notes_button.clicked.connect(self.open_detached_notes)
         notes_row_layout.addWidget(notes_label)
         notes_row_layout.addWidget(self.notes_field)
+        notes_row_layout.addWidget(self.open_notes_button)
 
         # Tags row (label and display on same line with edit button)
         tags_row_layout = QHBoxLayout()
@@ -776,6 +782,48 @@ class WidgetSample(QWidget):
             mapped_model=self.active_model,
         )
         self.beam_search_widget.show()
+
+    def open_detached_notes(self) -> None:
+        """
+        Open the detached notes window for expanded editing.
+
+        Creates a non-modal window with the current notes content.
+        If a detached window is already open, brings it to front instead of creating a new one.
+        """
+        # If window already exists and is visible, just bring it to front
+        if self.detached_notes_window is not None and self.detached_notes_window.isVisible():
+            self.detached_notes_window.raise_()
+            self.detached_notes_window.activateWindow()
+            self.log.debug("Bringing existing detached notes window to front")
+            return
+
+        # Create new detached notes window
+        current_notes = self.notes_field.toPlainText()
+        self.detached_notes_window = DetachedNotesWindow(
+            dataset=self.dataset,
+            sample=self.sample,
+            initial_notes=current_notes,
+            parent=self,
+        )
+
+        # Connect signal to synchronize notes back to main widget
+        self.detached_notes_window.notes_saved.connect(self._on_detached_notes_saved)
+
+        # Show the window (non-modal)
+        self.detached_notes_window.show()
+        self.log.debug("Opened detached notes window")
+
+    def _on_detached_notes_saved(self, notes: str) -> None:
+        """
+        Handle notes saved signal from detached window.
+
+        Synchronizes the notes content from detached window to main widget.
+
+        Args:
+            notes: The notes content from detached window
+        """
+        self.notes_field.setPlainText(notes)
+        self.log.debug("Synchronized notes from detached window (%d characters)", len(notes))
 
     def update_tags_display(self) -> None:
         """
