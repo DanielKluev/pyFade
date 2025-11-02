@@ -24,6 +24,7 @@ from py_fade.dataset.facet import Facet
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.tag import Tag
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
+from py_fade.gui.components.widget_toggle_button import QPushButtonToggle
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -33,14 +34,16 @@ if TYPE_CHECKING:
 class WidgetNavigationFilterPanel(QWidget):
     """
     Filter panel for navigation sidebar.
+
     Lets switch between samples by groups, samples by facets, samples by tags, individual prompts, individual completions.
-    Additionally lets filter by text search.
+    Additionally lets filter by text search and toggle flat list view for tag/facet groupings.
     """
 
     filter_changed = pyqtSignal()  # Signal emitted when filter criteria change
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
+        self.flat_list_toggle = None  # Will be initialized in setup_ui
         self.setup_ui()
 
     def setup_ui(self):
@@ -61,7 +64,12 @@ class WidgetNavigationFilterPanel(QWidget):
             "Prompts",
             "Export Templates",
         ])
-        self.show_combo.currentTextChanged.connect(self.filter_changed.emit)
+        self.show_combo.currentTextChanged.connect(self._on_show_changed)
+
+        # Flat list toggle button (shown only for tag/facet groupings)
+        self.flat_list_toggle = QPushButtonToggle("view_list", "Toggle flat list view (no group hierarchy)", button_size=28)
+        self.flat_list_toggle.toggled_state_changed.connect(self.filter_changed.emit)
+        self.flat_list_toggle.setVisible(False)  # Hidden by default
 
         # Text search
         search_label = QLabel("Search:")
@@ -73,11 +81,22 @@ class WidgetNavigationFilterPanel(QWidget):
         # Add widgets to layout
         layout.addWidget(show_label)
         layout.addWidget(self.show_combo)
+        layout.addWidget(self.flat_list_toggle)
         layout.addWidget(search_label)
         layout.addWidget(self.search_input)
         # Do not add a stretch here so the panel only takes the space it needs.
         # Ensure the panel does not expand vertically.
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+
+    def _on_show_changed(self):
+        """Handle show combo box changes to update flat list toggle visibility."""
+        show = self.show_combo.currentText()
+        # Show flat list toggle only for "Samples by Tag" and "Samples by Facet"
+        if show in ("Samples by Tag", "Samples by Facet"):
+            self.flat_list_toggle.setVisible(True)
+        else:
+            self.flat_list_toggle.setVisible(False)
+        self.filter_changed.emit()
 
     def _build_data_filter(self) -> DataFilter:
         """Build a DataFilter based on current filter criteria."""
@@ -89,7 +108,11 @@ class WidgetNavigationFilterPanel(QWidget):
 
     def get_filter_criteria(self) -> dict:
         """Get current filter criteria as a dictionary."""
-        return {"show": self.show_combo.currentText(), "data_filter": self._build_data_filter()}
+        return {
+            "show": self.show_combo.currentText(),
+            "data_filter": self._build_data_filter(),
+            "flat_list_mode": self.flat_list_toggle.is_toggled() if self.flat_list_toggle else False,
+        }
 
 
 class WidgetNavigationTree(QWidget):
@@ -143,16 +166,17 @@ class WidgetNavigationTree(QWidget):
 
         show = filter_criteria.get("show", "Samples by Group")
         data_filter: DataFilter = filter_criteria.get("data_filter")  # type: ignore
+        flat_list_mode = filter_criteria.get("flat_list_mode", False)
         self.current_item_type = None
         if show == "Samples by Group":
             self.current_item_type = "Sample"
             self._populate_samples(data_filter, dataset)
         elif show == "Samples by Facet":
             self.current_item_type = "Sample"
-            self._populate_samples_by_facet(data_filter, dataset)
+            self._populate_samples_by_facet(data_filter, dataset, flat_list_mode)
         elif show == "Samples by Tag":
             self.current_item_type = "Sample"
-            self._populate_samples_by_tag(data_filter, dataset)
+            self._populate_samples_by_tag(data_filter, dataset, flat_list_mode)
         elif show == "Facets":
             self.current_item_type = "Facet"
             self._populate_facets(data_filter, dataset)
@@ -199,13 +223,18 @@ class WidgetNavigationTree(QWidget):
             item.setData(0, Qt.ItemDataRole.UserRole, "sample")
             item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
 
-    def _populate_samples_by_facet(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
+    def _populate_samples_by_facet(self, data_filter: DataFilter, dataset: "DatasetDatabase", flat_list_mode: bool = False):
         """
         Populate tree with samples grouped by facet.
 
         Root nodes are facets and "No Facet" node.
-        Under each facet, samples are grouped by their group_path.
+        Under each facet, samples are grouped by their group_path (unless flat_list_mode is True).
         Samples without any facet ratings go under "No Facet" node.
+
+        Args:
+            data_filter: Filter to apply to samples
+            dataset: Dataset database
+            flat_list_mode: If True, samples are listed directly under facet without group_path hierarchy
         """
 
         # Get all facets
@@ -249,25 +278,32 @@ class WidgetNavigationTree(QWidget):
             facet_item = QTreeWidgetItem(self.tree, [facet.name])
             facet_item.setExpanded(False)  # Collapse by default
 
-            # Group samples by group_path under this facet
-            group_roots = {}
-            for sample in samples:
-                group_path = sample.group_path or "Ungrouped"
-                group_parts = group_path.split("/")
-                current_parent = facet_item
-                current_path = ""
-                for part in group_parts:
-                    current_path = f"{current_path}/{part}" if current_path else part
-                    # Use facet_id prefix to ensure unique keys per facet
-                    group_key = f"{facet.id}:{current_path}"
-                    if group_key not in group_roots:
-                        group_roots[group_key] = QTreeWidgetItem(current_parent, [part])
-                    current_parent = group_roots[group_key]
+            if flat_list_mode:
+                # Flat mode: Add samples directly under facet without group hierarchy
+                for sample in samples:
+                    sample_item = QTreeWidgetItem(facet_item, [sample.title])
+                    sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+                    sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+            else:
+                # Hierarchical mode: Group samples by group_path under this facet
+                group_roots = {}
+                for sample in samples:
+                    group_path = sample.group_path or "Ungrouped"
+                    group_parts = group_path.split("/")
+                    current_parent = facet_item
+                    current_path = ""
+                    for part in group_parts:
+                        current_path = f"{current_path}/{part}" if current_path else part
+                        # Use facet_id prefix to ensure unique keys per facet
+                        group_key = f"{facet.id}:{current_path}"
+                        if group_key not in group_roots:
+                            group_roots[group_key] = QTreeWidgetItem(current_parent, [part])
+                        current_parent = group_roots[group_key]
 
-                # Add sample under the group
-                sample_item = QTreeWidgetItem(current_parent, [sample.title])
-                sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
-                sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+                    # Add sample under the group
+                    sample_item = QTreeWidgetItem(current_parent, [sample.title])
+                    sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+                    sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
 
         # Add "No Facet" node for samples without any ratings
         samples_without_facet = Facet.get_samples_without_facet(dataset)
@@ -284,33 +320,45 @@ class WidgetNavigationTree(QWidget):
             no_facet_item = QTreeWidgetItem(self.tree, ["No Facet"])
             no_facet_item.setExpanded(False)  # Collapse by default
 
-            # Group samples by group_path under "No Facet"
-            group_roots = {}
-            for sample in samples_without_facet:
-                group_path = sample.group_path or "Ungrouped"
-                group_parts = group_path.split("/")
-                current_parent = no_facet_item
-                current_path = ""
-                for part in group_parts:
-                    current_path = f"{current_path}/{part}" if current_path else part
-                    # Use "no_facet" prefix for unique keys
-                    group_key = f"no_facet:{current_path}"
-                    if group_key not in group_roots:
-                        group_roots[group_key] = QTreeWidgetItem(current_parent, [part])
-                    current_parent = group_roots[group_key]
+            if flat_list_mode:
+                # Flat mode: Add samples directly under "No Facet" without group hierarchy
+                for sample in samples_without_facet:
+                    sample_item = QTreeWidgetItem(no_facet_item, [sample.title])
+                    sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+                    sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+            else:
+                # Hierarchical mode: Group samples by group_path under "No Facet"
+                group_roots = {}
+                for sample in samples_without_facet:
+                    group_path = sample.group_path or "Ungrouped"
+                    group_parts = group_path.split("/")
+                    current_parent = no_facet_item
+                    current_path = ""
+                    for part in group_parts:
+                        current_path = f"{current_path}/{part}" if current_path else part
+                        # Use "no_facet" prefix for unique keys
+                        group_key = f"no_facet:{current_path}"
+                        if group_key not in group_roots:
+                            group_roots[group_key] = QTreeWidgetItem(current_parent, [part])
+                        current_parent = group_roots[group_key]
 
-                # Add sample under the group
-                sample_item = QTreeWidgetItem(current_parent, [sample.title])
-                sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
-                sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+                    # Add sample under the group
+                    sample_item = QTreeWidgetItem(current_parent, [sample.title])
+                    sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+                    sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
 
-    def _populate_samples_by_tag(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
+    def _populate_samples_by_tag(self, data_filter: DataFilter, dataset: "DatasetDatabase", flat_list_mode: bool = False):
         """
         Populate tree with samples grouped by tag.
 
         Root nodes are tags and "No Tag" node.
-        Under each tag, samples are grouped by their group_path.
+        Under each tag, samples are grouped by their group_path (unless flat_list_mode is True).
         Samples without any tags go under "No Tag" node.
+
+        Args:
+            data_filter: Filter to apply to samples
+            dataset: Dataset database
+            flat_list_mode: If True, samples are listed directly under tag without group_path hierarchy
         """
 
         # Get all tags
@@ -354,25 +402,32 @@ class WidgetNavigationTree(QWidget):
             tag_item = QTreeWidgetItem(self.tree, [tag.name])
             tag_item.setExpanded(False)  # Collapse by default
 
-            # Group samples by group_path under this tag
-            group_roots = {}
-            for sample in samples:
-                group_path = sample.group_path or "Ungrouped"
-                group_parts = group_path.split("/")
-                current_parent = tag_item
-                current_path = ""
-                for part in group_parts:
-                    current_path = f"{current_path}/{part}" if current_path else part
-                    # Use tag_id prefix to ensure unique keys per tag
-                    group_key = f"{tag.id}:{current_path}"
-                    if group_key not in group_roots:
-                        group_roots[group_key] = QTreeWidgetItem(current_parent, [part])
-                    current_parent = group_roots[group_key]
+            if flat_list_mode:
+                # Flat mode: Add samples directly under tag without group hierarchy
+                for sample in samples:
+                    sample_item = QTreeWidgetItem(tag_item, [sample.title])
+                    sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+                    sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+            else:
+                # Hierarchical mode: Group samples by group_path under this tag
+                group_roots = {}
+                for sample in samples:
+                    group_path = sample.group_path or "Ungrouped"
+                    group_parts = group_path.split("/")
+                    current_parent = tag_item
+                    current_path = ""
+                    for part in group_parts:
+                        current_path = f"{current_path}/{part}" if current_path else part
+                        # Use tag_id prefix to ensure unique keys per tag
+                        group_key = f"{tag.id}:{current_path}"
+                        if group_key not in group_roots:
+                            group_roots[group_key] = QTreeWidgetItem(current_parent, [part])
+                        current_parent = group_roots[group_key]
 
-                # Add sample under the group
-                sample_item = QTreeWidgetItem(current_parent, [sample.title])
-                sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
-                sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+                    # Add sample under the group
+                    sample_item = QTreeWidgetItem(current_parent, [sample.title])
+                    sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+                    sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
 
         # Add "No Tag" node for samples without any tags
         # Get all samples
@@ -393,25 +448,32 @@ class WidgetNavigationTree(QWidget):
             no_tag_item = QTreeWidgetItem(self.tree, ["No Tag"])
             no_tag_item.setExpanded(False)  # Collapse by default
 
-            # Group samples by group_path under "No Tag"
-            group_roots = {}
-            for sample in samples_without_tags:
-                group_path = sample.group_path or "Ungrouped"
-                group_parts = group_path.split("/")
-                current_parent = no_tag_item
-                current_path = ""
-                for part in group_parts:
-                    current_path = f"{current_path}/{part}" if current_path else part
-                    # Use "no_tag" prefix for unique keys
-                    group_key = f"no_tag:{current_path}"
-                    if group_key not in group_roots:
-                        group_roots[group_key] = QTreeWidgetItem(current_parent, [part])
-                    current_parent = group_roots[group_key]
+            if flat_list_mode:
+                # Flat mode: Add samples directly under "No Tag" without group hierarchy
+                for sample in samples_without_tags:
+                    sample_item = QTreeWidgetItem(no_tag_item, [sample.title])
+                    sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+                    sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+            else:
+                # Hierarchical mode: Group samples by group_path under "No Tag"
+                group_roots = {}
+                for sample in samples_without_tags:
+                    group_path = sample.group_path or "Ungrouped"
+                    group_parts = group_path.split("/")
+                    current_parent = no_tag_item
+                    current_path = ""
+                    for part in group_parts:
+                        current_path = f"{current_path}/{part}" if current_path else part
+                        # Use "no_tag" prefix for unique keys
+                        group_key = f"no_tag:{current_path}"
+                        if group_key not in group_roots:
+                            group_roots[group_key] = QTreeWidgetItem(current_parent, [part])
+                        current_parent = group_roots[group_key]
 
-                # Add sample under the group
-                sample_item = QTreeWidgetItem(current_parent, [sample.title])
-                sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
-                sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+                    # Add sample under the group
+                    sample_item = QTreeWidgetItem(current_parent, [sample.title])
+                    sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+                    sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
 
     def _populate_facets(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
         """Populate tree with facets."""

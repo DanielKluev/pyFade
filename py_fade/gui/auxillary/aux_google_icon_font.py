@@ -37,6 +37,8 @@ common_icons_map = {
     "settings_alert": "\uf143",  # system with alert
     "person": "\ue7fd",  # user / person icon
     "step": "\uf6fe",  # step / single step icon
+    "view_list": "\ue8ef",  # list view icon
+    "account_tree": "\ue97a",  # tree / hierarchy view icon
 }
 
 # Important: icons_aliases holds higher priority than common_icons_map
