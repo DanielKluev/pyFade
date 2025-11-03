@@ -2,9 +2,13 @@
 
 # Faceted Alignment Datasets Editor
 
-pyFADE is tool designed to assist in creation of highly personalized, biased, multi-faceted datasets for local LLM fine-tuning.
-Conveniently manage facet-dependent completions preference rankings for each sample.
-From unified UI and database, maintain and export faceted datasets for SFT or DPO tuning of ensemble of facet-specific LLMs.
+**pyFADE** is a tool for creating highly personalized, preference-tailored, multi-faceted datasets for local LLM parameter-efficient fine-tuning (e.g., LoRA, QLoRA, DoRA) using SFT, DPO, KTO, PPO, and other methods — all derived from the same dataset.
+
+Each prompt supports multiple completions and independent per-facet preference rankings, enabling the convenient construction of an ensemble of facet-specific LLMs, each fine-tuned for a distinct context or purpose.
+
+In addition, pyFADE provides tools to extract targeted completions from the model’s own latent manifold — exploring more deeply than conventional sampling methods to reveal knowledge and reasoning embedded within the model but typically suppressed by its default behavior.
+
+Token-level fidelity, along with rigorous log-probability tracking and filtering, reduces the number of samples required for effective fine-tuning while preserving the model’s original capabilities and preventing catastrophic forgetting or degradation of base-model performance.
 
 ## What's facet?
 
