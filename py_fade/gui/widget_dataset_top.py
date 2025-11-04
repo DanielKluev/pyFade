@@ -40,6 +40,7 @@ from py_fade.dataset.prompt import PromptRevision
 
 # Dataset models
 from py_fade.dataset.sample import Sample
+from py_fade.dataset.sample_filter import SampleFilter
 from py_fade.dataset.tag import Tag
 from py_fade.gui.gui_helpers import get_dataset_preferences, update_dataset_preferences
 from py_fade.gui.widget_export_template import WidgetExportTemplate
@@ -48,6 +49,7 @@ from py_fade.gui.widget_facet import WidgetFacet
 # pyFADE widgets
 from py_fade.gui.widget_navigation_sidebar import WidgetNavigationSidebar
 from py_fade.gui.widget_sample import WidgetSample
+from py_fade.gui.widget_sample_filter import WidgetSampleFilter
 from py_fade.gui.widget_tag import WidgetTag
 from py_fade.features_checker import SUPPORTED_FEATURES
 
@@ -862,6 +864,18 @@ class WidgetDatasetTop(QMainWindow):
         tag_widget.tag_cancelled.connect(lambda wid=widget_id: self._on_tag_cancelled(wid))
         return widget_id
 
+    def create_sample_filter_tab(self, sample_filter: SampleFilter | None, *, focus: bool = True) -> int:
+        """Create a new tab for editing or creating a sample filter."""
+
+        filter_widget = WidgetSampleFilter(self, self.app, self.dataset, sample_filter)
+        filter_id = sample_filter.id if sample_filter else 0
+        title = f"SF: {sample_filter.name}" if sample_filter else "New Sample Filter"
+        widget_id = self._register_tab(filter_widget, title, "sample_filter", filter_id, focus=focus)
+        filter_widget.sample_filter_saved.connect(lambda saved, wid=widget_id: self._on_sample_filter_saved(wid, saved))
+        filter_widget.sample_filter_deleted.connect(lambda deleted, wid=widget_id: self._on_sample_filter_deleted(wid, deleted))
+        filter_widget.sample_filter_cancelled.connect(lambda wid=widget_id: self._on_sample_filter_cancelled(wid))
+        return widget_id
+
     def create_export_template_tab(self, template: ExportTemplate | None, *, focus: bool = True) -> int:
         """Create a new tab for managing an export template."""
 
@@ -950,6 +964,34 @@ class WidgetDatasetTop(QMainWindow):
             if index >= 0:
                 self.close_tab(index)
 
+    def _on_sample_filter_saved(self, widget_id: int, sample_filter: SampleFilter) -> None:
+        """Handle sample filter save event: update tab and refresh sidebar."""
+        tab_info = self.tabs.get(widget_id)
+        if not tab_info:
+            return
+        tab_info["id"] = sample_filter.id
+        self._set_tab_title(widget_id, f"SF: {sample_filter.name}")
+        if hasattr(self.sidebar, "refresh"):
+            self.sidebar.refresh()
+
+    def _on_sample_filter_deleted(self, widget_id: int, _sample_filter: SampleFilter) -> None:
+        """Handle sample filter deletion: refresh sidebar and close tab."""
+        if hasattr(self.sidebar, "refresh"):
+            self.sidebar.refresh()
+        index = self._tab_index(widget_id)
+        if index >= 0:
+            self.close_tab(index)
+
+    def _on_sample_filter_cancelled(self, widget_id: int) -> None:
+        """Handle sample filter cancellation: close tab if new filter."""
+        tab_info = self.tabs.get(widget_id)
+        if not tab_info:
+            return
+        if tab_info.get("id") == 0:
+            index = self._tab_index(widget_id)
+            if index >= 0:
+                self.close_tab(index)
+
     def _on_export_template_saved(self, widget_id: int, template: ExportTemplate) -> None:
         tab_info = self.tabs.get(widget_id)
         if not tab_info:
@@ -1009,6 +1051,15 @@ class WidgetDatasetTop(QMainWindow):
         widget_id = self.create_tag_tab(tag, focus=True)
         self._focus_widget(self.tabs[widget_id]["widget"])
 
+    def _open_sample_filter_by_id(self, filter_id: int) -> None:
+        """Open a sample filter editing tab for the provided filter identifier."""
+
+        sample_filter = SampleFilter.get_by_id(self.dataset, filter_id)
+        if not sample_filter:
+            return
+        widget_id = self.create_sample_filter_tab(sample_filter, focus=True)
+        self._focus_widget(self.tabs[widget_id]["widget"])
+
     def _open_sample_by_id(self, sample_id: int) -> None:
         """Open a sample tab, retrieving data using the dataset session."""
 
@@ -1062,6 +1113,7 @@ class WidgetDatasetTop(QMainWindow):
             "export_template": self._open_export_template_by_id,
             "tag": self._open_tag_by_id,
             "sample": self._open_sample_by_id,
+            "sample_filter": self._open_sample_filter_by_id,
             "prompt": self._open_prompt_by_id,
             "facet": self._open_facet_by_id,
         }
@@ -1084,6 +1136,10 @@ class WidgetDatasetTop(QMainWindow):
             return
         if normalized_type == "tag":
             widget_id = self.create_tag_tab(None, focus=True)
+            self._focus_widget(self.tabs[widget_id]["widget"])
+            return
+        if normalized_type == "sample filter":
+            widget_id = self.create_sample_filter_tab(None, focus=True)
             self._focus_widget(self.tabs[widget_id]["widget"])
             return
         if normalized_type == "export_template":

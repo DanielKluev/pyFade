@@ -62,6 +62,7 @@ class WidgetNavigationFilterPanel(QWidget):
             "Samples by Facet",
             "Samples by Tag",
             "Samples by Filter",
+            "Sample Filters",
             "Facets",
             "Tags",
             "Prompts",
@@ -226,6 +227,9 @@ class WidgetNavigationTree(QWidget):
         elif show == "Samples by Filter":
             self.current_item_type = "Sample"
             self._populate_samples_by_filter(selected_filter_id, dataset, flat_list_mode)
+        elif show == "Sample Filters":
+            self.current_item_type = "Sample Filter"
+            self._populate_sample_filters(data_filter, dataset)
         elif show == "Facets":
             self.current_item_type = "Facet"
             self._populate_facets(data_filter, dataset)
@@ -636,6 +640,38 @@ class WidgetNavigationTree(QWidget):
             item.setData(0, Qt.ItemDataRole.UserRole, "tag")
             item.setData(1, Qt.ItemDataRole.UserRole, tag.id)
             item.setToolTip(0, tag.description)
+
+    def _populate_sample_filters(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
+        """
+        Populate tree with sample filters.
+        """
+        from py_fade.dataset.sample_filter import SampleFilter  # pylint: disable=import-outside-toplevel
+
+        sample_filters = SampleFilter.get_all(dataset, order_by_date=True)
+
+        search_value: str | None = None
+        for criteria in getattr(data_filter, "filters", []):
+            if criteria.get("type") == "text_search":
+                value = str(criteria.get("value", "")).strip().lower()
+                if value:
+                    search_value = value
+                    break
+
+        if search_value:
+            sample_filters = [f for f in sample_filters if search_value in f.name.lower() or search_value in f.description.lower()]
+
+        if not sample_filters:
+            placeholder = QTreeWidgetItem(self.tree, ["No sample filters available"])
+            placeholder.setFlags(placeholder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            return
+
+        for sample_filter in sample_filters:
+            rule_count = len(sample_filter.get_rules())
+            display_text = f"{sample_filter.name} ({rule_count} rules)" if rule_count else sample_filter.name
+            item = QTreeWidgetItem(self.tree, [display_text])
+            item.setData(0, Qt.ItemDataRole.UserRole, "sample_filter")
+            item.setData(1, Qt.ItemDataRole.UserRole, sample_filter.id)
+            item.setToolTip(0, sample_filter.description)
 
     def _populate_prompts(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
         """
