@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### Added
+- **Complex Samples Filtering**: Implemented advanced filtering system for samples with multiple filter rules combined via AND logic
+  - New `SampleFilter` database model for storing complex filter definitions with JSON-encoded rules
+  - `FilterRule` data class supporting three rule types: String search, Tag presence, and Facet ratings
+  - Each rule supports optional negation (NOT operator) to match samples that don't meet the criteria
+  - `Sample.fetch_with_complex_filter()` method applies filter rules with AND logic across all samples
+  - Added "Samples by Filter" option to navigation sidebar with filter selector dropdown
+  - Filter selector auto-refreshes when dataset changes and supports flat/hierarchical group_path views
+  - Comprehensive test coverage with 75 new unit tests (20 database, 33 logic, 13 complex application, 9 UI)
+  - All tests passing (716 total, 4 skipped)
+  - Pylint score: 10.00/10 for py_fade, 9.99/10 for tests
+  - **Note**: Filter management UI (dialog for creating/editing filters) not yet implemented - filters can be created programmatically
 - **Expandable Detachable Sample Notes**: Implemented feature for editing notes in a separate expanded window
   - New "Open in New" button in corner of notes field in WidgetSample
   - Detached notes window (DetachedNotesWindow) provides maximized editing space
