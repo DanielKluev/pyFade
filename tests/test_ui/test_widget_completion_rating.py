@@ -332,7 +332,8 @@ def test_archive_button_hides_completion_until_toggle_enabled(
     with pytest.raises(AssertionError):
         _first_completion_frame(widget)
 
-    widget.show_archived_checkbox.setChecked(True)
+    # Toggle the archive filter to show archived completions
+    widget.filter_archived_button.clicked.emit()
     qt_app.processEvents()
 
     archived_frame = _first_completion_frame(widget)
@@ -346,7 +347,8 @@ def test_archive_button_hides_completion_until_toggle_enabled(
     assert archive_events[-1][1] is False
     assert completion.is_archived is False
 
-    widget.show_archived_checkbox.setChecked(False)
+    # Toggle back to hide archived
+    widget.filter_archived_button.clicked.emit()
     qt_app.processEvents()
     unarchived_frame = _first_completion_frame(widget)
     assert isinstance(unarchived_frame.completion, PromptCompletion)
