@@ -45,6 +45,7 @@ class WidgetNavigationFilterPanel(QWidget):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.flat_list_toggle = None  # Will be initialized in setup_ui
+        self.filter_selector = None  # Will be initialized in setup_ui
         self.setup_ui()
 
     def setup_ui(self):
@@ -60,6 +61,8 @@ class WidgetNavigationFilterPanel(QWidget):
             "Samples by Group",
             "Samples by Facet",
             "Samples by Tag",
+            "Samples by Filter",
+            "Sample Filters",
             "Facets",
             "Tags",
             "Prompts",
@@ -67,7 +70,15 @@ class WidgetNavigationFilterPanel(QWidget):
         ])
         self.show_combo.currentTextChanged.connect(self._on_show_changed)
 
-        # Flat list toggle button (shown only for tag/facet groupings)
+        # Filter selector (shown only for "Samples by Filter")
+        filter_selector_label = QLabel("Filter:")
+        self.filter_selector = QComboBox()
+        self.filter_selector.setVisible(False)
+        self.filter_selector.currentIndexChanged.connect(self.filter_changed.emit)
+        filter_selector_label.setVisible(False)
+        self.filter_selector_label = filter_selector_label
+
+        # Flat list toggle button (shown only for tag/facet/filter groupings)
         self.flat_list_toggle = QPushButtonToggle("view_list", "Toggle flat list view (no group hierarchy)", button_size=28)
         self.flat_list_toggle.toggled_state_changed.connect(self.filter_changed.emit)
         self.flat_list_toggle.setVisible(False)  # Hidden by default
@@ -82,6 +93,8 @@ class WidgetNavigationFilterPanel(QWidget):
         # Add widgets to layout
         layout.addWidget(show_label)
         layout.addWidget(self.show_combo)
+        layout.addWidget(filter_selector_label)
+        layout.addWidget(self.filter_selector)
         layout.addWidget(self.flat_list_toggle)
         layout.addWidget(search_label)
         layout.addWidget(self.search_input)
@@ -90,13 +103,23 @@ class WidgetNavigationFilterPanel(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
 
     def _on_show_changed(self):
-        """Handle show combo box changes to update flat list toggle visibility."""
+        """Handle show combo box changes to update flat list toggle and filter selector visibility."""
         show = self.show_combo.currentText()
-        # Show flat list toggle only for "Samples by Tag" and "Samples by Facet"
-        if show in ("Samples by Tag", "Samples by Facet"):
+
+        # Show flat list toggle for "Samples by Tag", "Samples by Facet", and "Samples by Filter"
+        if show in ("Samples by Tag", "Samples by Facet", "Samples by Filter"):
             self.flat_list_toggle.setVisible(True)
         else:
             self.flat_list_toggle.setVisible(False)
+
+        # Show filter selector only for "Samples by Filter"
+        if show == "Samples by Filter":
+            self.filter_selector.setVisible(True)
+            self.filter_selector_label.setVisible(True)
+        else:
+            self.filter_selector.setVisible(False)
+            self.filter_selector_label.setVisible(False)
+
         self.filter_changed.emit()
 
     def _build_data_filter(self) -> DataFilter:
@@ -109,11 +132,32 @@ class WidgetNavigationFilterPanel(QWidget):
 
     def get_filter_criteria(self) -> dict:
         """Get current filter criteria as a dictionary."""
+        show = self.show_combo.currentText()
         return {
-            "show": self.show_combo.currentText(),
+            "show": show,
             "data_filter": self._build_data_filter(),
             "flat_list_mode": self.flat_list_toggle.is_toggled() if self.flat_list_toggle else False,
+            "selected_filter_id": self.filter_selector.currentData() if self.filter_selector and show == "Samples by Filter" else None,
         }
+
+    def update_filter_list(self, dataset: "DatasetDatabase"):
+        """
+        Update the filter selector with available sample filters from the dataset.
+
+        Args:
+            dataset: The dataset database instance
+        """
+        from py_fade.dataset.sample_filter import SampleFilter  # pylint: disable=import-outside-toplevel
+
+        self.filter_selector.clear()
+        filters = SampleFilter.get_all(dataset, order_by_date=True)
+
+        if not filters:
+            self.filter_selector.addItem("(No filters defined)", None)
+            return
+
+        for sample_filter in filters:
+            self.filter_selector.addItem(sample_filter.name, sample_filter.id)
 
 
 class WidgetNavigationTree(QWidget):
@@ -168,6 +212,8 @@ class WidgetNavigationTree(QWidget):
         show = filter_criteria.get("show", "Samples by Group")
         data_filter: DataFilter = filter_criteria.get("data_filter")  # type: ignore
         flat_list_mode = filter_criteria.get("flat_list_mode", False)
+        selected_filter_id = filter_criteria.get("selected_filter_id")
+
         self.current_item_type = None
         if show == "Samples by Group":
             self.current_item_type = "Sample"
@@ -178,6 +224,12 @@ class WidgetNavigationTree(QWidget):
         elif show == "Samples by Tag":
             self.current_item_type = "Sample"
             self._populate_samples_by_tag(data_filter, dataset, flat_list_mode)
+        elif show == "Samples by Filter":
+            self.current_item_type = "Sample"
+            self._populate_samples_by_filter(selected_filter_id, dataset, flat_list_mode)
+        elif show == "Sample Filters":
+            self.current_item_type = "Sample Filter"
+            self._populate_sample_filters(data_filter, dataset)
         elif show == "Facets":
             self.current_item_type = "Facet"
             self._populate_facets(data_filter, dataset)
@@ -476,6 +528,64 @@ class WidgetNavigationTree(QWidget):
                     sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
                     sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
 
+    def _populate_samples_by_filter(self, filter_id: int | None, dataset: "DatasetDatabase", flat_list_mode: bool = False):
+        """
+        Populate tree with samples filtered by a complex sample filter.
+
+        Args:
+            filter_id: ID of the SampleFilter to apply, or None if no filter selected
+            dataset: Dataset database
+            flat_list_mode: If True, samples are listed directly without group_path hierarchy
+        """
+        from py_fade.dataset.sample_filter import SampleFilter  # pylint: disable=import-outside-toplevel
+
+        if filter_id is None:
+            # No filter selected, show placeholder
+            placeholder = QTreeWidgetItem(self.tree, ["No filter selected"])
+            placeholder.setFlags(placeholder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            return
+
+        # Get the filter
+        sample_filter = SampleFilter.get_by_id(dataset, filter_id)
+        if not sample_filter:
+            placeholder = QTreeWidgetItem(self.tree, ["Filter not found"])
+            placeholder.setFlags(placeholder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            return
+
+        # Get filter rules and apply them
+        rules = sample_filter.get_rules()
+        samples = Sample.fetch_with_complex_filter(dataset, rules)
+
+        if not samples:
+            placeholder = QTreeWidgetItem(self.tree, ["No samples match this filter"])
+            placeholder.setFlags(placeholder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            return
+
+        if flat_list_mode:
+            # Flat mode: Add samples directly without group hierarchy
+            for sample in samples:
+                sample_item = QTreeWidgetItem(self.tree, [sample.title])
+                sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+                sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+        else:
+            # Hierarchical mode: Group samples by group_path
+            group_roots = {}
+            for sample in samples:
+                group_path = sample.group_path or "Ungrouped"
+                group_parts = group_path.split("/")
+                current_parent = self.tree
+                current_path = ""
+                for part in group_parts:
+                    current_path = f"{current_path}/{part}" if current_path else part
+                    if current_path not in group_roots:
+                        group_roots[current_path] = QTreeWidgetItem(current_parent, [part])
+                    current_parent = group_roots[current_path]
+
+                # Add sample under the group
+                sample_item = QTreeWidgetItem(current_parent, [sample.title])
+                sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+                sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+
     def _populate_facets(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
         """Populate tree with facets."""
 
@@ -530,6 +640,38 @@ class WidgetNavigationTree(QWidget):
             item.setData(0, Qt.ItemDataRole.UserRole, "tag")
             item.setData(1, Qt.ItemDataRole.UserRole, tag.id)
             item.setToolTip(0, tag.description)
+
+    def _populate_sample_filters(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
+        """
+        Populate tree with sample filters.
+        """
+        from py_fade.dataset.sample_filter import SampleFilter  # pylint: disable=import-outside-toplevel
+
+        sample_filters = SampleFilter.get_all(dataset, order_by_date=True)
+
+        search_value: str | None = None
+        for criteria in getattr(data_filter, "filters", []):
+            if criteria.get("type") == "text_search":
+                value = str(criteria.get("value", "")).strip().lower()
+                if value:
+                    search_value = value
+                    break
+
+        if search_value:
+            sample_filters = [f for f in sample_filters if search_value in f.name.lower() or search_value in f.description.lower()]
+
+        if not sample_filters:
+            placeholder = QTreeWidgetItem(self.tree, ["No sample filters available"])
+            placeholder.setFlags(placeholder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            return
+
+        for sample_filter in sample_filters:
+            rule_count = len(sample_filter.get_rules())
+            display_text = f"{sample_filter.name} ({rule_count} rules)" if rule_count else sample_filter.name
+            item = QTreeWidgetItem(self.tree, [display_text])
+            item.setData(0, Qt.ItemDataRole.UserRole, "sample_filter")
+            item.setData(1, Qt.ItemDataRole.UserRole, sample_filter.id)
+            item.setToolTip(0, sample_filter.description)
 
     def _populate_prompts(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
         """
@@ -620,6 +762,8 @@ class WidgetNavigationSidebar(QWidget):
         self.setup_ui()
         self.connect_signals()
         self._load_preferences()
+        # Initialize filter list
+        self.filter_panel.update_filter_list(self.dataset)
         self._refresh_content()
 
     def setup_ui(self):
@@ -705,13 +849,16 @@ class WidgetNavigationSidebar(QWidget):
         """
 
         self.dataset = dataset
+        self.filter_panel.update_filter_list(dataset)
         self._refresh_content()
 
     def refresh(self) -> None:
         """
         Public helper to refresh the tree based on current filters.
+        Also refreshes the filter list to pick up any newly created filters.
         """
 
+        self.filter_panel.update_filter_list(self.dataset)
         self._refresh_content()
 
     def _on_filter_changed(self):

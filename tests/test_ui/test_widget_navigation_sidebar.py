@@ -277,3 +277,186 @@ def test_navigation_sidebar_persists_flat_list_mode(app_with_dataset, temp_datas
 
     # Verify the preference was restored (off state)
     assert not sidebar3.filter_panel.flat_list_toggle.is_toggled()
+
+
+def test_filter_selector_visibility(ensure_google_icon_font, qt_app):
+    """
+    Test that filter selector is visible only for 'Samples by Filter' mode.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+    panel = WidgetNavigationFilterPanel()
+    panel.show()
+    qt_app.processEvents()
+
+    # Initially hidden for "Samples by Group"
+    assert not panel.filter_selector.isVisible()
+    assert not panel.filter_selector_label.isVisible()
+
+    # Visible for "Samples by Filter"
+    panel.show_combo.setCurrentText("Samples by Filter")
+    panel._on_show_changed()  # Manually trigger the handler
+    qt_app.processEvents()
+    assert panel.filter_selector.isVisible()
+    assert panel.filter_selector_label.isVisible()
+
+    # Hidden for other modes
+    panel.show_combo.setCurrentText("Facets")
+    panel._on_show_changed()  # Manually trigger the handler
+    qt_app.processEvents()
+    assert not panel.filter_selector.isVisible()
+    assert not panel.filter_selector_label.isVisible()
+
+
+def test_filter_panel_includes_selected_filter_id_in_criteria(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that filter panel includes selected_filter_id in criteria for 'Samples by Filter' mode.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    from py_fade.dataset.sample_filter import SampleFilter  # pylint: disable=import-outside-toplevel
+
+    # Create sample filters
+    filter1 = SampleFilter.create(temp_dataset, "Filter1", "Test filter 1")
+    filter2 = SampleFilter.create(temp_dataset, "Filter2", "Test filter 2")
+    temp_dataset.commit()
+
+    # Refresh to ensure IDs are loaded
+    session = temp_dataset.get_session()
+    session.refresh(filter1)
+    session.refresh(filter2)
+
+    panel = WidgetNavigationFilterPanel()
+    panel.show_combo.setCurrentText("Samples by Filter")
+    panel._on_show_changed()  # Trigger visibility update
+    qt_app.processEvents()
+
+    # Now update the filter list after selector is visible
+    panel.update_filter_list(temp_dataset)
+    qt_app.processEvents()
+
+    # Verify filters were added to combo (newest first due to order_by_date=True)
+    assert panel.filter_selector.count() == 2
+    assert panel.filter_selector.itemText(0) == "Filter2"  # Newest first
+    assert panel.filter_selector.itemText(1) == "Filter1"
+
+    # Select first filter (Filter2)
+    panel.filter_selector.setCurrentIndex(0)
+    qt_app.processEvents()
+    criteria = panel.get_filter_criteria()
+    assert criteria["selected_filter_id"] == filter2.id
+
+    # Select second filter (Filter1)
+    panel.filter_selector.setCurrentIndex(1)
+    qt_app.processEvents()
+    criteria = panel.get_filter_criteria()
+    assert criteria["selected_filter_id"] == filter1.id
+
+
+def test_navigation_tree_samples_by_filter_no_filter_selected(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that navigation tree shows placeholder when no filter is selected.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    tree = WidgetNavigationTree()
+    criteria = {"show": "Samples by Filter", "data_filter": DataFilter([]), "selected_filter_id": None}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    assert tree.tree.topLevelItemCount() == 1
+    item = tree.tree.topLevelItem(0)
+    assert item.text(0) == "No filter selected"
+
+
+def test_navigation_tree_samples_by_filter_flat_mode(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that navigation tree correctly shows samples filtered by a complex filter in flat mode.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    from py_fade.dataset.sample_filter import SampleFilter  # pylint: disable=import-outside-toplevel
+    from py_fade.dataset.tag import Tag  # pylint: disable=import-outside-toplevel
+
+    # Create tag and samples
+    tag = Tag.create(temp_dataset, "Important", "Important tag")
+    temp_dataset.commit()
+
+    prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt a", 2048, 512)
+    prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt b", 2048, 512)
+    prompt_rev3 = PromptRevision.get_or_create(temp_dataset, "prompt c", 2048, 512)
+    temp_dataset.commit()
+
+    sample1 = Sample.create_if_unique(temp_dataset, "Sample A", prompt_rev1, "folder_x/subfolder_1")
+    sample2 = Sample.create_if_unique(temp_dataset, "Sample B", prompt_rev2, "folder_x/subfolder_2")
+    sample3 = Sample.create_if_unique(temp_dataset, "Sample C", prompt_rev3, "folder_y")
+    temp_dataset.commit()
+
+    # Tag only sample1 and sample2
+    add_tag_to_samples(temp_dataset, tag, [sample1, sample2])
+
+    # Create filter that matches tagged samples
+    sample_filter = SampleFilter.create(temp_dataset, "Tagged Important", "Filter for important samples", filter_rules=[{
+        "type": "tag",
+        "value": tag.id,
+        "negated": False
+    }])
+    temp_dataset.commit()
+
+    tree = WidgetNavigationTree()
+
+    # Test flat mode
+    criteria = {"show": "Samples by Filter", "data_filter": DataFilter([]), "flat_list_mode": True, "selected_filter_id": sample_filter.id}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    # Should have 2 samples directly as top level items (flat mode)
+    assert tree.tree.topLevelItemCount() == 2
+    sample_titles = {tree.tree.topLevelItem(i).text(0) for i in range(tree.tree.topLevelItemCount())}
+    assert sample_titles == {"Sample A", "Sample B"}
+
+
+def test_navigation_tree_samples_by_filter_hierarchical_mode(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that navigation tree correctly shows samples filtered by a complex filter in hierarchical mode.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    from py_fade.dataset.sample_filter import SampleFilter  # pylint: disable=import-outside-toplevel
+    from py_fade.dataset.tag import Tag  # pylint: disable=import-outside-toplevel
+
+    # Create tag and samples
+    tag = Tag.create(temp_dataset, "Done", "Done tag")
+    temp_dataset.commit()
+
+    prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt x", 2048, 512)
+    prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt y", 2048, 512)
+    prompt_rev3 = PromptRevision.get_or_create(temp_dataset, "prompt z", 2048, 512)
+    temp_dataset.commit()
+
+    sample1 = Sample.create_if_unique(temp_dataset, "Task A", prompt_rev1, "work/category1")
+    sample2 = Sample.create_if_unique(temp_dataset, "Task B", prompt_rev2, "work/category2")
+    sample3 = Sample.create_if_unique(temp_dataset, "Task C", prompt_rev3, "personal")
+    temp_dataset.commit()
+
+    # Tag all samples
+    add_tag_to_samples(temp_dataset, tag, [sample1, sample2, sample3])
+
+    # Create filter that matches all tagged samples
+    sample_filter = SampleFilter.create(temp_dataset, "All Done", "Filter for done tasks", filter_rules=[{
+        "type": "tag",
+        "value": tag.id,
+        "negated": False
+    }])
+    temp_dataset.commit()
+
+    tree = WidgetNavigationTree()
+
+    # Test hierarchical mode (flat_list_mode=False)
+    criteria = {"show": "Samples by Filter", "data_filter": DataFilter([]), "flat_list_mode": False, "selected_filter_id": sample_filter.id}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    # Should have 2 top level items: "work" and "personal" folders
+    assert tree.tree.topLevelItemCount() == 2
+    folder_names = {tree.tree.topLevelItem(i).text(0) for i in range(tree.tree.topLevelItemCount())}
+    assert folder_names == {"work", "personal"}

@@ -64,6 +64,13 @@ class Sample(dataset_base):
     def fetch_with_filter(cls, dataset: "DatasetDatabase", data_filter: "DataFilter | None" = None) -> list["Sample"]:
         """
         Fetch samples from the database, optionally applying a DataFilter.
+
+        Args:
+            dataset: The dataset database instance
+            data_filter: Optional DataFilter to apply
+
+        Returns:
+            List of Sample objects matching the filter criteria
         """
         session = dataset.get_session()
 
@@ -72,6 +79,43 @@ class Sample(dataset_base):
             query = data_filter.apply_to_query(query)
 
         return query.all()
+
+    @classmethod
+    def fetch_with_complex_filter(cls, dataset: "DatasetDatabase", filter_rules: list) -> list["Sample"]:
+        """
+        Fetch samples that match all the provided filter rules (AND logic).
+
+        Args:
+            dataset: The dataset database instance
+            filter_rules: List of FilterRule objects to evaluate
+
+        Returns:
+            List of Sample objects matching all filter rules
+        """
+        from py_fade.dataset.filter_rule import FilterRule  # pylint: disable=import-outside-toplevel
+
+        # Get all samples first
+        all_samples = cls.fetch_with_filter(dataset, None)
+
+        # If no rules, return all samples
+        if not filter_rules:
+            return all_samples
+
+        # Parse rules if they're dictionaries
+        rules = []
+        for rule in filter_rules:
+            if isinstance(rule, dict):
+                rules.append(FilterRule.from_dict(rule))
+            else:
+                rules.append(rule)
+
+        # Filter samples by evaluating all rules with AND logic
+        filtered_samples = []
+        for sample in all_samples:
+            if all(rule.evaluate(sample, dataset) for rule in rules):
+                filtered_samples.append(sample)
+
+        return filtered_samples
 
     def new_copy(self) -> "Sample":
         """
