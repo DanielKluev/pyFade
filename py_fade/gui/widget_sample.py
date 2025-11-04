@@ -3,12 +3,12 @@ Qt Widget for overall single sample display.
 """
 
 import logging
+import pathlib
 import traceback
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from py_fade.dataset.completions_filter import CompletionsFilter
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
@@ -31,6 +32,8 @@ from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.components.widget_plain_text_edit import PlainTextEdit
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
+from py_fade.gui.components.widget_toggle_button import QPushButtonToggle
+from py_fade.gui.gui_helpers import get_dataset_preferences, update_dataset_preferences
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from py_fade.gui.widget_new_completion import NewCompletionFrame
 from py_fade.gui.window_detached_notes import DetachedNotesWindow
@@ -54,7 +57,7 @@ class WidgetSample(QWidget):
     - Label and field pairs arranged horizontally on the same row
     - Context Length and Max Tokens combined in a single row for space efficiency
     - Icon-only action buttons (Save, Copy, Beam Search) with tooltips in a horizontal row
-    - Show archived completions checkbox integrated into the controls panel
+    - Completion filter buttons for filtering displayed completions
 
     Prompt area features:
     - Editable text area for entering prompts
@@ -67,7 +70,7 @@ class WidgetSample(QWidget):
     - Editable group path combo box with autocomplete
     - Context length and max tokens numeric inputs (combined row)
     - Icon-only action buttons: Save (save icon), Copy (content_copy icon), Beam Search (search icon)
-    - Show archived completions checkbox for filtering completions display
+    - Completion filter toggle buttons for controlling what completions are shown
     """
 
     app: "pyFadeApp"
@@ -77,6 +80,7 @@ class WidgetSample(QWidget):
     active_facet: Facet | None = None
     active_model: MappedModel | None = None
     completion_frames: list[tuple["PromptCompletion", CompletionFrame]] = []
+    completions_filter: CompletionsFilter
 
     sample_saved = pyqtSignal(object)  # Signal emitted when sample is saved
     sample_copied = pyqtSignal(object)  # Signal emitted when sample is copied
@@ -99,6 +103,10 @@ class WidgetSample(QWidget):
         self.beam_search_widget: WidgetCompletionBeams | None = None
         self.detached_notes_window: DetachedNotesWindow | None = None
         self.completion_frames = []
+
+        # Initialize completions filter
+        self.completions_filter = CompletionsFilter()
+        self._load_filter_state()
 
         self.setup_ui()
         self.set_sample(sample)
@@ -264,9 +272,40 @@ class WidgetSample(QWidget):
         buttons_row_layout.addWidget(self.beam_search_button)
         buttons_row_layout.addStretch()  # Push buttons to the left
 
-        # Show archived checkbox (moved from completions panel)
-        self.show_archived_checkbox = QCheckBox("Show archived completions", self)
-        self.show_archived_checkbox.setChecked(False)
+        # Completions filter buttons row (replacing checkbox)
+        filters_row_layout = QHBoxLayout()
+        filters_row_layout.setSpacing(4)
+
+        # Create filter toggle buttons
+        self.filter_archived_button = QPushButtonToggle("archive", "Hide Archived", icon_size=20, button_size=32)
+        self.filter_other_models_button = QPushButtonToggle("robot", "Hide Other Models (exact match)", icon_size=20, button_size=32)
+        self.filter_other_families_button = QPushButtonToggle("model", "Hide Other Model Families", icon_size=20, button_size=32)
+        self.filter_rated_button = QPushButtonToggle("star_rate", "Hide Rated", icon_size=20, button_size=32)
+        self.filter_low_rated_button = QPushButtonToggle("star_rate_half", "Hide Low Rated (< 3)", icon_size=20, button_size=32)
+        self.filter_unrated_button = QPushButtonToggle("star_rate", "Hide Unrated", icon_size=20, button_size=32)
+        self.filter_full_button = QPushButtonToggle("check", "Hide Full (not truncated)", icon_size=20, button_size=32)
+        self.filter_truncated_button = QPushButtonToggle("auto_read_pause", "Hide Truncated", icon_size=20, button_size=32)
+
+        # Set initial states from filter
+        self.filter_archived_button.set_toggled(self.completions_filter.hide_archived)
+        self.filter_other_models_button.set_toggled(self.completions_filter.hide_other_models)
+        self.filter_other_families_button.set_toggled(self.completions_filter.hide_other_families)
+        self.filter_rated_button.set_toggled(self.completions_filter.hide_rated)
+        self.filter_low_rated_button.set_toggled(self.completions_filter.hide_low_rated)
+        self.filter_unrated_button.set_toggled(self.completions_filter.hide_unrated)
+        self.filter_full_button.set_toggled(self.completions_filter.hide_full)
+        self.filter_truncated_button.set_toggled(self.completions_filter.hide_truncated)
+
+        # Add filter buttons to layout
+        filters_row_layout.addWidget(self.filter_archived_button)
+        filters_row_layout.addWidget(self.filter_other_models_button)
+        filters_row_layout.addWidget(self.filter_other_families_button)
+        filters_row_layout.addWidget(self.filter_rated_button)
+        filters_row_layout.addWidget(self.filter_low_rated_button)
+        filters_row_layout.addWidget(self.filter_unrated_button)
+        filters_row_layout.addWidget(self.filter_full_button)
+        filters_row_layout.addWidget(self.filter_truncated_button)
+        filters_row_layout.addStretch()  # Push buttons to the left
 
         # Add all rows to the main layout
         controls_layout.addLayout(id_row_layout)
@@ -276,7 +315,7 @@ class WidgetSample(QWidget):
         controls_layout.addLayout(tags_row_layout)
         controls_layout.addLayout(tokens_row_layout)
         controls_layout.addLayout(buttons_row_layout)
-        controls_layout.addWidget(self.show_archived_checkbox)
+        controls_layout.addLayout(filters_row_layout)
         controls_layout.addStretch()
 
         # Add prompt and controls to horizontal splitter
@@ -293,8 +332,6 @@ class WidgetSample(QWidget):
         self.output_container_layout = QVBoxLayout(self.output_container)
         self.output_container_layout.setContentsMargins(8, 8, 8, 8)
         self.output_container_layout.setSpacing(8)
-
-        # Remove the completion controls layout since show_archived_checkbox is now in controls panel
 
         # Use a horizontal layout so completion frames are laid out side-by-side
         self.output_layout = QHBoxLayout()
@@ -320,7 +357,16 @@ class WidgetSample(QWidget):
         self.new_completion_frame.completion_accepted.connect(self.add_completion)
         # Force a fixed width so frames are displayed side-by-side
         self.new_completion_frame.setFixedWidth(500)
-        self.show_archived_checkbox.toggled.connect(self._on_show_archived_toggled)
+
+        # Connect filter button signals
+        self.filter_archived_button.toggled_state_changed.connect(self._on_filter_archived_toggled)
+        self.filter_other_models_button.toggled_state_changed.connect(self._on_filter_other_models_toggled)
+        self.filter_other_families_button.toggled_state_changed.connect(self._on_filter_other_families_toggled)
+        self.filter_rated_button.toggled_state_changed.connect(self._on_filter_rated_toggled)
+        self.filter_low_rated_button.toggled_state_changed.connect(self._on_filter_low_rated_toggled)
+        self.filter_unrated_button.toggled_state_changed.connect(self._on_filter_unrated_toggled)
+        self.filter_full_button.toggled_state_changed.connect(self._on_filter_full_toggled)
+        self.filter_truncated_button.toggled_state_changed.connect(self._on_filter_truncated_toggled)
 
     def update_token_usage(self):
         """Update the token usage label with current prompt and settings."""
@@ -564,7 +610,7 @@ class WidgetSample(QWidget):
         """
         Populate the scroll area with completion frames from the sample.
         
-        Completions are sorted by:
+        Completions are filtered based on active filter settings and then sorted by:
         1. Rating for active facet (higher rated completions first)
         2. Within each rating group, by scored_logprob for active model (higher scores first)
         3. Completions without logprobs appear after those with logprobs
@@ -578,12 +624,12 @@ class WidgetSample(QWidget):
             # No existing completions, just show the NewCompletionFrame
             return
 
-        show_archived = self.show_archived_checkbox.isChecked()
+        # Update filter's target model for model-based filtering
+        if self.active_model:
+            self.completions_filter.set_target_model_id(self.active_model.model_id)
 
-        # Filter completions
-        completions_to_display = [
-            completion for completion in self.sample.prompt_revision.completions if not completion.is_archived or show_archived
-        ]
+        # Filter completions using CompletionsFilter
+        completions_to_display = self.completions_filter.filter_completions(self.sample.prompt_revision.completions, self.active_facet)
 
         # Sort completions by rating and scored_logprob
         sorted_completions = self._sort_completions_by_rating_and_logprob(completions_to_display)
@@ -593,12 +639,74 @@ class WidgetSample(QWidget):
             self.completion_frames.append((completion, frame))
             self.output_layout.addWidget(frame)
 
-    def _on_show_archived_toggled(self, checked: bool) -> None:  # pylint: disable=unused-argument
-        """
-        Repopulate completions when the archived toggle changes.
-        """
-
+    def _on_filter_archived_toggled(self, active: bool):
+        """Handle hide archived filter toggle."""
+        self.completions_filter.hide_archived = active
+        self._save_filter_state()
         self.populate_outputs()
+
+    def _on_filter_other_models_toggled(self, active: bool):
+        """Handle hide other models filter toggle."""
+        self.completions_filter.hide_other_models = active
+        self._save_filter_state()
+        self.populate_outputs()
+
+    def _on_filter_other_families_toggled(self, active: bool):
+        """Handle hide other families filter toggle."""
+        self.completions_filter.hide_other_families = active
+        self._save_filter_state()
+        self.populate_outputs()
+
+    def _on_filter_rated_toggled(self, active: bool):
+        """Handle hide rated filter toggle."""
+        self.completions_filter.hide_rated = active
+        self._save_filter_state()
+        self.populate_outputs()
+
+    def _on_filter_low_rated_toggled(self, active: bool):
+        """Handle hide low rated filter toggle."""
+        self.completions_filter.hide_low_rated = active
+        self._save_filter_state()
+        self.populate_outputs()
+
+    def _on_filter_unrated_toggled(self, active: bool):
+        """Handle hide unrated filter toggle."""
+        self.completions_filter.hide_unrated = active
+        self._save_filter_state()
+        self.populate_outputs()
+
+    def _on_filter_full_toggled(self, active: bool):
+        """Handle hide full filter toggle."""
+        self.completions_filter.hide_full = active
+        self._save_filter_state()
+        self.populate_outputs()
+
+    def _on_filter_truncated_toggled(self, active: bool):
+        """Handle hide truncated filter toggle."""
+        self.completions_filter.hide_truncated = active
+        self._save_filter_state()
+        self.populate_outputs()
+
+    def _load_filter_state(self):
+        """Load filter state from configuration."""
+        if not hasattr(self.app, "config"):
+            return
+        prefs = get_dataset_preferences(self.app, self._dataset_pref_key())
+        filter_state = prefs.get("completions_filter")
+        if filter_state and isinstance(filter_state, dict):
+            self.completions_filter.from_dict(filter_state)
+
+    def _save_filter_state(self):
+        """Save filter state to configuration."""
+        if not hasattr(self.app, "config"):
+            return
+        update_dataset_preferences(self.app, self._dataset_pref_key(), {"completions_filter": self.completions_filter.to_dict()})
+
+    def _dataset_pref_key(self) -> str:
+        """Get the dataset preference key for configuration persistence."""
+        if not hasattr(self.dataset, "db_path") or not self.dataset.db_path:
+            return "default"
+        return str(pathlib.Path(self.dataset.db_path).resolve())
 
     def _on_completion_archive_toggled(self, completion: "PromptCompletion", archived: bool) -> None:
         """Forward archive events and refresh visible completions."""
@@ -702,7 +810,7 @@ class WidgetSample(QWidget):
         self.last_prompt_revision = prompt_revision
         # Create a new CompletionFrame for the saved completion
         frame = self._create_completion_frame(completion)
-        if completion.is_archived and not self.show_archived_checkbox.isChecked():
+        if not self.completions_filter.should_show_completion(completion, self.active_facet):
             frame.deleteLater()
             return completion
         # Add to completion_frames list

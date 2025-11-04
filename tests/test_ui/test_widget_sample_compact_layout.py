@@ -4,10 +4,11 @@ Test Widget Sample Compact Layout Implementation.
 Tests for the compactified control panel in WidgetSample ensuring proper
 layout and functionality while maintaining user experience.
 """
-from PyQt6.QtWidgets import QHBoxLayout, QCheckBox, QLineEdit, QSpinBox, QFrame
+from PyQt6.QtWidgets import QHBoxLayout, QLineEdit, QSpinBox, QFrame
 
 from py_fade.gui.widget_sample import WidgetSample
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
+from py_fade.gui.components.widget_toggle_button import QPushButtonToggle
 
 
 class TestWidgetSampleCompactLayout:
@@ -56,10 +57,9 @@ class TestWidgetSampleCompactLayout:
         controls_layout = controls_frame.layout()
         assert controls_layout is not None, "Controls frame should have a layout"
 
-        # Check that show_archived_checkbox is in controls panel, not completions
-        show_archived_in_controls = any(
-            isinstance(child, QCheckBox) and "archived" in child.text().lower() for child in controls_frame.findChildren(QCheckBox))
-        assert show_archived_in_controls, "Show archived checkbox should be in controls panel"
+        # Check that filter buttons are in controls panel
+        filter_buttons_in_controls = list(controls_frame.findChildren(QPushButtonToggle))
+        assert len(filter_buttons_in_controls) > 0, "Filter toggle buttons should be in controls panel"
 
     def test_horizontal_layouts_for_fields(self, qt_app, app_with_dataset, ensure_google_icon_font):
         """
@@ -173,7 +173,7 @@ class TestWidgetSampleCompactLayout:
         assert widget.save_button is not None, "Save button should be present"
         assert widget.copy_button is not None, "Copy button should be present"
         assert widget.beam_search_button is not None, "Beam search button should be present"
-        assert widget.show_archived_checkbox is not None, "Show archived checkbox should be present"
+        assert widget.filter_archived_button is not None, "Filter archived button should be present"
 
         # Test that fields can be modified
         widget.title_field.setText("Test Title")
@@ -185,9 +185,9 @@ class TestWidgetSampleCompactLayout:
         widget.max_tokens_field.setValue(256)
         assert widget.max_tokens_field.value() == 256, "Max tokens field should be editable"
 
-    def test_archived_checkbox_moved_from_completions(self, qt_app, app_with_dataset, ensure_google_icon_font):
+    def test_filter_buttons_replace_checkbox(self, qt_app, app_with_dataset, ensure_google_icon_font):
         """
-        Test that the show archived checkbox is moved from completions panel to controls panel.
+        Test that filter toggle buttons replace the archived checkbox.
         """
         _ = ensure_google_icon_font  # Ensure Google icon font is loaded
         app = app_with_dataset
@@ -195,17 +195,18 @@ class TestWidgetSampleCompactLayout:
         widget.show()
         qt_app.processEvents()
 
-        # Check that show_archived_checkbox is not in the completion controls layout
-        completion_controls_widgets = []
-        if hasattr(widget, 'completion_controls_layout'):
-            for i in range(widget.completion_controls_layout.count()):
-                item = widget.completion_controls_layout.itemAt(i)
-                if item and item.widget():
-                    completion_controls_widgets.append(item.widget())
+        # Verify filter buttons exist
+        assert widget.filter_archived_button is not None, "Filter archived button should exist"
+        assert widget.filter_other_models_button is not None, "Filter other models button should exist"
+        assert widget.filter_other_families_button is not None, "Filter other families button should exist"
+        assert widget.filter_rated_button is not None, "Filter rated button should exist"
+        assert widget.filter_low_rated_button is not None, "Filter low rated button should exist"
+        assert widget.filter_unrated_button is not None, "Filter unrated button should exist"
+        assert widget.filter_full_button is not None, "Filter full button should exist"
+        assert widget.filter_truncated_button is not None, "Filter truncated button should exist"
 
-        # The checkbox should not be in the completion controls layout anymore
-        assert widget.show_archived_checkbox not in completion_controls_widgets, \
-            "Show archived checkbox should be moved from completion controls to main controls"
+        # Verify completions filter exists
+        assert widget.completions_filter is not None, "Completions filter should exist"
 
     def test_role_tag_buttons_in_prompt_panel(self, qt_app, app_with_dataset, ensure_google_icon_font):
         """
