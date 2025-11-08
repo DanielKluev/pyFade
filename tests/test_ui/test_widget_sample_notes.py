@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QPlainTextEdit
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.gui.widget_sample import WidgetSample
+from tests.helpers.ui_helpers import create_test_widget_sample_empty
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -24,8 +25,7 @@ if TYPE_CHECKING:
 class TestWidgetSampleNotes:
     """Test notes field functionality in WidgetSample."""
 
-    def test_notes_field_exists(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp",
-                                ensure_google_icon_font: None) -> None:
+    def test_notes_field_exists(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp", ensure_google_icon_font: None) -> None:
         """
         Test that notes field exists in WidgetSample UI.
 
@@ -40,8 +40,7 @@ class TestWidgetSampleNotes:
         assert isinstance(widget.notes_field, QPlainTextEdit), "notes_field should be QPlainTextEdit"
         assert widget.notes_field is not None
 
-    def test_notes_field_placeholder(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp",
-                                     ensure_google_icon_font: None) -> None:
+    def test_notes_field_placeholder(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp", ensure_google_icon_font: None) -> None:
         """
         Test that notes field has appropriate placeholder text.
 
@@ -58,7 +57,7 @@ class TestWidgetSampleNotes:
             "Placeholder should mention notes or annotators"
 
     def test_notes_field_height_constraint(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp",
-                                          ensure_google_icon_font: None) -> None:
+                                           ensure_google_icon_font: None) -> None:
         """
         Test that notes field has appropriate height constraint (about 2 lines).
 
@@ -73,8 +72,7 @@ class TestWidgetSampleNotes:
         max_height = widget.notes_field.maximumHeight()
         assert max_height <= 100, f"Notes field max height should be compact, got {max_height}"
 
-    def test_new_sample_notes_empty(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp",
-                                   ensure_google_icon_font: None) -> None:
+    def test_new_sample_notes_empty(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp", ensure_google_icon_font: None) -> None:
         """
         Test that notes field is empty for new samples.
 
@@ -87,8 +85,8 @@ class TestWidgetSampleNotes:
 
         assert widget.notes_field.toPlainText() == "", "Notes field should be empty for new sample"
 
-    def test_existing_sample_notes_populated(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp",
-                                            temp_dataset: "DatasetDatabase", ensure_google_icon_font: None) -> None:
+    def test_existing_sample_notes_populated(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase",
+                                             ensure_google_icon_font: None) -> None:
         """
         Test that notes field is populated with existing sample's notes.
 
@@ -97,9 +95,7 @@ class TestWidgetSampleNotes:
         _ = ensure_google_icon_font  # Ensure Google icon font is loaded
 
         # Create a sample with notes
-        prompt_revision = PromptRevision.get_or_create(
-            temp_dataset, "Test prompt with notes", context_length=2048, max_tokens=256
-        )
+        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt with notes", context_length=2048, max_tokens=256)
         sample = Sample.create_if_unique(
             temp_dataset,
             title="Test Sample",
@@ -116,8 +112,8 @@ class TestWidgetSampleNotes:
 
         assert widget.notes_field.toPlainText() == "Important notes for this sample."
 
-    def test_existing_sample_without_notes(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp",
-                                          temp_dataset: "DatasetDatabase", ensure_google_icon_font: None) -> None:
+    def test_existing_sample_without_notes(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase",
+                                           ensure_google_icon_font: None) -> None:
         """
         Test that notes field is empty for samples without notes.
 
@@ -126,9 +122,7 @@ class TestWidgetSampleNotes:
         _ = ensure_google_icon_font  # Ensure Google icon font is loaded
 
         # Create a sample without notes
-        prompt_revision = PromptRevision.get_or_create(
-            temp_dataset, "Test prompt without notes", context_length=2048, max_tokens=256
-        )
+        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt without notes", context_length=2048, max_tokens=256)
         sample = Sample.create_if_unique(temp_dataset, title="Test Sample", prompt_revision=prompt_revision)
 
         assert sample is not None
@@ -140,9 +134,13 @@ class TestWidgetSampleNotes:
 
         assert widget.notes_field.toPlainText() == ""
 
-    def test_save_new_sample_with_notes(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp",
-                                       temp_dataset: "DatasetDatabase",  # pylint: disable=unused-argument
-                                       ensure_google_icon_font: None, caplog: pytest.LogCaptureFixture) -> None:
+    def test_save_new_sample_with_notes(
+            self,
+            qt_app: "QApplication",
+            app_with_dataset: "pyFadeApp",
+            temp_dataset: "DatasetDatabase",  # pylint: disable=unused-argument
+            ensure_google_icon_font: None,
+            caplog: pytest.LogCaptureFixture) -> None:
         """
         Test that new sample can be saved with notes.
 
@@ -151,9 +149,7 @@ class TestWidgetSampleNotes:
         caplog.set_level(logging.DEBUG, logger="WidgetSample")
         _ = ensure_google_icon_font  # Ensure Google icon font is loaded
 
-        widget = WidgetSample(None, app_with_dataset, None)
-        widget.show()
-        qt_app.processEvents()
+        widget = create_test_widget_sample_empty(app_with_dataset, qt_app)
 
         # Fill in sample data
         widget.prompt_area.setPlainText("Test prompt for new sample")
@@ -171,7 +167,7 @@ class TestWidgetSampleNotes:
         assert widget.sample.title == "New Sample with Notes"
 
     def test_save_existing_sample_updates_notes(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp",
-                                               temp_dataset: "DatasetDatabase", ensure_google_icon_font: None) -> None:
+                                                temp_dataset: "DatasetDatabase", ensure_google_icon_font: None) -> None:
         """
         Test that existing sample notes can be updated.
 
@@ -180,9 +176,7 @@ class TestWidgetSampleNotes:
         _ = ensure_google_icon_font  # Ensure Google icon font is loaded
 
         # Create a sample with initial notes
-        prompt_revision = PromptRevision.get_or_create(
-            temp_dataset, "Test prompt for update", context_length=2048, max_tokens=256
-        )
+        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt for update", context_length=2048, max_tokens=256)
         sample = Sample.create_if_unique(
             temp_dataset,
             title="Test Sample",
@@ -211,9 +205,12 @@ class TestWidgetSampleNotes:
         assert reloaded_sample is not None
         assert reloaded_sample.notes == "Updated notes for this sample."
 
-    def test_save_sample_empty_notes_converts_to_none(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp",
-                                                      temp_dataset: "DatasetDatabase",  # pylint: disable=unused-argument
-                                                      ensure_google_icon_font: None) -> None:
+    def test_save_sample_empty_notes_converts_to_none(
+            self,
+            qt_app: "QApplication",
+            app_with_dataset: "pyFadeApp",
+            temp_dataset: "DatasetDatabase",  # pylint: disable=unused-argument
+            ensure_google_icon_font: None) -> None:
         """
         Test that empty notes string is converted to None when saving.
 
@@ -221,9 +218,7 @@ class TestWidgetSampleNotes:
         """
         _ = ensure_google_icon_font  # Ensure Google icon font is loaded
 
-        widget = WidgetSample(None, app_with_dataset, None)
-        widget.show()
-        qt_app.processEvents()
+        widget = create_test_widget_sample_empty(app_with_dataset, qt_app)
 
         # Fill in sample data with empty notes
         widget.prompt_area.setPlainText("Test prompt")
@@ -239,8 +234,8 @@ class TestWidgetSampleNotes:
         assert widget.sample is not None
         assert widget.sample.notes is None
 
-    def test_notes_field_multiline_support(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp",
-                                          temp_dataset: "DatasetDatabase", ensure_google_icon_font: None) -> None:
+    def test_notes_field_multiline_support(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase",
+                                           ensure_google_icon_font: None) -> None:
         """
         Test that notes field supports multiline text.
 
@@ -251,9 +246,7 @@ class TestWidgetSampleNotes:
         multiline_notes = "Line 1: Important note\nLine 2: Another note\nLine 3: Final note"
 
         # Create a sample with multiline notes
-        prompt_revision = PromptRevision.get_or_create(
-            temp_dataset, "Test prompt multiline", context_length=2048, max_tokens=256
-        )
+        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt multiline", context_length=2048, max_tokens=256)
         sample = Sample.create_if_unique(
             temp_dataset,
             title="Test Sample",
@@ -272,8 +265,7 @@ class TestWidgetSampleNotes:
         assert "\n" in displayed_notes
         assert displayed_notes == multiline_notes
 
-    def test_notes_field_editable(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp",
-                                 ensure_google_icon_font: None) -> None:
+    def test_notes_field_editable(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp", ensure_google_icon_font: None) -> None:
         """
         Test that notes field is editable by user.
 
@@ -294,7 +286,7 @@ class TestWidgetSampleNotes:
         assert widget.notes_field.toPlainText() == "Test editing notes"
 
     def test_set_sample_clears_notes_for_new_sample(self, qt_app: "QApplication", app_with_dataset: "pyFadeApp",
-                                                   temp_dataset: "DatasetDatabase", ensure_google_icon_font: None) -> None:
+                                                    temp_dataset: "DatasetDatabase", ensure_google_icon_font: None) -> None:
         """
         Test that setting sample to None clears notes field.
 
@@ -303,9 +295,7 @@ class TestWidgetSampleNotes:
         _ = ensure_google_icon_font  # Ensure Google icon font is loaded
 
         # Create a sample with notes
-        prompt_revision = PromptRevision.get_or_create(
-            temp_dataset, "Test prompt", context_length=2048, max_tokens=256
-        )
+        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", context_length=2048, max_tokens=256)
         sample = Sample.create_if_unique(
             temp_dataset,
             title="Test Sample",

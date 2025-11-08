@@ -39,7 +39,7 @@ def test_sample_get_facets_no_ratings(temp_dataset) -> None:
     sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
 
     # Add completion without rating
-    completion = create_test_completion_with_params(temp_dataset, prompt_revision, completion_text="Test completion", is_truncated=False)
+    _completion = create_test_completion_with_params(temp_dataset, prompt_revision, completion_text="Test completion", is_truncated=False)
     temp_dataset.commit()
 
     # Get facets - should be empty

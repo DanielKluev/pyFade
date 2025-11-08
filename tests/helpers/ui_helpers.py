@@ -218,7 +218,7 @@ def setup_completion_frame_basic(dataset: "DatasetDatabase", beam, qt_app, displ
     return frame, text_edit
 
 
-def create_test_widget_sample_with_prompt(app: "pyFadeApp", qt_app, prompt_text: str = "Test prompt"):
+def create_test_widget_sample_with_prompt(app: "pyFadeApp", qt_app, prompt_text: str = "Test prompt", sample_title: str = "Test Sample"):
     """
     Create a WidgetSample with a sample and prompt for testing.
 
@@ -233,10 +233,28 @@ def create_test_widget_sample_with_prompt(app: "pyFadeApp", qt_app, prompt_text:
 
     dataset = app.current_dataset
     prompt_revision = PromptRevision.get_or_create(dataset, prompt_text, 2048, 512)
-    sample = Sample.create_if_unique(dataset, "Test Sample", prompt_revision)
+    sample = Sample.create_if_unique(dataset, sample_title, prompt_revision)
     dataset.commit()
 
     widget = WidgetSample(None, app, sample=sample)
     qt_app.processEvents()
 
     return widget, sample
+
+
+def create_test_widget_sample_empty(app: "pyFadeApp", qt_app):
+    """
+    Create an empty WidgetSample for testing (no sample loaded).
+
+    This helper reduces duplicate widget setup code in tests.
+
+    Returns:
+        WidgetSample instance with no sample loaded
+    """
+    from py_fade.gui.widget_sample import WidgetSample  # pylint: disable=import-outside-toplevel
+
+    widget = WidgetSample(None, app, None)
+    widget.show()
+    qt_app.processEvents()
+
+    return widget

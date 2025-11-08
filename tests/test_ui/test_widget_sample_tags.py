@@ -22,7 +22,7 @@ from py_fade.dataset.sample_tag import SampleTag  # noqa: F401 pylint: disable=u
 from py_fade.dataset.tag import Tag
 from py_fade.gui.widget_sample import WidgetSample
 from tests.helpers.data_helpers import create_test_tags_and_samples
-from tests.helpers.ui_helpers import patch_message_boxes
+from tests.helpers.ui_helpers import create_test_widget_sample_with_prompt, patch_message_boxes
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -76,14 +76,7 @@ def test_widget_sample_tags_display_no_tags(
     patch_message_boxes(monkeypatch, test_logger)
 
     # Create a sample
-    dataset = app_with_dataset.current_dataset
-    prompt_revision = PromptRevision.get_or_create(dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(dataset, "Test Sample", prompt_revision)
-    dataset.commit()
-
-    # Create widget with sample
-    widget = WidgetSample(None, app_with_dataset, sample=sample)
-    qt_app.processEvents()
+    widget, _sample = create_test_widget_sample_with_prompt(app_with_dataset, qt_app)
 
     # Verify tags display shows "No tags"
     assert "No tags" in widget.tags_display.text()
@@ -200,13 +193,7 @@ def test_widget_sample_edit_tags_updates_display(
     dataset.commit()
 
     # Create a sample
-    prompt_revision = PromptRevision.get_or_create(dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(dataset, "Test Sample", prompt_revision)
-    dataset.commit()
-
-    # Create widget with sample
-    widget = WidgetSample(None, app_with_dataset, sample=sample)
-    qt_app.processEvents()
+    widget, sample = create_test_widget_sample_with_prompt(app_with_dataset, qt_app)
 
     # Verify initial state (no tags)
     assert "No tags" in widget.tags_display.text()
