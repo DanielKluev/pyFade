@@ -10,7 +10,6 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
-    QDoubleSpinBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -18,7 +17,6 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QProgressBar,
-    QPushButton,
     QScrollArea,
     QSpinBox,
     QVBoxLayout,
@@ -31,6 +29,7 @@ from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.gui.components.widget_token_picker import WidgetTokenPicker
 from py_fade.gui.components.widget_completion import CompletionFrame
+from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow, EditorMode
 from py_fade.providers.llm_response import LLMResponse
 from py_fade.providers.providers_manager import MappedModel
@@ -56,8 +55,6 @@ class BeamGenerationWorker(QThread):
         width: int = 3,
         depth: int = 20,
         beam_tokens: list[SinglePositionToken] | None = None,
-        temperature: float = 0.7,
-        top_k: int = 40,
         context_length: int = 1024,
         max_tokens: int = 128,
     ):
@@ -68,8 +65,9 @@ class BeamGenerationWorker(QThread):
         self.width = width
         self.depth = depth
         self.beam_tokens = beam_tokens
-        self.temperature = temperature
-        self.top_k = top_k
+        # For beam search, always use deterministic settings
+        self.temperature = 0.0
+        self.top_k = 1
         self.context_length = context_length
         self.max_tokens = max_tokens
         if self.beam_tokens:
@@ -103,17 +101,22 @@ class BeamGenerationWorker(QThread):
 class WidgetCompletionBeams(QWidget):
     """Widget for viewing and curating completion beams.
 
-    Provides controls for model selection, width, depth, temperature, and
-    top-k sampling. Generated beams render as ``NewCompletionFrame`` widgets in
-    a scrollable grid sorted by minimum log probability.
+    Provides controls for model selection, width, and depth.
+    Generated beams render as ``CompletionFrame`` widgets in a scrollable grid
+    sorted by pinned status and scored log probability.
+
+    The grid layout adapts to window width, showing more columns when more
+    space is available. For beam search, temperature is fixed at 0.0 and
+    top_k at 1 for deterministic generation.
 
     Beam generation delegates to
     ``app.providers_manager.make_beam_for_prompt()`` and consumes
     ``beam_out_on_token_one_level`` callbacks to stream results into the grid.
     """
 
-    grid_width = 4  # Number of columns in the grid layout for beams
+    grid_width = 4  # Number of columns in the grid layout for beams (adaptive)
     dataset: DatasetDatabase
+    min_beam_width = 400  # Minimum width for each beam frame
 
     def __init__(self, parent: QWidget | None, app: "PyFadeApp", prompt: str, sample_widget: "WidgetSample", mapped_model: MappedModel):
         super().__init__(parent)
@@ -129,6 +132,8 @@ class WidgetCompletionBeams(QWidget):
         self.worker_thread: BeamGenerationWorker | None = None
         self.beam_controller: TextGenerationController | None = None  # Reusable beam controller
         self.token_picker_window: QDialog | None = None  # Token picker window
+        self.generation_start_beam_count = 0  # Number of beams before generation starts
+        self.expected_new_beams = 0  # Expected number of new beams in current generation
 
         self.setWindowTitle("Beam Search Generation")
         self.setGeometry(200, 200, 1400, 900)
@@ -196,34 +201,22 @@ class WidgetCompletionBeams(QWidget):
         self.depth_spin.setValue(20)
         params_layout.addWidget(self.depth_spin, 1, 3)
 
-        # Temperature
-        params_layout.addWidget(QLabel("Temperature:"), 2, 0)
-        self.temp_spin = QDoubleSpinBox(self)
-        self.temp_spin.setRange(0.0, 2.0)
-        self.temp_spin.setSingleStep(0.1)
-        self.temp_spin.setValue(self.app.providers_manager.default_temperature)
-        params_layout.addWidget(self.temp_spin, 2, 1)
-
-        # Top-k
-        params_layout.addWidget(QLabel("Top-k:"), 2, 2)
-        self.topk_spin = QSpinBox(self)
-        self.topk_spin.setRange(1, 100)
-        self.topk_spin.setValue(self.app.providers_manager.default_top_k)
-        params_layout.addWidget(self.topk_spin, 2, 3)
-
         controls_layout.addLayout(params_layout)
 
         # Generate button and progress
         button_layout = QHBoxLayout()
-        self.generate_btn = QPushButton("Generate Beams", self)
+        self.generate_btn = QPushButtonWithIcon("beaming", "Generate", icon_size=20)
+        self.generate_btn.setToolTip("Generate beams with current settings")
         self.generate_btn.clicked.connect(self.generate_beams)
         button_layout.addWidget(self.generate_btn)
 
-        self.selective_beams_btn = QPushButton("Selective Beams", self)
+        self.selective_beams_btn = QPushButtonWithIcon("step", "Selective", icon_size=20)
+        self.selective_beams_btn.setToolTip("Select specific tokens for beam generation")
         self.selective_beams_btn.clicked.connect(self.selective_beams)
         button_layout.addWidget(self.selective_beams_btn)
 
-        self.stop_btn = QPushButton("Stop", self)
+        self.stop_btn = QPushButtonWithIcon("close", "Stop", icon_size=20)
+        self.stop_btn.setToolTip("Stop current generation")
         self.stop_btn.clicked.connect(self.stop_generation)
         self.stop_btn.setVisible(False)
         button_layout.addWidget(self.stop_btn)
@@ -259,6 +252,18 @@ class WidgetCompletionBeams(QWidget):
         self.prompt = prompt
         self.prompt_display.setPlainText(prompt)
 
+    def resizeEvent(self, event):  # pylint: disable=invalid-name
+        """Handle window resize to adjust grid width."""
+        super().resizeEvent(event)
+        # Calculate optimal grid width based on window width
+        # Subtract some margin for scrollbars and padding
+        available_width = self.scroll_area.viewport().width() - 20
+        new_grid_width = max(1, available_width // self.min_beam_width)
+
+        if new_grid_width != self.grid_width:
+            self.grid_width = new_grid_width
+            self.rearrange_beam_grid()
+
     def generate_beams(self):
         """Start beam generation in worker thread."""
         if not self.app.providers_manager:
@@ -273,8 +278,12 @@ class WidgetCompletionBeams(QWidget):
             self.status_label.setText("Error: No dataset loaded")
             return
 
-        # Clear previous results
+        # Clear previous results (keeps pinned beams)
         self.clear_beam_results()
+
+        # Track generation progress (excluding pinned beams)
+        self.generation_start_beam_count = len(self.beam_frames)
+        self.expected_new_beams = self.width_spin.value()
 
         # Disable controls during generation
         self.generate_btn.setEnabled(False)
@@ -282,7 +291,7 @@ class WidgetCompletionBeams(QWidget):
         self.stop_btn.setVisible(True)
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)  # Indeterminate progress
-        self.status_label.setText("Generating beams...")
+        self.status_label.setText(f"Generating 0 out of {self.expected_new_beams} beams...")
 
         mapped_model = self.app.providers_manager.get_mapped_model(self.model_combo.currentText())
         if not mapped_model:
@@ -299,8 +308,6 @@ class WidgetCompletionBeams(QWidget):
             prefill=self.prefill_edit.toPlainText(),
             width=self.width_spin.value(),
             depth=self.depth_spin.value(),
-            temperature=self.temp_spin.value(),
-            top_k=self.topk_spin.value(),
             context_length=self.app.config.default_context_length,
             max_tokens=self.app.config.default_max_tokens,
         )
@@ -379,8 +386,12 @@ class WidgetCompletionBeams(QWidget):
 
     def _generate_beams_with_tokens(self, beam_tokens: list[SinglePositionToken]):
         """Generate beams using the selected tokens."""
-        # Clear previous results
+        # Clear previous results (keeps pinned beams)
         self.clear_beam_results()
+
+        # Track generation progress (excluding pinned beams)
+        self.generation_start_beam_count = len(self.beam_frames)
+        self.expected_new_beams = len(beam_tokens)
 
         # Disable controls during generation
         self.generate_btn.setEnabled(False)
@@ -388,7 +399,7 @@ class WidgetCompletionBeams(QWidget):
         self.stop_btn.setVisible(True)
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)  # Indeterminate progress
-        self.status_label.setText(f"Generating beams with {len(beam_tokens)} selected tokens...")
+        self.status_label.setText(f"Generating 0 out of {self.expected_new_beams} beams...")
 
         mapped_model = self.app.providers_manager.get_mapped_model(self.model_combo.currentText())
         if not mapped_model:
@@ -405,8 +416,6 @@ class WidgetCompletionBeams(QWidget):
             width=len(beam_tokens),  # Use number of selected tokens as width
             depth=self.depth_spin.value(),
             beam_tokens=beam_tokens,
-            temperature=self.temp_spin.value(),
-            top_k=self.topk_spin.value(),
             context_length=self.app.config.default_context_length,
             max_tokens=self.app.config.default_max_tokens,
         )
@@ -438,15 +447,20 @@ class WidgetCompletionBeams(QWidget):
     def on_beam_completed(self, beam: LLMResponse):
         """Handle completion of a single beam."""
         self.add_beam_frame(beam)
-        self.status_label.setText(f"Generated {len(self.beam_frames)} beam(s)...")
+        # Calculate new beams generated (exclude pinned beams from count)
+        new_beams_count = len(self.beam_frames) - self.generation_start_beam_count
+        self.status_label.setText(f"Generating {new_beams_count} out of {self.expected_new_beams} beams...")
 
     @pyqtSlot()
     def on_generation_finished(self):
         """Handle completion of all beam generation."""
         self._reset_ui_after_generation()
-        self.status_label.setText(f"Generation complete. {len(self.beam_frames)} beams generated.")
+        # Calculate new beams generated (exclude pinned beams from count)
+        new_beams_count = len(self.beam_frames) - self.generation_start_beam_count
+        total_beams = len(self.beam_frames)
+        self.status_label.setText(f"Generation complete. Generated {new_beams_count} new beams ({total_beams} total).")
 
-        # Sort beams by min_logprob (descending)
+        # Sort beams by pinned status and scored_logprob
         self.sort_beam_frames()
 
     @pyqtSlot(str)
