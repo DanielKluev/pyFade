@@ -15,7 +15,6 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
     QDialogButtonBox,
-    QGroupBox,
     QLabel,
     QMessageBox,
     QScrollArea,
@@ -91,7 +90,7 @@ class SampleTagsDialog(QDialog):
         self.tags_container = QWidget()
         self.tags_layout = QVBoxLayout(self.tags_container)
         self.tags_layout.setContentsMargins(10, 10, 10, 10)
-        self.tags_layout.setSpacing(8)
+        self.tags_layout.setSpacing(2)
 
         scroll_area.setWidget(self.tags_container)
         layout.addWidget(scroll_area)
@@ -108,6 +107,7 @@ class SampleTagsDialog(QDialog):
 
         Only tags with scope 'samples' or 'both' are shown.
         Tags currently associated with the sample are checked.
+        Tags are sorted alphabetically by name.
         """
         from py_fade.dataset.tag import Tag  # pylint: disable=import-outside-toplevel
 
@@ -125,23 +125,25 @@ class SampleTagsDialog(QDialog):
             self.tags_layout.addWidget(no_tags_label)
             return
 
-        # Create checkboxes for each tag
-        for tag in relevant_tags:
-            tag_group = QGroupBox()
-            tag_group_layout = QVBoxLayout(tag_group)
+        # Sort tags alphabetically by name
+        relevant_tags.sort(key=lambda t: t.name.lower())
 
+        # Create checkboxes for each tag with compact layout
+        for tag in relevant_tags:
+            # Create checkbox with tag name
             checkbox = QCheckBox(tag.name)
             checkbox.setChecked(tag.id in sample_tag_ids)
             self.tag_checkboxes[tag.id] = checkbox
 
+            # Create description label with compact styling
             description_label = QLabel(f"<i>{tag.description}</i>")
             description_label.setWordWrap(True)
-            description_label.setStyleSheet("color: #666; font-size: 11px;")
+            description_label.setStyleSheet("color: #666; font-size: 10px; margin-left: 20px; margin-bottom: 4px;")
+            description_label.setIndent(0)
 
-            tag_group_layout.addWidget(checkbox)
-            tag_group_layout.addWidget(description_label)
-
-            self.tags_layout.addWidget(tag_group)
+            # Add widgets directly to layout for compact appearance
+            self.tags_layout.addWidget(checkbox)
+            self.tags_layout.addWidget(description_label)
 
         # Add stretch to push tags to the top
         self.tags_layout.addStretch()
