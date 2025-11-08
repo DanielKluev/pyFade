@@ -17,6 +17,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import pytest
+from PyQt6.QtWidgets import QCheckBox
 
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
@@ -395,6 +396,54 @@ def test_sample_tags_dialog_cancel_does_not_save(
 
     # Verify tag was NOT added
     assert not sample.has_tag(temp_dataset, tag1)
+
+    dialog.deleteLater()
+    qt_app.processEvents()
+
+
+def test_sample_tags_dialog_sorts_tags_alphabetically(
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+    ensure_google_icon_font: None,  # Used for side effect of loading icon font
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """
+    Test that tags are displayed in alphabetical order by name.
+
+    Verifies that tags are sorted alphabetically (case-insensitive) regardless of creation order.
+    """
+    caplog.set_level(logging.DEBUG, logger="SampleTagsDialog")
+    test_logger = logging.getLogger("test_sample_tags_dialog.tag_sorting")
+    test_logger.setLevel(logging.DEBUG)
+    patch_message_boxes(monkeypatch, test_logger)
+
+    # Create tags in non-alphabetical order (intentionally unused, created for side effect)
+    _tag_zebra = Tag.create(temp_dataset, "Zebra", "Last alphabetically", scope="samples")
+    _tag_alpha = Tag.create(temp_dataset, "Alpha", "First alphabetically", scope="samples")
+    _tag_middle = Tag.create(temp_dataset, "Middle", "Middle alphabetically", scope="both")
+    _tag_beta = Tag.create(temp_dataset, "Beta", "Second alphabetically", scope="samples")
+    temp_dataset.commit()
+
+    # Create a sample
+    prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
+    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
+    temp_dataset.commit()
+
+    # Create dialog
+    dialog = SampleTagsDialog(temp_dataset, sample)
+    qt_app.processEvents()
+
+    # Get the order of checkboxes by their position in the layout
+    checkbox_labels = []
+    for i in range(dialog.tags_layout.count()):
+        widget = dialog.tags_layout.itemAt(i).widget()
+        if isinstance(widget, QCheckBox):
+            checkbox_labels.append(widget.text())
+
+    # Verify tags are sorted alphabetically (case-insensitive)
+    expected_order = ["Alpha", "Beta", "Middle", "Zebra"]
+    assert checkbox_labels == expected_order, f"Expected {expected_order}, got {checkbox_labels}"
 
     dialog.deleteLater()
     qt_app.processEvents()
