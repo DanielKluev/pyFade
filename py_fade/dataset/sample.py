@@ -227,6 +227,39 @@ class Sample(dataset_base):
         """
         return len(self.completions) == 0 or any(tag.name.startswith("WIP") for tag in self.get_tags(dataset))
 
+    def get_facets(self, dataset: "DatasetDatabase") -> list["Facet"]:
+        """
+        Get all facets that have ratings for this sample.
+
+        Returns a list of Facet objects that have at least one rating for any completion
+        in this sample's prompt revision, ordered by facet name.
+
+        Args:
+            dataset: The dataset database instance
+
+        Returns:
+            List of Facet objects that have ratings for this sample
+        """
+        from py_fade.dataset.facet import Facet  # pylint: disable=import-outside-toplevel
+
+        if not self.prompt_revision:
+            return []
+
+        session = dataset.get_session()
+
+        # Get all unique facet IDs from ratings of this sample's completions
+        facet_ids = set()
+        for completion in self.prompt_revision.completions:
+            for rating in completion.ratings:
+                facet_ids.add(rating.facet_id)
+
+        if not facet_ids:
+            return []
+
+        # Query facets by IDs and order by name
+        facets = session.query(Facet).filter(Facet.id.in_(facet_ids)).order_by(Facet.name).all()
+        return list(facets)
+
     def get_highest_rating_for_facet(self, facet: "Facet") -> int | None:
         """
         Get the highest rating of any completion for this sample for the given facet.
