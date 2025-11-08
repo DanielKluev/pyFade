@@ -375,7 +375,6 @@ def test_navigation_tree_samples_by_filter_flat_mode(temp_dataset, ensure_google
     _ = ensure_google_icon_font  # Used for side effect of loading icon font
 
     from py_fade.dataset.sample_filter import SampleFilter  # pylint: disable=import-outside-toplevel
-    from py_fade.dataset.tag import Tag  # pylint: disable=import-outside-toplevel
 
     # Create tag and samples
     tag = Tag.create(temp_dataset, "Important", "Important tag")
@@ -388,7 +387,7 @@ def test_navigation_tree_samples_by_filter_flat_mode(temp_dataset, ensure_google
 
     sample1 = Sample.create_if_unique(temp_dataset, "Sample A", prompt_rev1, "folder_x/subfolder_1")
     sample2 = Sample.create_if_unique(temp_dataset, "Sample B", prompt_rev2, "folder_x/subfolder_2")
-    sample3 = Sample.create_if_unique(temp_dataset, "Sample C", prompt_rev3, "folder_y")
+    _sample3 = Sample.create_if_unique(temp_dataset, "Sample C", prompt_rev3, "folder_y")
     temp_dataset.commit()
 
     # Tag only sample1 and sample2
@@ -422,7 +421,6 @@ def test_navigation_tree_samples_by_filter_hierarchical_mode(temp_dataset, ensur
     _ = ensure_google_icon_font  # Used for side effect of loading icon font
 
     from py_fade.dataset.sample_filter import SampleFilter  # pylint: disable=import-outside-toplevel
-    from py_fade.dataset.tag import Tag  # pylint: disable=import-outside-toplevel
 
     # Create tag and samples
     tag = Tag.create(temp_dataset, "Done", "Done tag")
@@ -460,3 +458,274 @@ def test_navigation_tree_samples_by_filter_hierarchical_mode(temp_dataset, ensur
     assert tree.tree.topLevelItemCount() == 2
     folder_names = {tree.tree.topLevelItem(i).text(0) for i in range(tree.tree.topLevelItemCount())}
     assert folder_names == {"work", "personal"}
+
+
+def test_group_by_rating_toggle_visibility(ensure_google_icon_font, qt_app):
+    """
+    Test that group by rating toggle is visible only for 'Samples by Facet' mode.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+    panel = WidgetNavigationFilterPanel()
+    panel.show()
+    qt_app.processEvents()
+
+    # Initially hidden for "Samples by Group"
+    assert not panel.group_by_rating_toggle.isVisible()
+
+    # Visible for "Samples by Facet"
+    panel.show_combo.setCurrentText("Samples by Facet")
+    panel._on_show_changed()
+    qt_app.processEvents()
+    assert panel.group_by_rating_toggle.isVisible()
+
+    # Hidden for other modes
+    panel.show_combo.setCurrentText("Samples by Tag")
+    panel._on_show_changed()
+    qt_app.processEvents()
+    assert not panel.group_by_rating_toggle.isVisible()
+
+
+def test_group_by_rating_toggle_disables_flat_list(ensure_google_icon_font, qt_app):
+    """
+    Test that enabling group by rating automatically disables flat list mode.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+    panel = WidgetNavigationFilterPanel()
+    panel.show_combo.setCurrentText("Samples by Facet")
+    panel._on_show_changed()
+    qt_app.processEvents()
+
+    # Enable flat list first
+    panel.flat_list_toggle.click()
+    qt_app.processEvents()
+    assert panel.flat_list_toggle.is_toggled()
+    assert not panel.group_by_rating_toggle.is_toggled()
+
+    # Enable group by rating - should disable flat list
+    panel.group_by_rating_toggle.click()
+    qt_app.processEvents()
+    assert not panel.flat_list_toggle.is_toggled()
+    assert panel.group_by_rating_toggle.is_toggled()
+
+
+def test_flat_list_toggle_disables_group_by_rating(ensure_google_icon_font, qt_app):
+    """
+    Test that enabling flat list automatically disables group by rating mode.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+    panel = WidgetNavigationFilterPanel()
+    panel.show_combo.setCurrentText("Samples by Facet")
+    panel._on_show_changed()
+    qt_app.processEvents()
+
+    # Enable group by rating first
+    panel.group_by_rating_toggle.click()
+    qt_app.processEvents()
+    assert panel.group_by_rating_toggle.is_toggled()
+    assert not panel.flat_list_toggle.is_toggled()
+
+    # Enable flat list - should disable group by rating
+    panel.flat_list_toggle.click()
+    qt_app.processEvents()
+    assert panel.flat_list_toggle.is_toggled()
+    assert not panel.group_by_rating_toggle.is_toggled()
+
+
+def test_filter_panel_includes_group_by_rating_mode_in_criteria(ensure_google_icon_font, qt_app):
+    """
+    Test that filter panel includes group_by_rating_mode in criteria.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+    panel = WidgetNavigationFilterPanel()
+    panel.show_combo.setCurrentText("Samples by Facet")
+    panel._on_show_changed()
+    qt_app.processEvents()
+
+    # Initially not toggled
+    criteria = panel.get_filter_criteria()
+    assert criteria["group_by_rating_mode"] is False
+
+    # Toggle on
+    panel.group_by_rating_toggle.click()
+    qt_app.processEvents()
+    criteria = panel.get_filter_criteria()
+    assert criteria["group_by_rating_mode"] is True
+
+    # Toggle off
+    panel.group_by_rating_toggle.click()
+    qt_app.processEvents()
+    criteria = panel.get_filter_criteria()
+    assert criteria["group_by_rating_mode"] is False
+
+
+def test_sample_get_highest_rating_for_facet(temp_dataset):
+    """
+    Test that Sample.get_highest_rating_for_facet returns the correct highest rating.
+    """
+    # Create a facet
+    facet = Facet.create(temp_dataset, "Quality", "Quality facet")
+    temp_dataset.commit()
+
+    # Create a sample with prompt revision
+    prompt_rev = PromptRevision.get_or_create(temp_dataset, "test prompt", 2048, 512)
+    temp_dataset.commit()
+    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev)
+    temp_dataset.commit()
+
+    # Initially no ratings
+    assert sample.get_highest_rating_for_facet(facet) is None
+
+    # Create completions with different ratings
+    completion1 = create_test_completion(temp_dataset, prompt_rev, "completion 1", "test-model")
+    completion2 = create_test_completion(temp_dataset, prompt_rev, "completion 2", "test-model")
+    completion3 = create_test_completion(temp_dataset, prompt_rev, "completion 3", "test-model")
+
+    PromptCompletionRating.set_rating(temp_dataset, completion1, facet, 7)
+    PromptCompletionRating.set_rating(temp_dataset, completion2, facet, 9)
+    PromptCompletionRating.set_rating(temp_dataset, completion3, facet, 5)
+    temp_dataset.commit()
+
+    # Should return highest rating (9)
+    assert sample.get_highest_rating_for_facet(facet) == 9
+
+
+def test_navigation_tree_samples_by_facet_group_by_rating_mode(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that navigation tree correctly groups samples by rating when group_by_rating_mode is True.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create facet
+    facet = Facet.create(temp_dataset, "Quality", "Quality facet")
+    temp_dataset.commit()
+
+    # Create samples with different ratings
+    prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt 1", 2048, 512)
+    prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt 2", 2048, 512)
+    prompt_rev3 = PromptRevision.get_or_create(temp_dataset, "prompt 3", 2048, 512)
+    temp_dataset.commit()
+
+    _sample1 = Sample.create_if_unique(temp_dataset, "Sample A", prompt_rev1, "group1")
+    _sample2 = Sample.create_if_unique(temp_dataset, "Sample B", prompt_rev2, "group1")
+    _sample3 = Sample.create_if_unique(temp_dataset, "Sample C", prompt_rev3, "group2")
+    temp_dataset.commit()
+
+    # Create completions with ratings
+    completion1 = create_test_completion(temp_dataset, prompt_rev1, "completion 1", "test-model")
+    completion2 = create_test_completion(temp_dataset, prompt_rev2, "completion 2", "test-model")
+    completion3 = create_test_completion(temp_dataset, prompt_rev3, "completion 3", "test-model")
+
+    PromptCompletionRating.set_rating(temp_dataset, completion1, facet, 10)
+    PromptCompletionRating.set_rating(temp_dataset, completion2, facet, 8)
+    PromptCompletionRating.set_rating(temp_dataset, completion3, facet, 10)
+    temp_dataset.commit()
+
+    tree = WidgetNavigationTree()
+    criteria = {"show": "Samples by Facet", "data_filter": DataFilter([]), "flat_list_mode": False, "group_by_rating_mode": True}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    # Should have one facet at top level
+    assert tree.tree.topLevelItemCount() == 1
+    facet_item = tree.tree.topLevelItem(0)
+    assert facet_item.text(0) == "Quality"
+
+    # Should have 2 rating groups under facet: Rating: 10 and Rating: 8
+    assert facet_item.childCount() == 2
+
+    # First rating group should be Rating: 10 with 2 samples (Sample A and Sample C)
+    rating_10_item = facet_item.child(0)
+    assert rating_10_item.text(0) == "Rating: 10"
+    assert rating_10_item.childCount() == 2
+    sample_titles_10 = {rating_10_item.child(i).text(0) for i in range(rating_10_item.childCount())}
+    assert sample_titles_10 == {"Sample A", "Sample C"}
+
+    # Second rating group should be Rating: 8 with 1 sample (Sample B)
+    rating_8_item = facet_item.child(1)
+    assert rating_8_item.text(0) == "Rating: 8"
+    assert rating_8_item.childCount() == 1
+    assert rating_8_item.child(0).text(0) == "Sample B"
+
+
+def test_navigation_sidebar_persists_group_by_rating_mode(app_with_dataset, temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that group by rating mode preference is persisted and restored.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+    _ = temp_dataset  # Dataset is opened via app_with_dataset fixture
+
+    # Create a sidebar and toggle group by rating mode on
+    sidebar1 = WidgetNavigationSidebar(None, app_with_dataset)
+    sidebar1.filter_panel.show_combo.setCurrentText("Samples by Facet")
+    sidebar1.filter_panel.group_by_rating_toggle.click()  # Toggle on
+    qt_app.processEvents()
+
+    # Verify it's toggled
+    assert sidebar1.filter_panel.group_by_rating_toggle.is_toggled()
+
+    # Create a new sidebar instance (simulating app restart)
+    sidebar2 = WidgetNavigationSidebar(None, app_with_dataset)
+    qt_app.processEvents()
+
+    # Verify the preference was restored
+    assert sidebar2.filter_panel.group_by_rating_toggle.is_toggled()
+
+    # Toggle off and verify persistence
+    sidebar2.filter_panel.group_by_rating_toggle.click()  # Toggle off
+    qt_app.processEvents()
+    assert not sidebar2.filter_panel.group_by_rating_toggle.is_toggled()
+
+    # Create another sidebar instance
+    sidebar3 = WidgetNavigationSidebar(None, app_with_dataset)
+    qt_app.processEvents()
+
+    # Verify the preference was restored (off state)
+    assert not sidebar3.filter_panel.group_by_rating_toggle.is_toggled()
+
+
+def test_navigation_tree_samples_sorted_by_title(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that samples are sorted by title in all grouping modes.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create facet
+    facet = Facet.create(temp_dataset, "Quality", "Quality facet")
+    temp_dataset.commit()
+
+    # Create samples with names that would be out of order if not sorted
+    prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt z", 2048, 512)
+    prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt a", 2048, 512)
+    prompt_rev3 = PromptRevision.get_or_create(temp_dataset, "prompt m", 2048, 512)
+    temp_dataset.commit()
+
+    _sample1 = Sample.create_if_unique(temp_dataset, "Zebra Sample", prompt_rev1)
+    _sample2 = Sample.create_if_unique(temp_dataset, "Apple Sample", prompt_rev2)
+    _sample3 = Sample.create_if_unique(temp_dataset, "Mango Sample", prompt_rev3)
+    temp_dataset.commit()
+
+    # Create completions with same rating
+    completion1 = create_test_completion(temp_dataset, prompt_rev1, "completion 1", "test-model")
+    completion2 = create_test_completion(temp_dataset, prompt_rev2, "completion 2", "test-model")
+    completion3 = create_test_completion(temp_dataset, prompt_rev3, "completion 3", "test-model")
+
+    PromptCompletionRating.set_rating(temp_dataset, completion1, facet, 8)
+    PromptCompletionRating.set_rating(temp_dataset, completion2, facet, 8)
+    PromptCompletionRating.set_rating(temp_dataset, completion3, facet, 8)
+    temp_dataset.commit()
+
+    tree = WidgetNavigationTree()
+
+    # Test with group by rating mode
+    criteria = {"show": "Samples by Facet", "data_filter": DataFilter([]), "flat_list_mode": False, "group_by_rating_mode": True}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    facet_item = tree.tree.topLevelItem(0)
+    rating_item = facet_item.child(0)
+
+    # Verify samples are sorted alphabetically
+    assert rating_item.childCount() == 3
+    assert rating_item.child(0).text(0) == "Apple Sample"
+    assert rating_item.child(1).text(0) == "Mango Sample"
+    assert rating_item.child(2).text(0) == "Zebra Sample"
