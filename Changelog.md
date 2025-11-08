@@ -3,6 +3,18 @@
 ## [Unreleased]
 
 ### Added
+- **Refactored Beam Search Window**: Improved beam search interface for better usability and visual consistency
+  - Removed temperature and top_k UI controls; beam search now uses deterministic settings (temp=0.0, top_k=1)
+  - Replaced standard buttons with icon buttons (QPushButtonWithIcon) with Material Design icons and tooltips
+  - Generate button uses "beaming" icon, Selective uses "step" icon, Stop uses "close" icon
+  - Window opens maximized by default for optimal viewing space
+  - Implemented adaptive grid layout that adjusts number of columns based on window width (min 1, calculated from min_beam_width=400px)
+  - Enhanced generation status to show "Generating X out of Y beams" excluding pinned completions
+  - Completion message shows both new beams generated and total (including pinned)
+  - Added resizeEvent handler for responsive grid layout
+  - Comprehensive test coverage with 13 new unit tests (3 deterministic settings, 3 icon buttons, 4 progress status, 3 adaptive grid)
+  - All tests passing (757 total, 4 skipped)
+  - Pylint score: 10.00/10 for py_fade, 9.98/10 for tests
 - **Sample Facets Display**: Show all facets that have ratings for a sample in the sample widget
   - New facets display row in WidgetSample right panel, positioned above tags row
   - Displays all facets with ratings for the current sample as comma-separated names
