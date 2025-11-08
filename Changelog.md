@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### Added
+- **Sample Facets Display**: Show all facets that have ratings for a sample in the sample widget
+  - New facets display row in WidgetSample right panel, positioned above tags row
+  - Displays all facets with ratings for the current sample as comma-separated names
+  - Active facet is highlighted with green background and bold text for easy identification
+  - Automatically updates when active context (facet) changes
+  - Shows appropriate messages for new samples ("No facets yet") and samples without ratings ("No facets")
+  - New `Sample.get_facets(dataset)` method returns ordered list of facets with ratings
+  - Comprehensive test coverage with 13 new unit tests (6 database, 7 UI)
+  - All 744 tests passing (including new tests)
+  - Pylint score: 10.00/10 for py_fade, 9.97/10 for tests
 - **Complex Samples Filtering**: Implemented advanced filtering system for samples with multiple filter rules combined via AND logic
   - New `SampleFilter` database model for storing complex filter definitions with JSON-encoded rules
   - `FilterRule` data class supporting three rule types: String search, Tag presence, and Facet ratings
