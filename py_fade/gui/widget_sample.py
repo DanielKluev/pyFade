@@ -905,7 +905,7 @@ class WidgetSample(QWidget):
             sample_widget=self,
             mapped_model=self.active_model,
         )
-        self.beam_search_widget.show()
+        self.beam_search_widget.showMaximized()
 
     def open_detached_notes(self) -> None:
         """
