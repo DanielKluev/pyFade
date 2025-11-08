@@ -45,6 +45,7 @@ class WidgetNavigationFilterPanel(QWidget):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.flat_list_toggle = None  # Will be initialized in setup_ui
+        self.group_by_rating_toggle = None  # Will be initialized in setup_ui
         self.filter_selector = None  # Will be initialized in setup_ui
         self.setup_ui()
 
@@ -80,8 +81,13 @@ class WidgetNavigationFilterPanel(QWidget):
 
         # Flat list toggle button (shown only for tag/facet/filter groupings)
         self.flat_list_toggle = QPushButtonToggle("view_list", "Toggle flat list view (no group hierarchy)", button_size=28)
-        self.flat_list_toggle.toggled_state_changed.connect(self.filter_changed.emit)
+        self.flat_list_toggle.toggled_state_changed.connect(self._on_flat_list_toggled)
         self.flat_list_toggle.setVisible(False)  # Hidden by default
+
+        # Group by rating toggle button (shown only for facet grouping)
+        self.group_by_rating_toggle = QPushButtonToggle("star", "Toggle sub-grouping by highest rating", button_size=28)
+        self.group_by_rating_toggle.toggled_state_changed.connect(self._on_group_by_rating_toggled)
+        self.group_by_rating_toggle.setVisible(False)  # Hidden by default
 
         # Text search
         search_label = QLabel("Search:")
@@ -96,6 +102,7 @@ class WidgetNavigationFilterPanel(QWidget):
         layout.addWidget(filter_selector_label)
         layout.addWidget(self.filter_selector)
         layout.addWidget(self.flat_list_toggle)
+        layout.addWidget(self.group_by_rating_toggle)
         layout.addWidget(search_label)
         layout.addWidget(self.search_input)
         # Do not add a stretch here so the panel only takes the space it needs.
@@ -112,6 +119,12 @@ class WidgetNavigationFilterPanel(QWidget):
         else:
             self.flat_list_toggle.setVisible(False)
 
+        # Show group by rating toggle only for "Samples by Facet"
+        if show == "Samples by Facet":
+            self.group_by_rating_toggle.setVisible(True)
+        else:
+            self.group_by_rating_toggle.setVisible(False)
+
         # Show filter selector only for "Samples by Filter"
         if show == "Samples by Filter":
             self.filter_selector.setVisible(True)
@@ -120,6 +133,20 @@ class WidgetNavigationFilterPanel(QWidget):
             self.filter_selector.setVisible(False)
             self.filter_selector_label.setVisible(False)
 
+        self.filter_changed.emit()
+
+    def _on_flat_list_toggled(self, toggled: bool):
+        """Handle flat list toggle changes."""
+        # If flat list is enabled, disable group by rating
+        if toggled and self.group_by_rating_toggle.is_toggled():
+            self.group_by_rating_toggle.set_toggled(False)
+        self.filter_changed.emit()
+
+    def _on_group_by_rating_toggled(self, toggled: bool):
+        """Handle group by rating toggle changes."""
+        # If group by rating is enabled, disable flat list
+        if toggled and self.flat_list_toggle.is_toggled():
+            self.flat_list_toggle.set_toggled(False)
         self.filter_changed.emit()
 
     def _build_data_filter(self) -> DataFilter:
@@ -137,6 +164,7 @@ class WidgetNavigationFilterPanel(QWidget):
             "show": show,
             "data_filter": self._build_data_filter(),
             "flat_list_mode": self.flat_list_toggle.is_toggled() if self.flat_list_toggle else False,
+            "group_by_rating_mode": self.group_by_rating_toggle.is_toggled() if self.group_by_rating_toggle else False,
             "selected_filter_id": self.filter_selector.currentData() if self.filter_selector and show == "Samples by Filter" else None,
         }
 
@@ -212,6 +240,7 @@ class WidgetNavigationTree(QWidget):
         show = filter_criteria.get("show", "Samples by Group")
         data_filter: DataFilter = filter_criteria.get("data_filter")  # type: ignore
         flat_list_mode = filter_criteria.get("flat_list_mode", False)
+        group_by_rating_mode = filter_criteria.get("group_by_rating_mode", False)
         selected_filter_id = filter_criteria.get("selected_filter_id")
 
         self.current_item_type = None
@@ -220,7 +249,7 @@ class WidgetNavigationTree(QWidget):
             self._populate_samples(data_filter, dataset)
         elif show == "Samples by Facet":
             self.current_item_type = "Sample"
-            self._populate_samples_by_facet(data_filter, dataset, flat_list_mode)
+            self._populate_samples_by_facet(data_filter, dataset, flat_list_mode, group_by_rating_mode)
         elif show == "Samples by Tag":
             self.current_item_type = "Sample"
             self._populate_samples_by_tag(data_filter, dataset, flat_list_mode)
@@ -276,18 +305,21 @@ class WidgetNavigationTree(QWidget):
             item.setData(0, Qt.ItemDataRole.UserRole, "sample")
             item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
 
-    def _populate_samples_by_facet(self, data_filter: DataFilter, dataset: "DatasetDatabase", flat_list_mode: bool = False):
+    def _populate_samples_by_facet(self, data_filter: DataFilter, dataset: "DatasetDatabase", flat_list_mode: bool = False,
+                                   group_by_rating_mode: bool = False):
         """
         Populate tree with samples grouped by facet.
 
         Root nodes are facets and "No Facet" node.
-        Under each facet, samples are grouped by their group_path (unless flat_list_mode is True).
+        Under each facet, samples can be grouped by rating (if group_by_rating_mode is True),
+        or by their group_path (unless flat_list_mode is True).
         Samples without any facet ratings go under "No Facet" node.
 
         Args:
             data_filter: Filter to apply to samples
             dataset: Dataset database
             flat_list_mode: If True, samples are listed directly under facet without group_path hierarchy
+            group_by_rating_mode: If True, samples are sub-grouped by highest rating (descending from 10 to 0.5)
         """
 
         # Get all facets
@@ -331,16 +363,45 @@ class WidgetNavigationTree(QWidget):
             facet_item = QTreeWidgetItem(self.tree, [facet.name])
             facet_item.setExpanded(False)  # Collapse by default
 
-            if flat_list_mode:
-                # Flat mode: Add samples directly under facet without group hierarchy
+            if group_by_rating_mode:
+                # Rating sub-grouping mode: Group samples by highest rating (descending from 10 to 0.5)
+                # First, organize samples by rating
+                samples_by_rating = {}
                 for sample in samples:
+                    rating = sample.get_highest_rating_for_facet(facet)
+                    if rating is not None:
+                        if rating not in samples_by_rating:
+                            samples_by_rating[rating] = []
+                        samples_by_rating[rating].append(sample)
+
+                # Create rating nodes in descending order (10, 9.5, 9, ..., 0.5)
+                # Ratings are stored as integers 0-10, representing 0 to 10 in 0.5 increments
+                for rating_value in sorted(samples_by_rating.keys(), reverse=True):
+                    rating_label = f"Rating: {rating_value}"
+                    rating_item = QTreeWidgetItem(facet_item, [rating_label])
+                    rating_item.setExpanded(False)
+
+                    # Sort samples by title within each rating group
+                    sorted_samples = sorted(samples_by_rating[rating_value], key=lambda s: s.title.lower())
+                    for sample in sorted_samples:
+                        sample_item = QTreeWidgetItem(rating_item, [sample.title])
+                        sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+                        sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+
+            elif flat_list_mode:
+                # Flat mode: Add samples directly under facet without group hierarchy
+                # Sort samples by title
+                sorted_samples = sorted(samples, key=lambda s: s.title.lower())
+                for sample in sorted_samples:
                     sample_item = QTreeWidgetItem(facet_item, [sample.title])
                     sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
                     sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
             else:
                 # Hierarchical mode: Group samples by group_path under this facet
+                # Sort samples by title for consistent ordering
+                sorted_samples = sorted(samples, key=lambda s: s.title.lower())
                 group_roots = {}
-                for sample in samples:
+                for sample in sorted_samples:
                     group_path = sample.group_path or "Ungrouped"
                     group_parts = group_path.split("/")
                     current_parent = facet_item
@@ -373,16 +434,20 @@ class WidgetNavigationTree(QWidget):
             no_facet_item = QTreeWidgetItem(self.tree, ["No Facet"])
             no_facet_item.setExpanded(False)  # Collapse by default
 
-            if flat_list_mode:
-                # Flat mode: Add samples directly under "No Facet" without group hierarchy
-                for sample in samples_without_facet:
+            if flat_list_mode or group_by_rating_mode:
+                # Flat mode or rating mode: Add samples directly under "No Facet" without group hierarchy
+                # Sort samples by title
+                sorted_samples = sorted(samples_without_facet, key=lambda s: s.title.lower())
+                for sample in sorted_samples:
                     sample_item = QTreeWidgetItem(no_facet_item, [sample.title])
                     sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
                     sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
             else:
                 # Hierarchical mode: Group samples by group_path under "No Facet"
+                # Sort samples by title for consistent ordering
+                sorted_samples = sorted(samples_without_facet, key=lambda s: s.title.lower())
                 group_roots = {}
-                for sample in samples_without_facet:
+                for sample in sorted_samples:
                     group_path = sample.group_path or "Ungrouped"
                     group_parts = group_path.split("/")
                     current_parent = no_facet_item
@@ -813,6 +878,7 @@ class WidgetNavigationSidebar(QWidget):
 
         self.filter_panel.filter_changed.connect(self._on_filter_changed)
         self.filter_panel.flat_list_toggle.toggled_state_changed.connect(self._on_flat_list_mode_changed)
+        self.filter_panel.group_by_rating_toggle.toggled_state_changed.connect(self._on_group_by_rating_mode_changed)
         self.tree_view.item_selected.connect(self.item_selected.emit)
         self.tree_view.new_item_requested.connect(self.new_item_requested.emit)
 
@@ -831,16 +897,27 @@ class WidgetNavigationSidebar(QWidget):
         if isinstance(flat_list_mode, bool):
             self.filter_panel.flat_list_toggle.set_toggled(flat_list_mode)
 
+        # Restore group_by_rating_mode preference
+        group_by_rating_mode = dataset_prefs.get("nav_group_by_rating_mode")
+        if isinstance(group_by_rating_mode, bool):
+            self.filter_panel.group_by_rating_toggle.set_toggled(group_by_rating_mode)
+
     def _persist_preferences(self):
         """Persist preferences for the current dataset."""
         if not hasattr(self.app, "config"):
             return
-        update_dataset_preferences(self.app, self._dataset_pref_key(), {
-            "nav_flat_list_mode": self.filter_panel.flat_list_toggle.is_toggled(),
-        })
+        update_dataset_preferences(
+            self.app, self._dataset_pref_key(), {
+                "nav_flat_list_mode": self.filter_panel.flat_list_toggle.is_toggled(),
+                "nav_group_by_rating_mode": self.filter_panel.group_by_rating_toggle.is_toggled(),
+            })
 
     def _on_flat_list_mode_changed(self, _toggled: bool):
         """Handle flat list mode toggle changes by persisting the preference."""
+        self._persist_preferences()
+
+    def _on_group_by_rating_mode_changed(self, _toggled: bool):
+        """Handle group by rating mode toggle changes by persisting the preference."""
         self._persist_preferences()
 
     def set_dataset(self, dataset: "DatasetDatabase"):

@@ -226,3 +226,29 @@ class Sample(dataset_base):
         - There are "Work In Progress" tags (currently just check if any tag starts with "WIP").
         """
         return len(self.completions) == 0 or any(tag.name.startswith("WIP") for tag in self.get_tags(dataset))
+
+    def get_highest_rating_for_facet(self, facet: "Facet") -> int | None:
+        """
+        Get the highest rating of any completion for this sample for the given facet.
+
+        Iterates through all completions of this sample's prompt revision and returns
+        the maximum rating found for the specified facet.
+
+        Args:
+            facet: The facet to check ratings for
+
+        Returns:
+            The highest rating (0-10) if any completions have ratings for this facet, None otherwise
+        """
+        from py_fade.dataset.facet import Facet  # pylint: disable=import-outside-toplevel,unused-import
+
+        if not self.prompt_revision:
+            return None
+
+        max_rating = None
+        for completion in self.prompt_revision.completions:
+            for rating in completion.ratings:
+                if rating.facet_id == facet.id:
+                    if max_rating is None or rating.rating > max_rating:
+                        max_rating = rating.rating
+        return max_rating
