@@ -215,6 +215,20 @@ class WidgetSample(QWidget):
         notes_row_layout.addWidget(self.notes_field)
         notes_row_layout.addWidget(self.open_notes_button)
 
+        # Facets row (label and display on same line)
+        facets_row_layout = QHBoxLayout()
+        facets_label = QLabel("Facets:", self)
+        facets_label.setMinimumWidth(80)
+        facets_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.facets_display = QLabel("", self)
+        self.facets_display.setWordWrap(True)
+        self.facets_display.setStyleSheet("background-color: #f5f5f5; padding: 4px; border-radius: 4px;")
+        self.facets_display.setMinimumHeight(30)
+        facets_row_layout.addWidget(facets_label)
+        facets_row_layout.addWidget(self.facets_display)
+        # Add spacer to align with tags row which has edit button
+        facets_row_layout.addSpacing(32)
+
         # Tags row (label and display on same line with edit button)
         tags_row_layout = QHBoxLayout()
         tags_label = QLabel("Tags:", self)
@@ -312,6 +326,7 @@ class WidgetSample(QWidget):
         controls_layout.addLayout(title_row_layout)
         controls_layout.addLayout(group_row_layout)
         controls_layout.addLayout(notes_row_layout)
+        controls_layout.addLayout(facets_row_layout)
         controls_layout.addLayout(tags_row_layout)
         controls_layout.addLayout(tokens_row_layout)
         controls_layout.addLayout(buttons_row_layout)
@@ -472,7 +487,8 @@ class WidgetSample(QWidget):
         else:
             self.prompt_area.setReadOnly(False)
 
-        # Update tags display
+        # Update facets and tags display
+        self.update_facets_display()
         self.update_tags_display()
 
         # Update token usage after setting sample data
@@ -933,6 +949,36 @@ class WidgetSample(QWidget):
         self.notes_field.setPlainText(notes)
         self.log.debug("Synchronized notes from detached window (%d characters)", len(notes))
 
+    def update_facets_display(self) -> None:
+        """
+        Update the facets display label with the current sample's facets.
+
+        Shows facets as comma-separated names in the facets_display label.
+        Highlights the active facet if present.
+        If the sample is new (not saved), shows a message.
+        """
+        if not self.sample or not self.sample.id:
+            self.facets_display.setText("<i>No facets yet</i>")
+            return
+
+        facets = self.sample.get_facets(self.dataset)
+        if not facets:
+            self.facets_display.setText("<i>No facets</i>")
+            return
+
+        # Build HTML to display facets, highlighting the active one
+        facet_parts = []
+        for facet in facets:
+            if self.active_facet and facet.id == self.active_facet.id:
+                # Highlight active facet with bold and background color
+                facet_parts.append(f'<span style="background-color: #4CAF50; color: white; padding: 2px 6px; '
+                                   f'border-radius: 3px; font-weight: bold;">{facet.name}</span>')
+            else:
+                facet_parts.append(facet.name)
+
+        facets_html = ", ".join(facet_parts)
+        self.facets_display.setText(facets_html)
+
     def update_tags_display(self) -> None:
         """
         Update the tags display label with the current sample's tags.
@@ -1004,3 +1050,7 @@ class WidgetSample(QWidget):
         # Re-sort if facet or model changed
         if facet_changed or model_changed:
             self.sort_completion_frames()
+
+        # Update facets display if facet changed (for highlighting)
+        if facet_changed:
+            self.update_facets_display()
