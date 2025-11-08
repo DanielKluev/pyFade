@@ -9,15 +9,15 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from py_fade.dataset.prompt import PromptRevision
-from py_fade.dataset.sample import Sample
-from py_fade.gui.widget_sample import WidgetSample
-
 # Import all dataset models to ensure SQLAlchemy metadata is complete
 # This is required for tests that use temp_dataset fixture
 from py_fade.dataset import (  # pylint: disable=unused-import
     completion, completion_logprobs, completion_pairwise_ranks, completion_rating, export_template, facet, sample_tag, tag,
 )
+from py_fade.dataset.prompt import PromptRevision
+from py_fade.dataset.sample import Sample
+from py_fade.gui.widget_sample import WidgetSample
+from tests.helpers.ui_helpers import create_test_widget_sample_empty
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -118,9 +118,7 @@ class TestWidgetSampleDetachedNotes:
         caplog.set_level(logging.DEBUG, logger="WidgetSample")
         _ = ensure_google_icon_font  # Ensure Google icon font is loaded
 
-        widget = WidgetSample(None, app_with_dataset, None)
-        widget.show()
-        qt_app.processEvents()
+        widget = create_test_widget_sample_empty(app_with_dataset, qt_app)
 
         # Set initial notes
         widget.notes_field.setPlainText("Original notes")
@@ -258,9 +256,7 @@ class TestWidgetSampleDetachedNotes:
         """
         _ = ensure_google_icon_font  # Ensure Google icon font is loaded
 
-        widget = WidgetSample(None, app_with_dataset, None)
-        widget.show()
-        qt_app.processEvents()
+        widget = create_test_widget_sample_empty(app_with_dataset, qt_app)
 
         # Fill in sample data
         widget.prompt_area.setPlainText("Test prompt")

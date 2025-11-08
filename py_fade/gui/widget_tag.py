@@ -16,11 +16,9 @@ from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QGroupBox,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
-    QPlainTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -29,6 +27,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.tag import Tag
+from py_fade.gui.auxillary import create_description_field_layout, create_name_field_layout, create_readonly_field_layout
 from py_fade.gui.components.widget_crud_form_base import CrudFormWidget, build_crud_button_styles
 
 if TYPE_CHECKING:
@@ -56,9 +55,7 @@ class WidgetTag(CrudFormWidget):
         self.log = logging.getLogger("WidgetTag")
         self.app = app
         self.dataset = dataset
-        if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
-        self.dataset_session = dataset.session  # type: ignore[attr-defined]
+        self.dataset_session = self.initialize_dataset_session(dataset)
         self.tag = tag
 
         button_styles = build_crud_button_styles(save_color="#00796B")
@@ -81,25 +78,13 @@ class WidgetTag(CrudFormWidget):
         group_layout = QVBoxLayout(form_group)
         group_layout.setSpacing(12)
 
-        name_container = QVBoxLayout()
-        name_label = QLabel("Name:", parent=form_group)
-        name_label.setStyleSheet("font-weight: bold;")
-        self.name_field = QLineEdit(parent=form_group)
-        self.name_field.setPlaceholderText("Enter tag name…")
-        self.name_field.textChanged.connect(self.validate_form)  # type: ignore[arg-type]
-        name_container.addWidget(name_label)
-        name_container.addWidget(self.name_field)
+        # Name field
+        name_container, self.name_field = create_name_field_layout(form_group, "Enter tag name…", self.validate_form)
         group_layout.addLayout(name_container)
 
-        description_container = QVBoxLayout()
-        description_label = QLabel("Description:", parent=form_group)
-        description_label.setStyleSheet("font-weight: bold;")
-        self.description_field = QPlainTextEdit(parent=form_group)
-        self.description_field.setPlaceholderText("Describe how the tag should be used…")
-        self.description_field.setMaximumHeight(120)
-        self.description_field.textChanged.connect(self.validate_form)  # type: ignore[arg-type]
-        description_container.addWidget(description_label)
-        description_container.addWidget(self.description_field)
+        # Description field
+        description_container, self.description_field = create_description_field_layout(form_group, "Describe how the tag should be used…",
+                                                                                        120, self.validate_form)
         group_layout.addLayout(description_container)
 
         scope_container = QVBoxLayout()
@@ -114,6 +99,7 @@ class WidgetTag(CrudFormWidget):
         scope_container.addWidget(self.scope_combo)
         group_layout.addLayout(scope_container)
 
+        # Read-only fields
         self.total_samples_field = QLineEdit(parent=form_group)
         self.total_samples_field.setReadOnly(True)
         self.total_samples_field.setStyleSheet("background-color: #f5f5f5; color: #666;")
@@ -122,20 +108,10 @@ class WidgetTag(CrudFormWidget):
         self.date_created_field.setReadOnly(True)
         self.date_created_field.setStyleSheet("background-color: #f5f5f5; color: #666;")
 
-        total_samples_layout = QHBoxLayout()
-        total_samples_label = QLabel("Total Samples:", parent=form_group)
-        total_samples_label.setStyleSheet("font-weight: bold;")
-        total_samples_layout.addWidget(total_samples_label)
-        total_samples_layout.addWidget(self.total_samples_field)
-        total_samples_layout.addStretch()
+        total_samples_layout = create_readonly_field_layout(form_group, "Total Samples:", self.total_samples_field)
         group_layout.addLayout(total_samples_layout)
 
-        date_created_layout = QHBoxLayout()
-        date_created_label = QLabel("Date Created:", parent=form_group)
-        date_created_label.setStyleSheet("font-weight: bold;")
-        date_created_layout.addWidget(date_created_label)
-        date_created_layout.addWidget(self.date_created_field)
-        date_created_layout.addStretch()
+        date_created_layout = create_readonly_field_layout(form_group, "Date Created:", self.date_created_field)
         group_layout.addLayout(date_created_layout)
 
         form_layout.addWidget(form_group)
@@ -209,9 +185,7 @@ class WidgetTag(CrudFormWidget):
                 self.tag = Tag.create(self.dataset, name, description, scope=normalized_scope)
             else:
                 self.log.debug("Updating tag id=%s", self.tag.id)
-                self.tag.update(
-                    self.dataset, name=name, description=description, scope=normalized_scope
-                )
+                self.tag.update(self.dataset, name=name, description=description, scope=normalized_scope)
 
             self.dataset_session.flush()
             self.dataset_session.commit()

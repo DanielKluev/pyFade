@@ -99,7 +99,7 @@ class TestSampleFilterRetrieval:
         Test get_all with no filters in database.
         """
         filters = SampleFilter.get_all(temp_dataset)
-        assert filters == []
+        assert not filters
 
     def test_get_all_ordered_by_date(self, temp_dataset):
         """

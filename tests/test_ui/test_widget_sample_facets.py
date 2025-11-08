@@ -21,7 +21,7 @@ from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.gui.widget_sample import WidgetSample
-from tests.helpers.ui_helpers import patch_message_boxes
+from tests.helpers.ui_helpers import create_test_widget_sample_with_prompt, patch_message_boxes
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -74,14 +74,7 @@ def test_widget_sample_facets_display_no_facets(
     patch_message_boxes(monkeypatch, test_logger)
 
     # Create a sample without ratings
-    dataset = app_with_dataset.current_dataset
-    prompt_revision = PromptRevision.get_or_create(dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(dataset, "Test Sample", prompt_revision)
-    dataset.commit()
-
-    # Create widget with sample
-    widget = WidgetSample(None, app_with_dataset, sample=sample)
-    qt_app.processEvents()
+    widget, _sample = create_test_widget_sample_with_prompt(app_with_dataset, qt_app)
 
     # Verify facets display shows "No facets"
     assert "No facets" in widget.facets_display.text()
