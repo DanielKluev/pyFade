@@ -266,7 +266,7 @@ def create_test_sample(temp_dataset, title: str = "Test Sample", notes: str = "T
 
 def create_test_completion_with_params(temp_dataset, prompt, model_id: str = "test-model", completion_text: str = "Test completion",
                                        sha256: str | None = None, temperature: float = 0.7, top_k: int = 50, context_length: int = 2048,
-                                       max_tokens: int = 100):
+                                       max_tokens: int = 100, is_truncated: bool = False):
     """
     Create a test PromptCompletion with explicit parameters.
 
@@ -275,7 +275,8 @@ def create_test_completion_with_params(temp_dataset, prompt, model_id: str = "te
     if sha256 is None:
         sha256 = "a" * 64
     completion = PromptCompletion(prompt_revision_id=prompt.id, sha256=sha256, model_id=model_id, temperature=temperature, top_k=top_k,
-                                  completion_text=completion_text, context_length=context_length, max_tokens=max_tokens)
+                                  completion_text=completion_text, context_length=context_length, max_tokens=max_tokens,
+                                  is_truncated=is_truncated)
     temp_dataset.session.add(completion)
     temp_dataset.session.flush()
     return completion

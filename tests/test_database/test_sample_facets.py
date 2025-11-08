@@ -5,13 +5,11 @@ Tests the get_facets() method on Sample class which returns all facets
 that have ratings for completions in the sample.
 """
 
-import pytest
-
-from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
+from tests.helpers.data_helpers import create_test_completion_with_params
 
 
 def test_sample_get_facets_no_completions(temp_dataset) -> None:
@@ -27,7 +25,7 @@ def test_sample_get_facets_no_completions(temp_dataset) -> None:
 
     # Get facets - should be empty
     facets = sample.get_facets(temp_dataset)
-    assert facets == []
+    assert not facets
 
 
 def test_sample_get_facets_no_ratings(temp_dataset) -> None:
@@ -41,23 +39,12 @@ def test_sample_get_facets_no_ratings(temp_dataset) -> None:
     sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
 
     # Add completion without rating
-    completion = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    temp_dataset.session.add(completion)
+    completion = create_test_completion_with_params(temp_dataset, prompt_revision, completion_text="Test completion", is_truncated=False)
     temp_dataset.commit()
 
     # Get facets - should be empty
     facets = sample.get_facets(temp_dataset)
-    assert facets == []
+    assert not facets
 
 
 def test_sample_get_facets_single_facet(temp_dataset) -> None:
@@ -75,18 +62,7 @@ def test_sample_get_facets_single_facet(temp_dataset) -> None:
     sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
 
     # Add completion with rating
-    completion = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    temp_dataset.session.add(completion)
+    completion = create_test_completion_with_params(temp_dataset, prompt_revision, completion_text="Test completion", is_truncated=False)
     temp_dataset.commit()
 
     # Add rating
@@ -116,30 +92,10 @@ def test_sample_get_facets_multiple_facets(temp_dataset) -> None:
     sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
 
     # Add completions with ratings for different facets
-    completion1 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 1",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    completion2 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="b" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 2",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    temp_dataset.session.add(completion1)
-    temp_dataset.session.add(completion2)
+    completion1 = create_test_completion_with_params(temp_dataset, prompt_revision, sha256="a" * 64, completion_text="Test completion 1",
+                                                     is_truncated=False)
+    completion2 = create_test_completion_with_params(temp_dataset, prompt_revision, sha256="b" * 64, completion_text="Test completion 2",
+                                                     is_truncated=False)
     temp_dataset.commit()
 
     # Add ratings for different facets
@@ -171,30 +127,10 @@ def test_sample_get_facets_no_duplicates(temp_dataset) -> None:
     sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
 
     # Add multiple completions with ratings for same facet
-    completion1 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 1",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    completion2 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="b" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 2",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    temp_dataset.session.add(completion1)
-    temp_dataset.session.add(completion2)
+    completion1 = create_test_completion_with_params(temp_dataset, prompt_revision, sha256="a" * 64, completion_text="Test completion 1",
+                                                     is_truncated=False)
+    completion2 = create_test_completion_with_params(temp_dataset, prompt_revision, sha256="b" * 64, completion_text="Test completion 2",
+                                                     is_truncated=False)
     temp_dataset.commit()
 
     # Add ratings for same facet
@@ -225,4 +161,4 @@ def test_sample_get_facets_no_prompt_revision(temp_dataset) -> None:
 
     # Get facets - should be empty
     facets = sample.get_facets(temp_dataset)
-    assert facets == []
+    assert not facets

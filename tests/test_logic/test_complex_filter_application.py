@@ -4,8 +4,6 @@ Tests for complex filter application to samples.
 Tests for fetching samples using complex filter rules with AND logic.
 """
 
-import pytest
-
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.filter_rule import FilterRule, FilterRuleType
@@ -52,7 +50,7 @@ class TestComplexFilterApplication:
         temp_dataset.commit()
 
         sample1, _ = create_test_sample(temp_dataset, title="Sample 1", prompt_text="Prompt 1")
-        sample2, _ = create_test_sample(temp_dataset, title="Sample 2", prompt_text="Prompt 2")
+        _sample2, _ = create_test_sample(temp_dataset, title="Sample 2", prompt_text="Prompt 2")
         sample3, _ = create_test_sample(temp_dataset, title="Sample 3", prompt_text="Prompt 3")
 
         sample1.add_tag(temp_dataset, tag)
@@ -150,9 +148,9 @@ class TestComplexFilterApplication:
 
         # Create various samples
         sample1, prompt1 = create_test_sample(temp_dataset, title="Important Task 1", prompt_text="Prompt 1")
-        sample2, prompt2 = create_test_sample(temp_dataset, title="Important Task 2", prompt_text="Prompt 2")
+        sample2, _prompt2 = create_test_sample(temp_dataset, title="Important Task 2", prompt_text="Prompt 2")
         sample3, prompt3 = create_test_sample(temp_dataset, title="Important Task 3", prompt_text="Prompt 3")
-        sample4, _ = create_test_sample(temp_dataset, title="Other Task", prompt_text="Prompt 4")
+        _sample4, _ = create_test_sample(temp_dataset, title="Other Task", prompt_text="Prompt 4")
 
         # Add tags
         sample1.add_tag(temp_dataset, tag_done)
@@ -209,8 +207,8 @@ class TestComplexFilterApplication:
         temp_dataset.commit()
 
         sample1, _ = create_test_sample(temp_dataset, title="Important Sample", prompt_text="Prompt 1")
-        sample2, _ = create_test_sample(temp_dataset, title="Important Task", prompt_text="Prompt 2")
-        sample3, _ = create_test_sample(temp_dataset, title="Other Sample", prompt_text="Prompt 3")
+        _sample2, _ = create_test_sample(temp_dataset, title="Important Task", prompt_text="Prompt 2")
+        _sample3, _ = create_test_sample(temp_dataset, title="Other Sample", prompt_text="Prompt 3")
 
         sample1.add_tag(temp_dataset, tag)
         temp_dataset.commit()

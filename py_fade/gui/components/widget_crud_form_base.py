@@ -17,17 +17,17 @@ from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.gui.components.widget_label_with_icon import QLabelWithIconAndText
 
+
 def build_crud_button_styles(*, save_color: str) -> CrudButtonStyles:
     """Return the Material-inspired button style set for CRUD forms."""
 
-    base_style = (
-        "QPushButton { background-color: %s; color: white; padding: 8px 16px; }"
-    )
+    base_style = "QPushButton { background-color: %s; color: white; padding: 8px 16px; }"
     return CrudButtonStyles(
         save=base_style % save_color,
         cancel=base_style % "#757575",
         delete=base_style % "#d32f2f",
     )
+
 
 @dataclass(frozen=True, slots=True)
 class TextConstraints:
@@ -93,9 +93,7 @@ class CrudFormWidget(QWidget):
             parent=self,
             size=18,
         )
-        self.header_label.setStyleSheet(
-            f"font-size: 18px; font-weight: bold; color: {header_color};"
-        )
+        self.header_label.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {header_color};")
         self.header_layout.addWidget(self.header_label)
         self.header_layout.addStretch()
         self.main_layout.addLayout(self.header_layout)
@@ -209,6 +207,21 @@ class CrudFormWidget(QWidget):
         self.handle_cancel()
 
     # ----------------------------------------------------------------------
+    # Dataset session helpers
+    # ----------------------------------------------------------------------
+
+    @staticmethod
+    def initialize_dataset_session(dataset: DatasetDatabase):
+        """
+        Initialize and return the dataset session, raising if not available.
+
+        Returns the dataset session for use in the widget.
+        """
+        if not dataset.session:
+            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
+        return dataset.session  # type: ignore[return-value]
+
+    # ----------------------------------------------------------------------
     # Form validators
     # ----------------------------------------------------------------------
 
@@ -237,7 +250,7 @@ class CrudFormWidget(QWidget):
             return ["Name must be unique"]
         return []
 
-    def validate_description(self, description: str, constraints: TextConstraints|None = None) -> list[str]:
+    def validate_description(self, description: str, constraints: TextConstraints | None = None) -> list[str]:
         """Validate a text description according to project length constraints."""
         if constraints is None:
             constraints = self.description_constraints

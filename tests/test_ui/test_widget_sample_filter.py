@@ -3,7 +3,7 @@ Test suite for WidgetSampleFilter GUI component.
 
 Tests sample filter creation, editing, deletion, validation, and rule management.
 """
-# pylint: disable=unused-argument
+# pylint: disable=unused-argument,protected-access
 from __future__ import annotations
 
 import logging
@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from py_fade.dataset.facet import Facet
 from py_fade.dataset.sample_filter import SampleFilter
 from py_fade.dataset.tag import Tag
 from py_fade.gui.widget_sample_filter import WidgetSampleFilter
@@ -83,8 +82,16 @@ def test_widget_sample_filter_with_rules(app_with_dataset: "pyFadeApp", temp_dat
 
     # Add rules directly (simulating dialog results)
     widget.current_rules = [
-        {"type": "string", "value": "important", "negated": False},
-        {"type": "tag", "value": tag.id, "negated": False},
+        {
+            "type": "string",
+            "value": "important",
+            "negated": False
+        },
+        {
+            "type": "tag",
+            "value": tag.id,
+            "negated": False
+        },
     ]
     widget._refresh_rules_list()
     qt_app.processEvents()
@@ -122,7 +129,7 @@ def test_widget_sample_filter_edit_existing(app_with_dataset: "pyFadeApp", temp_
     rules = [{"type": "string", "value": "test", "negated": False}]
     existing_filter = SampleFilter.create(temp_dataset, "Original Name", "Original description", filter_rules=rules)
     temp_dataset.commit()
-    
+
     # Refresh to ensure ID is set
     temp_dataset.get_session().refresh(existing_filter)
 
@@ -164,7 +171,7 @@ def test_widget_sample_filter_delete(app_with_dataset: "pyFadeApp", temp_dataset
     # Create a filter
     existing_filter = SampleFilter.create(temp_dataset, "To Delete", "Will be deleted")
     temp_dataset.commit()
-    
+
     # Refresh to ensure ID is set
     temp_dataset.get_session().refresh(existing_filter)
     filter_id = existing_filter.id
@@ -230,9 +237,21 @@ def test_widget_sample_filter_remove_rule(app_with_dataset: "pyFadeApp", temp_da
 
     # Add multiple rules
     widget.current_rules = [
-        {"type": "string", "value": "first", "negated": False},
-        {"type": "string", "value": "second", "negated": False},
-        {"type": "string", "value": "third", "negated": False},
+        {
+            "type": "string",
+            "value": "first",
+            "negated": False
+        },
+        {
+            "type": "string",
+            "value": "second",
+            "negated": False
+        },
+        {
+            "type": "string",
+            "value": "third",
+            "negated": False
+        },
     ]
     widget._refresh_rules_list()
     qt_app.processEvents()

@@ -12,12 +12,10 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
-    QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMessageBox,
-    QPlainTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -27,6 +25,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.filter_rule import FilterRule
 from py_fade.dataset.sample_filter import SampleFilter
+from py_fade.gui.auxillary import create_description_field_layout, create_name_field_layout, create_readonly_field_layout
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.gui.components.widget_crud_form_base import CrudFormWidget, build_crud_button_styles
 
@@ -53,9 +52,7 @@ class WidgetSampleFilter(CrudFormWidget):
         self.log = logging.getLogger("WidgetSampleFilter")
         self.app = app
         self.dataset = dataset
-        if not dataset.session:
-            raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
-        self.dataset_session = dataset.session  # type: ignore[attr-defined]
+        self.dataset_session = self.initialize_dataset_session(dataset)
         self.sample_filter = sample_filter
         self.current_rules: list[dict] = []
 
@@ -82,26 +79,12 @@ class WidgetSampleFilter(CrudFormWidget):
         group_layout.setSpacing(12)
 
         # Name field
-        name_container = QVBoxLayout()
-        name_label = QLabel("Name:", parent=form_group)
-        name_label.setStyleSheet("font-weight: bold;")
-        self.name_field = QLineEdit(parent=form_group)
-        self.name_field.setPlaceholderText("Enter filter name…")
-        self.name_field.textChanged.connect(self.validate_form)  # type: ignore[arg-type]
-        name_container.addWidget(name_label)
-        name_container.addWidget(self.name_field)
+        name_container, self.name_field = create_name_field_layout(form_group, "Enter filter name…", self.validate_form)
         group_layout.addLayout(name_container)
 
         # Description field
-        description_container = QVBoxLayout()
-        description_label = QLabel("Description:", parent=form_group)
-        description_label.setStyleSheet("font-weight: bold;")
-        self.description_field = QPlainTextEdit(parent=form_group)
-        self.description_field.setPlaceholderText("Describe what this filter finds…")
-        self.description_field.setMaximumHeight(80)
-        self.description_field.textChanged.connect(self.validate_form)  # type: ignore[arg-type]
-        description_container.addWidget(description_label)
-        description_container.addWidget(self.description_field)
+        description_container, self.description_field = create_description_field_layout(form_group, "Describe what this filter finds…", 80,
+                                                                                        self.validate_form)
         group_layout.addLayout(description_container)
 
         # Date created (read-only)
@@ -109,12 +92,7 @@ class WidgetSampleFilter(CrudFormWidget):
         self.date_created_field.setReadOnly(True)
         self.date_created_field.setStyleSheet("background-color: #f5f5f5; color: #666;")
 
-        date_created_layout = QHBoxLayout()
-        date_created_label = QLabel("Date Created:", parent=form_group)
-        date_created_label.setStyleSheet("font-weight: bold;")
-        date_created_layout.addWidget(date_created_label)
-        date_created_layout.addWidget(self.date_created_field)
-        date_created_layout.addStretch()
+        date_created_layout = create_readonly_field_layout(form_group, "Date Created:", self.date_created_field)
         group_layout.addLayout(date_created_layout)
 
         form_layout.addWidget(form_group)
