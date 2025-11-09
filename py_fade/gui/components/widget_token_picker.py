@@ -1,11 +1,15 @@
 """Token picker widget used to inspect and select probable next tokens."""
 
 import logging
+import unicodedata
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox,
     QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -13,6 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from py_fade.gui.auxillary.aux_logprobs_to_color import logprob_to_qcolor
+from py_fade.gui.components.widget_toggle_button import QPushButtonToggle
 from py_fade.data_formats.base_data_classes import SinglePositionToken, SinglePositionTopLogprobs
 
 SYMBOLS_MAP = {
@@ -33,12 +38,25 @@ class WidgetTokenPicker(QWidget):
     Emits `tokens_selected` signal with list of selected tokens when selection is finalized.
 
     Displays tokens with their logprobs, amount per row depending on width of the widget, filling without wrapping or horizontal scroll.
+
+    Includes filtering capabilities:
+    - Text search: filters tokens containing the search string
+    - Latin-only filter: shows only tokens with Latin letters and punctuation (including line breaks)
+    - Space-prefix filter: shows only tokens starting with a space
+    - No-space-prefix filter: shows only tokens NOT starting with a space
+    Filters can be combined and are applied via AND logic.
     """
 
     tokens_selected = pyqtSignal(list)  # Signal emitted with list of selected tokens
     tokens: SinglePositionTopLogprobs  # List of (token, logprob) tuples
     tokens_map: dict[int, SinglePositionToken]  # Token_id -> SinglePositionToken
     multi_select: bool  # Whether multi-select mode is enabled
+
+    # Filter state
+    filter_text: str  # Text search filter
+    filter_latin_only: bool  # Show only Latin characters
+    filter_space_prefix: bool  # Show only tokens with space prefix
+    filter_no_space_prefix: bool  # Show only tokens without space prefix
 
     def __init__(self, parent: QWidget | None, tokens: SinglePositionTopLogprobs, multi_select: bool = False):
         super().__init__(parent)
@@ -52,12 +70,52 @@ class WidgetTokenPicker(QWidget):
 
         self.token_widgets: list[QWidget] = []  # Keep references to token widgets
 
+        # Initialize filter state
+        self.filter_text = ""
+        self.filter_latin_only = False
+        self.filter_space_prefix = False
+        self.filter_no_space_prefix = False
+
         self.setup_ui()
 
     def setup_ui(self):
         """Set up the UI components."""
         main_layout = QVBoxLayout()
         self.setLayout(main_layout)
+
+        # Create filter controls section
+        filter_layout = QVBoxLayout()
+
+        # Text search filter
+        search_layout = QHBoxLayout()
+        search_label = QLabel("Search:")
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Filter tokens by text...")
+        self.search_input.textChanged.connect(self._on_filter_changed)
+        search_layout.addWidget(search_label)
+        search_layout.addWidget(self.search_input)
+        filter_layout.addLayout(search_layout)
+
+        # Toggle button filters
+        toggle_layout = QHBoxLayout()
+        toggle_layout.addWidget(QLabel("Filters:"))
+
+        self.latin_only_button = QPushButtonToggle("abc", "Latin letters and punctuation only", icon_size=20, button_size=32)
+        self.latin_only_button.toggled_state_changed.connect(self._on_latin_only_toggled)
+        toggle_layout.addWidget(self.latin_only_button)
+
+        self.space_prefix_button = QPushButtonToggle("space_bar", "Only tokens with space prefix", icon_size=20, button_size=32)
+        self.space_prefix_button.toggled_state_changed.connect(self._on_space_prefix_toggled)
+        toggle_layout.addWidget(self.space_prefix_button)
+
+        self.no_space_prefix_button = QPushButtonToggle("text_fields", "Only tokens without space prefix", icon_size=20, button_size=32)
+        self.no_space_prefix_button.toggled_state_changed.connect(self._on_no_space_prefix_toggled)
+        toggle_layout.addWidget(self.no_space_prefix_button)
+
+        toggle_layout.addStretch()
+        filter_layout.addLayout(toggle_layout)
+
+        main_layout.addLayout(filter_layout)
 
         # Create scroll area for tokens
         scroll_area = QScrollArea()
@@ -84,8 +142,110 @@ class WidgetTokenPicker(QWidget):
             self.accept_button.clicked.connect(self._emit_selection)
             main_layout.addWidget(self.accept_button)
 
+    def _on_filter_changed(self, text: str):
+        """Handle text search filter change."""
+        self.filter_text = text.lower()
+        self._refresh_tokens()
+
+    def _on_latin_only_toggled(self, state: bool):
+        """Handle Latin-only filter toggle."""
+        self.filter_latin_only = state
+        self._refresh_tokens()
+
+    def _on_space_prefix_toggled(self, state: bool):
+        """Handle space-prefix filter toggle."""
+        self.filter_space_prefix = state
+        self._refresh_tokens()
+
+    def _on_no_space_prefix_toggled(self, state: bool):
+        """Handle no-space-prefix filter toggle."""
+        self.filter_no_space_prefix = state
+        self._refresh_tokens()
+
+    def _token_passes_filters(self, token: SinglePositionToken) -> bool:
+        """
+        Check if a token passes all active filters.
+
+        Filters are combined via AND logic - token must pass all active filters to be shown.
+
+        Returns True if token should be displayed, False otherwise.
+        """
+        # Text search filter
+        if self.filter_text and self.filter_text not in token.token_str.lower():
+            return False
+
+        # Latin-only filter: check if all characters are Latin, punctuation, or whitespace
+        if self.filter_latin_only:
+            if not self._is_latin_or_punctuation(token.token_str):
+                return False
+
+        # Space prefix filter (mutually exclusive with no-space prefix)
+        if self.filter_space_prefix and not token.token_str.startswith(" "):
+            return False
+
+        if self.filter_no_space_prefix and token.token_str.startswith(" "):
+            return False
+
+        return True
+
+    def _is_latin_or_punctuation(self, text: str) -> bool:
+        """
+        Check if text contains only Latin letters, punctuation, or whitespace.
+
+        This filters out non-Latin scripts like Arabic, CJK, Cyrillic, etc.
+        """
+        for char in text:
+            # Allow whitespace characters (space, newline, tab, etc.)
+            if char.isspace():
+                continue
+
+            # Get Unicode category
+            category = unicodedata.category(char)
+
+            # Allow punctuation (all P* categories)
+            if category.startswith('P'):
+                continue
+
+            # For letters and marks, check if they're Latin
+            if category.startswith('L') or category.startswith('M'):
+                # Check if character is in Latin script ranges
+                # Basic Latin: U+0000-U+007F
+                # Latin-1 Supplement: U+0080-U+00FF
+                # Latin Extended-A: U+0100-U+017F
+                # Latin Extended-B: U+0180-U+024F
+                # Latin Extended Additional: U+1E00-U+1EFF
+                char_code = ord(char)
+                is_latin = ((0x0000 <= char_code <= 0x007F) or (0x0080 <= char_code <= 0x00FF) or (0x0100 <= char_code <= 0x017F) or
+                            (0x0180 <= char_code <= 0x024F) or (0x1E00 <= char_code <= 0x1EFF))
+                if not is_latin:
+                    return False
+            # Allow digits and symbols
+            elif category.startswith('N') or category.startswith('S'):
+                continue
+            # Reject other categories (like control characters, format chars, etc.)
+            else:
+                return False
+
+        return True
+
+    def _refresh_tokens(self):
+        """Refresh the token display by clearing and repopulating with current filters."""
+        # Clear existing widgets
+        for widget in self.token_widgets:
+            widget.deleteLater()
+        self.token_widgets.clear()
+
+        # Clear the grid layout
+        while self.tokens_grid.count():
+            item = self.tokens_grid.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        # Repopulate with filtered tokens
+        self._populate_tokens()
+
     def _populate_tokens(self):
-        """Populate the grid with token widgets."""
+        """Populate the grid with token widgets, applying active filters."""
         if not self.tokens:
             return
 
@@ -97,6 +257,10 @@ class WidgetTokenPicker(QWidget):
         col = 0
 
         for token in self.tokens:
+            # Skip tokens that don't pass filters
+            if not self._token_passes_filters(token):
+                continue
+
             if self.multi_select:
                 widget = self._create_checkbox_token(token)
             else:
