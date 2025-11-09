@@ -184,6 +184,17 @@ class ExportController:
                 if sample.id in exported_sample_ids:
                     continue
 
+                if sample.is_unfinished(self.dataset):
+                    # Skip unfinished samples
+                    sample_info = SampleExportInfo(
+                        sample_id=sample.id,
+                        sample_title=sample.title,
+                        group_path=sample.group_path,
+                    )
+                    facet_summary.failed_samples.append((sample_info, ["Sample is unfinished"]))
+                    self.log.info("Skipping unfinished sample [%d]: %s", sample.id, sample.title)
+                    continue
+
                 # Try to convert sample with threshold checking
                 conversation, failure_reasons = self._sample_to_conversation_with_validation(sample, facet, min_rating, min_logprob,
                                                                                              avg_logprob)
