@@ -232,7 +232,7 @@ class WidgetCompletionBeams(QWidget):
         self.status_label = QLabel("Ready to generate beams")
         controls_layout.addWidget(self.status_label)
 
-        layout.addWidget(controls_frame)
+        layout.addWidget(controls_frame, stretch=0)  # Minimal vertical space
 
         # Scrollable area for beam results
         self.scroll_area = QScrollArea(self)
@@ -245,7 +245,9 @@ class WidgetCompletionBeams(QWidget):
         self.beams_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self.scroll_area.setWidget(self.beams_container)
 
-        layout.addWidget(self.scroll_area)
+        layout.addWidget(self.scroll_area, stretch=1)  # Expand to fill remaining space
+
+        self.setLayout(layout)
 
     def set_prompt(self, prompt: str):
         """Set the prompt text."""
