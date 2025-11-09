@@ -628,7 +628,9 @@ class WidgetNavigationTree(QWidget):
 
         if flat_list_mode:
             # Flat mode: Add samples directly without group hierarchy
-            for sample in samples:
+            # Sort samples by title
+            sorted_samples = sorted(samples, key=lambda s: s.title.lower())
+            for sample in sorted_samples:
                 sample_item = QTreeWidgetItem(self.tree, [sample.title])
                 sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
                 sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
