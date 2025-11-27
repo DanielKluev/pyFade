@@ -145,7 +145,7 @@ class WidgetFacet(CrudFormWidget):
         min_logprob_label.setStyleSheet("font-weight: bold;")
         min_logprob_label.setToolTip("Minimum logprob threshold for individual tokens")
         self.min_logprob_field = QDoubleSpinBox(parent=thresholds_group)
-        self.min_logprob_field.setRange(-50.0, 0.0)
+        self.min_logprob_field.setRange(-100.0, 0.0)
         self.min_logprob_field.setSingleStep(0.1)
         self.min_logprob_field.setDecimals(2)
         self.min_logprob_field.setValue(-1.0)
