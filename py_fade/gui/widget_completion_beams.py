@@ -33,6 +33,7 @@ from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow, EditorMode
 from py_fade.providers.llm_response import LLMResponse
 from py_fade.providers.providers_manager import MappedModel
+from py_fade.providers.base_provider import GenerationError
 
 if TYPE_CHECKING:
     from py_fade.app import PyFadeApp
@@ -87,7 +88,7 @@ class BeamGenerationWorker(QThread):
                 on_beam_completed=self.beam_completed.emit,
                 on_check_stop=self.is_stopped,
             )
-        except (RuntimeError, ValueError) as exc:
+        except (RuntimeError, ValueError, GenerationError) as exc:
             self.generation_error.emit(str(exc))
             return
 
@@ -640,7 +641,7 @@ class WidgetCompletionBeams(QWidget):
             # Generate continuation using the controller
             response = generation_controller.generate_continuation(original_completion=completion, max_tokens=context_length,
                                                                    context_length=context_length)
-        except (RuntimeError, ValueError, ImportError) as exc:  # pragma: no cover - defensive logging
+        except (RuntimeError, ValueError, ImportError, GenerationError) as exc:  # pragma: no cover - defensive logging
             self.log.error("Continuation generation failed: %s", exc)
             QMessageBox.warning(self, "Generation failed", f"Continuation generation failed: {exc}")
             self.status_label.setText("Continuation generation failed.")

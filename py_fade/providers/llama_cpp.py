@@ -17,10 +17,7 @@ if os.name == "nt":
         HIP_PATHS = f"{hip_path}\\bin;{hip_path}\\lib"
         os.environ["PATH"] = HIP_PATHS + ";" + os.environ.get("PATH", "")
 
-from py_fade.providers.base_provider import (
-    LOGPROB_LEVEL_TOP_LOGPROBS,
-    BasePrefillAwareProvider,
-)
+from py_fade.providers.base_provider import LOGPROB_LEVEL_TOP_LOGPROBS, BasePrefillAwareProvider, CorruptedContextError
 from py_fade.data_formats.base_data_classes import (CommonCompletionLogprobs, CommonCompletionProtocol, CommonConversation,
                                                     CompletionTokenLogprobs, CompletionTopLogprobs, SinglePositionToken,
                                                     SinglePositionTopLogprobs, CompletionPrefill)
@@ -78,10 +75,6 @@ def decode_logprobs_to_top_logprobs(model: "Llama", logprobs: NDArray, top_k: in
             SinglePositionToken(token_str=token_str, token_id=int(token_id), logprob=float(logprob), span=token_span,
                                 token_bytes=token_bytes))
     return result
-
-
-class CorruptedContextError(Exception):
-    """Raised when the model context appears to be corrupted, producing invalid tokens."""
 
 
 class ResponseBuilder:

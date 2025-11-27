@@ -26,6 +26,14 @@ LOGPROB_LEVEL_SAMPLED_TOKEN = 1  # Logprob of sampled token only
 LOGPROB_LEVEL_TOP_LOGPROBS = 2  # For each position, give logprobs of top N tokens
 
 
+class GenerationError(Exception):
+    """Custom exception for generation errors in providers."""
+
+
+class CorruptedContextError(GenerationError):
+    """Raised when the model context appears to be corrupted, producing invalid tokens."""
+
+
 class BasePrefillAwareProvider:
     """
     Base class for providers that support prefill functionality.
