@@ -41,6 +41,8 @@ common_icons_map = {
     "account_tree": "\ue97a",  # tree / hierarchy view icon
     "open_in_new": "\ue89e",  # open in new window icon
     "open_in_full": "\uf1ce",  # expand/fullscreen icon
+    "image": "\ue3f4",  # image / photo icon
+    "add_photo_alternate": "\ue43e",  # add photo / add image icon
 }
 
 # Important: icons_aliases holds higher priority than common_icons_map
@@ -56,6 +58,7 @@ icons_aliases = {
     "system_role": "settings_alert",
     "user_role": "person",
     "assistant_role": "robot",
+    "add_image": "add_photo_alternate",
 }
 
 

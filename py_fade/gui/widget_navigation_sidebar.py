@@ -23,6 +23,7 @@ from py_fade.dataset.export_template import ExportTemplate
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.tag import Tag
+from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.gui.components.widget_toggle_button import QPushButtonToggle
 from py_fade.gui.gui_helpers import get_dataset_preferences, update_dataset_preferences
@@ -280,6 +281,17 @@ class WidgetNavigationTree(QWidget):
             self.new_element_button.setText(f"New {pretty_label}")
             self.new_element_button.setToolTip(f"Create new {pretty_label} element")
 
+    def _set_sample_icon_if_has_images(self, item: QTreeWidgetItem, sample: Sample) -> None:
+        """
+        Set an image icon on the tree item if the sample has attached images.
+
+        Args:
+            item: The QTreeWidgetItem to update
+            sample: The Sample to check for images
+        """
+        if sample.has_images():
+            item.setIcon(0, google_icon_font.as_icon("image", size=16))
+
     def _populate_samples(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
         """
         Populate tree with samples.
@@ -304,6 +316,7 @@ class WidgetNavigationTree(QWidget):
             item = QTreeWidgetItem(current_parent, [sample.title])
             item.setData(0, Qt.ItemDataRole.UserRole, "sample")
             item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+            self._set_sample_icon_if_has_images(item, sample)
 
     def _populate_samples_by_facet(self, data_filter: DataFilter, dataset: "DatasetDatabase", flat_list_mode: bool = False,
                                    group_by_rating_mode: bool = False):
@@ -387,6 +400,7 @@ class WidgetNavigationTree(QWidget):
                         sample_item = QTreeWidgetItem(rating_item, [sample.title])
                         sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
                         sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+                        self._set_sample_icon_if_has_images(sample_item, sample)
 
             elif flat_list_mode:
                 # Flat mode: Add samples directly under facet without group hierarchy
@@ -396,6 +410,7 @@ class WidgetNavigationTree(QWidget):
                     sample_item = QTreeWidgetItem(facet_item, [sample.title])
                     sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
                     sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+                    self._set_sample_icon_if_has_images(sample_item, sample)
             else:
                 # Hierarchical mode: Group samples by group_path under this facet
                 # Sort samples by title for consistent ordering
@@ -418,6 +433,7 @@ class WidgetNavigationTree(QWidget):
                     sample_item = QTreeWidgetItem(current_parent, [sample.title])
                     sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
                     sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+                    self._set_sample_icon_if_has_images(sample_item, sample)
 
         # Add "No Facet" node for samples without any ratings
         samples_without_facet = Facet.get_samples_without_facet(dataset)
@@ -442,6 +458,7 @@ class WidgetNavigationTree(QWidget):
                     sample_item = QTreeWidgetItem(no_facet_item, [sample.title])
                     sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
                     sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+                    self._set_sample_icon_if_has_images(sample_item, sample)
             else:
                 # Hierarchical mode: Group samples by group_path under "No Facet"
                 # Sort samples by title for consistent ordering
@@ -464,6 +481,7 @@ class WidgetNavigationTree(QWidget):
                     sample_item = QTreeWidgetItem(current_parent, [sample.title])
                     sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
                     sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+                    self._set_sample_icon_if_has_images(sample_item, sample)
 
     def _populate_samples_by_tag(self, data_filter: DataFilter, dataset: "DatasetDatabase", flat_list_mode: bool = False):
         """
@@ -526,6 +544,7 @@ class WidgetNavigationTree(QWidget):
                     sample_item = QTreeWidgetItem(tag_item, [sample.title])
                     sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
                     sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+                    self._set_sample_icon_if_has_images(sample_item, sample)
             else:
                 # Hierarchical mode: Group samples by group_path under this tag
                 group_roots = {}
@@ -546,6 +565,7 @@ class WidgetNavigationTree(QWidget):
                     sample_item = QTreeWidgetItem(current_parent, [sample.title])
                     sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
                     sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+                    self._set_sample_icon_if_has_images(sample_item, sample)
 
         # Add "No Tag" node for samples without any tags
         # Get all samples
@@ -572,6 +592,7 @@ class WidgetNavigationTree(QWidget):
                     sample_item = QTreeWidgetItem(no_tag_item, [sample.title])
                     sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
                     sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+                    self._set_sample_icon_if_has_images(sample_item, sample)
             else:
                 # Hierarchical mode: Group samples by group_path under "No Tag"
                 group_roots = {}
@@ -592,6 +613,7 @@ class WidgetNavigationTree(QWidget):
                     sample_item = QTreeWidgetItem(current_parent, [sample.title])
                     sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
                     sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+                    self._set_sample_icon_if_has_images(sample_item, sample)
 
     def _populate_samples_by_filter(self, filter_id: int | None, dataset: "DatasetDatabase", flat_list_mode: bool = False):
         """
@@ -634,6 +656,7 @@ class WidgetNavigationTree(QWidget):
                 sample_item = QTreeWidgetItem(self.tree, [sample.title])
                 sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
                 sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+                self._set_sample_icon_if_has_images(sample_item, sample)
         else:
             # Hierarchical mode: Group samples by group_path
             group_roots = {}
@@ -652,6 +675,7 @@ class WidgetNavigationTree(QWidget):
                 sample_item = QTreeWidgetItem(current_parent, [sample.title])
                 sample_item.setData(0, Qt.ItemDataRole.UserRole, "sample")
                 sample_item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+                self._set_sample_icon_if_has_images(sample_item, sample)
 
     def _populate_facets(self, data_filter: DataFilter, dataset: "DatasetDatabase"):
         """Populate tree with facets."""

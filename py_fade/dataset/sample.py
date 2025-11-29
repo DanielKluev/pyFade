@@ -15,6 +15,7 @@ from py_fade.dataset.sample_tag import SampleTag
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.dataset.data_filter import DataFilter
+    from py_fade.dataset.sample_image import SampleImage
     from py_fade.dataset.tag import Tag
 
 
@@ -34,6 +35,9 @@ class Sample(dataset_base):
 
     # Many-to-many relationship with tags
     sample_tags: Mapped[List["SampleTag"]] = relationship("SampleTag", back_populates="sample", cascade="all, delete-orphan", lazy="select")
+
+    # One-to-many relationship with images (file path references)
+    images: Mapped[List["SampleImage"]] = relationship("SampleImage", back_populates="sample", cascade="all, delete-orphan", lazy="select")
 
     log = logging.getLogger("Sample")
 
@@ -285,3 +289,69 @@ class Sample(dataset_base):
                     if max_rating is None or rating.rating > max_rating:
                         max_rating = rating.rating
         return max_rating
+
+    def get_images(self, dataset: "DatasetDatabase") -> List["SampleImage"]:
+        """
+        Get all images attached to this sample.
+
+        Returns a list of SampleImage objects ordered by date created.
+
+        Args:
+            dataset: The dataset database instance
+
+        Returns:
+            List of SampleImage objects attached to this sample
+        """
+        from py_fade.dataset.sample_image import SampleImage  # pylint: disable=import-outside-toplevel
+        return SampleImage.get_for_sample(dataset, self)
+
+    def add_image(self, dataset: "DatasetDatabase", file_path: str) -> "SampleImage":
+        """
+        Add an image attachment to this sample.
+
+        Creates a SampleImage association between this sample and the image file.
+        The image file is not copied - only the file path reference is stored.
+
+        Args:
+            dataset: The dataset database instance
+            file_path: The file path to the image
+
+        Returns:
+            The created SampleImage instance
+
+        Raises:
+            ValueError: If the file path is empty or the image is already attached
+        """
+        from py_fade.dataset.sample_image import SampleImage  # pylint: disable=import-outside-toplevel
+        sample_image = SampleImage.create(dataset, self, file_path)
+        self.log.debug("Added image '%s' to sample %s", sample_image.filename, self.id)
+        return sample_image
+
+    def remove_image(self, dataset: "DatasetDatabase", sample_image: "SampleImage") -> None:
+        """
+        Remove an image attachment from this sample.
+
+        Deletes the SampleImage association.
+
+        Args:
+            dataset: The dataset database instance
+            sample_image: The SampleImage to remove
+
+        Raises:
+            ValueError: If the image is not attached to this sample
+        """
+        if sample_image.sample_id != self.id:
+            raise ValueError(f"Image {sample_image.id} is not attached to sample {self.id}.")
+        sample_image.delete(dataset)
+        self.log.debug("Removed image '%s' from sample %s", sample_image.filename, self.id)
+
+    def has_images(self) -> bool:
+        """
+        Check if this sample has any attached images.
+
+        Uses the lazy-loaded images relationship.
+
+        Returns:
+            True if the sample has at least one image, False otherwise
+        """
+        return len(self.images) > 0
