@@ -10,7 +10,11 @@ Tests core functionality of the image attachment widget:
 - Interaction with save state
 
 Uses PyQt6 and pytest-qt for widget testing.
+
+Pylint:
+ - Intentional use of ensure_google_icon_font fixture to load icon font before tests.
 """
+# pylint: disable=unused-argument
 from __future__ import annotations
 
 import pathlib
@@ -216,7 +220,7 @@ class TestImageAttachmentItem:
 
         # Track signal emission
         received_path = []
-        item.remove_clicked.connect(lambda p: received_path.append(p))
+        item.remove_clicked.connect(received_path.append)
 
         # Click remove button
         item.remove_button.click()
