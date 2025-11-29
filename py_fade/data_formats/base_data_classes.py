@@ -3,7 +3,7 @@ Fundamental language model data classes.
 """
 import logging
 import base64
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import struct
 from typing import Iterable, Protocol, runtime_checkable
 
@@ -11,50 +11,127 @@ from py_fade.data_formats.utils import is_equal_utf_8, try_decode_utf_8
 
 
 @dataclass(frozen=True, slots=True)
-class CommonMessage:
+class MessageImage:
     """
-    Single message in Message API format.
-    Role: "user", "assistant", or "system".
+    Reference to an image attached to a message.
+
+    Stores file path reference to image file. Images are not embedded in the message,
+    only the file path is stored. For API calls, the actual image data would be loaded
+    from the file path when needed.
     """
-    role: str
-    content: str
+    file_path: str
+    filename: str
+
+    @classmethod
+    def from_file_path(cls, file_path: str) -> "MessageImage":
+        """
+        Create a MessageImage from a file path.
+
+        Args:
+            file_path: Path to the image file
+
+        Returns:
+            MessageImage instance with file_path and extracted filename
+        """
+        import pathlib  # pylint: disable=import-outside-toplevel
+        path = pathlib.Path(file_path)
+        return cls(file_path=str(path), filename=path.name)
 
     def as_dict(self) -> dict[str, str]:
         """
-        Return message as dict with 'role' and 'content'.
+        Return image reference as dict with 'file_path' and 'filename'.
         """
-        return {"role": self.role, "content": self.content}
+        return {"file_path": self.file_path, "filename": self.filename}
+
+    def file_exists(self) -> bool:
+        """
+        Check if the image file exists at the stored file path.
+
+        Returns:
+            True if the file exists, False otherwise
+        """
+        import pathlib  # pylint: disable=import-outside-toplevel
+        return pathlib.Path(self.file_path).exists()
+
+
+@dataclass(frozen=True, slots=True)
+class CommonMessage:
+    """
+    Single message in Message API format.
+
+    Role: "user", "assistant", or "system".
+    Optionally includes image references for multimodal content.
+    Images are only applicable for "user" role messages.
+    """
+    role: str
+    content: str
+    images: tuple[MessageImage, ...] = field(default_factory=tuple)
+
+    def as_dict(self) -> dict[str, str | list[dict[str, str]]]:
+        """
+        Return message as dict with 'role', 'content', and optionally 'images'.
+        """
+        result: dict[str, str | list[dict[str, str]]] = {"role": self.role, "content": self.content}
+        if self.images:
+            result["images"] = [img.as_dict() for img in self.images]
+        return result
 
     def __eq__(self, value: object) -> bool:
         if isinstance(value, CommonMessage):
-            return self.role == value.role and self.content == value.content
+            return self.role == value.role and self.content == value.content and self.images == value.images
         if isinstance(value, dict):
-            return self.role == value.get("role") and self.content == value.get("content")
+            # For backward compatibility, compare without images if dict doesn't have images
+            role_match = self.role == value.get("role")
+            content_match = self.content == value.get("content")
+            if "images" in value:
+                images_match = list(self.images) == [MessageImage(**img) for img in value.get("images", [])]
+                return role_match and content_match and images_match
+            return role_match and content_match and not self.images
         return False
+
+    def has_images(self) -> bool:
+        """
+        Check if this message has any attached images.
+
+        Returns:
+            True if the message has at least one image, False otherwise
+        """
+        return len(self.images) > 0
 
 
 @dataclass(frozen=True, slots=True)
 class CommonConversation:
     """
     Message API conversation format.
+
+    Supports multimodal conversations with images attached to user messages.
     """
     messages: list[CommonMessage]
 
     @classmethod
-    def from_single_user(cls, user_message: str) -> "CommonConversation":
+    def from_single_user(cls, user_message: str, images: tuple[MessageImage, ...] | None = None) -> "CommonConversation":
         """
         Create CommonConversation from a single user message string.
+
+        Args:
+            user_message: The user message content
+            images: Optional tuple of MessageImage references to attach to the message
         """
-        return cls(messages=[CommonMessage(role="user", content=user_message)])
+        return cls(messages=[CommonMessage(role="user", content=user_message, images=images or ())])
 
     def append(self, message: CommonMessage | dict) -> None:
         """
         Append a message to the conversation.
+
         Accepts either CommonMessage or dict with 'role' and 'content'.
+        Images can be included in dict with 'images' key.
         """
         if isinstance(message, dict):
             if "role" in message and "content" in message:
-                message = CommonMessage(role=message["role"], content=message["content"])
+                images = ()
+                if "images" in message:
+                    images = tuple(MessageImage(**img) if isinstance(img, dict) else img for img in message.get("images", []))
+                message = CommonMessage(role=message["role"], content=message["content"], images=images)
             else:
                 raise ValueError("Dict message must have 'role' and 'content' keys.")
 
@@ -88,11 +165,20 @@ class CommonConversation:
         new_messages.append(CommonMessage(role="assistant", content=prefill))
         return CommonConversation(messages=new_messages)
 
-    def as_list(self) -> list[dict[str, str]]:
+    def as_list(self) -> list[dict[str, str | list[dict[str, str]]]]:
         """
-        Return conversation as list of dicts with 'role' and 'content'.
+        Return conversation as list of dicts with 'role', 'content', and optionally 'images'.
         """
         return [msg.as_dict() for msg in self.messages]
+
+    def has_images(self) -> bool:
+        """
+        Check if any message in this conversation has images.
+
+        Returns:
+            True if any message has at least one image, False otherwise
+        """
+        return any(msg.has_images() for msg in self.messages)
 
     def __eq__(self, value: object) -> bool:
         if isinstance(value, CommonConversation):

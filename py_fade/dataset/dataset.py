@@ -32,6 +32,7 @@ from py_fade.dataset.facet import Facet  # pylint: disable=unused-import # Requi
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.sample_filter import SampleFilter  # pylint: disable=unused-import # Required for SQLAlchemy metadata registration
+from py_fade.dataset.sample_image import SampleImage  # pylint: disable=unused-import # Required for SQLAlchemy metadata registration
 from py_fade.dataset.sample_tag import SampleTag  # pylint: disable=unused-import # Required for SQLAlchemy metadata registration
 from py_fade.dataset.tag import Tag  # pylint: disable=unused-import # Required for SQLAlchemy metadata registration
 from py_fade.providers.llm_response import LLMResponse
