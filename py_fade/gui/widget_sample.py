@@ -32,6 +32,7 @@ from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.components.widget_plain_text_edit import PlainTextEdit
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
+from py_fade.gui.components.widget_sample_images import WidgetSampleImages
 from py_fade.gui.components.widget_toggle_button import QPushButtonToggle
 from py_fade.gui.gui_helpers import get_dataset_preferences, update_dataset_preferences
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
@@ -245,6 +246,9 @@ class WidgetSample(QWidget):
         tags_row_layout.addWidget(self.tags_display)
         tags_row_layout.addWidget(self.edit_tags_button)
 
+        # Images row - widget for managing attached images
+        self.images_widget = WidgetSampleImages(self)
+
         # Context length and max tokens on same row
         tokens_row_layout = QHBoxLayout()
         context_label = QLabel("Context:", self)
@@ -328,6 +332,7 @@ class WidgetSample(QWidget):
         controls_layout.addLayout(notes_row_layout)
         controls_layout.addLayout(facets_row_layout)
         controls_layout.addLayout(tags_row_layout)
+        controls_layout.addWidget(self.images_widget)
         controls_layout.addLayout(tokens_row_layout)
         controls_layout.addLayout(buttons_row_layout)
         controls_layout.addLayout(filters_row_layout)
@@ -490,6 +495,9 @@ class WidgetSample(QWidget):
         # Update facets and tags display
         self.update_facets_display()
         self.update_tags_display()
+
+        # Update images display
+        self.update_images_display()
 
         # Update token usage after setting sample data
         self.update_token_usage()
@@ -840,6 +848,8 @@ class WidgetSample(QWidget):
     def save_sample(self):
         """
         Save the current sample with title and disable prompt editing.
+
+        Also saves any pending images attached to the sample.
         """
         if not self.app or not self.dataset or not self.dataset.session:
             raise RuntimeError("App or dataset not properly initialized.")
@@ -875,6 +885,15 @@ class WidgetSample(QWidget):
                 # Sample with this prompt already exists, do not create duplicate
                 return
             self.sample = new_sample
+
+            # Save pending images to the new sample
+            pending_images = self.images_widget.get_pending_images()
+            for file_path in pending_images:
+                try:
+                    self.sample.add_image(self.dataset, file_path)
+                except ValueError as e:
+                    self.log.warning("Failed to add image '%s': %s", file_path, e)
+            self.dataset.session.commit()
 
         self.set_sample(self.sample)  # Refresh UI state
         self.sample_saved.emit(self.sample)  # Emit signal that sample was saved
@@ -999,6 +1018,28 @@ class WidgetSample(QWidget):
             self.tags_display.setText(tag_names)
         else:
             self.tags_display.setText("<i>No tags</i>")
+
+    def update_images_display(self) -> None:
+        """
+        Update the images widget with the current sample's images.
+
+        For saved samples, shows attached images from database with remove disabled.
+        For new/unsaved samples, shows pending images with add/remove enabled.
+        """
+        is_saved = self.sample is not None and self.sample.id is not None
+
+        # Configure images widget based on saved state
+        self.images_widget.set_sample_saved(is_saved)
+
+        if is_saved and self.sample:
+            # Show saved images from database
+            saved_images = self.sample.get_images(self.dataset)
+            self.images_widget.set_saved_images(saved_images)
+            self.images_widget.set_pending_images([])
+        else:
+            # For new samples, keep pending images (allow adding before save)
+            self.images_widget.set_saved_images([])
+            # Pending images are managed by the widget itself
 
     def edit_tags(self) -> None:
         """

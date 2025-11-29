@@ -16,8 +16,6 @@ from __future__ import annotations
 
 import pathlib
 
-import pytest
-
 from py_fade.data_formats.base_data_classes import (
     CommonConversation,
     CommonMessage,
@@ -104,7 +102,7 @@ class TestCommonMessageWithImages:
 
         assert msg.role == "user"
         assert msg.content == "Hello"
-        assert msg.images == ()
+        assert not msg.images
         assert msg.has_images() is False
 
     def test_message_with_images(self, tmp_path: pathlib.Path) -> None:
