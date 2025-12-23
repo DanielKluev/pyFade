@@ -8,7 +8,7 @@ class DataFilter:
     """
     Wrapper around various simple and chained filters to apply to datasets.
 
-    Currently just limit to simple str search.
+    Supports text search on title, prompt text, and ID (if search value is a valid integer).
     """
 
     filters: list[dict]
@@ -20,7 +20,7 @@ class DataFilter:
         """
         Apply the filters to the given SQLAlchemy query object.
 
-        For text_search filters on Sample queries, searches both title and prompt_text fields.
+        For text_search filters on Sample queries, searches title, prompt_text, and ID fields (if search value is a valid integer).
         For text_search filters on PromptRevision queries, searches prompt_text field.
         """
         # pylint: disable=import-outside-toplevel  # Avoid circular import
@@ -33,17 +33,31 @@ class DataFilter:
                 if not search_value:
                     continue
 
+                # Check if search value is a valid integer for ID filtering
+                try:
+                    search_id = int(search_value)
+                    is_valid_id = True
+                except ValueError:
+                    search_id = None
+                    is_valid_id = False
+
                 # Check if this is a Sample or PromptRevision query by inspecting the query's column descriptions
                 if hasattr(query, 'column_descriptions'):
                     entity_types = [desc['type'] for desc in query.column_descriptions if 'type' in desc]
 
                     if Sample in entity_types:
-                        # For Sample queries, filter on title and prompt_text
+                        # For Sample queries, filter on title, prompt_text, and ID (if search value is a valid integer)
                         # Join with PromptRevision to enable filtering on prompt_text
                         query = query.join(Sample.prompt_revision)
-                        # Filter on both title and prompt_text
-                        query = query.filter(
-                            or_(Sample.title.ilike(f"%{search_value}%"), PromptRevision.prompt_text.ilike(f"%{search_value}%")))
+
+                        # Build OR conditions for title and prompt_text
+                        conditions = [Sample.title.ilike(f"%{search_value}%"), PromptRevision.prompt_text.ilike(f"%{search_value}%")]
+
+                        # Add ID condition if search value is a valid integer
+                        if is_valid_id:
+                            conditions.append(Sample.id == search_id)
+
+                        query = query.filter(or_(*conditions))
 
                     elif PromptRevision in entity_types:
                         # For PromptRevision queries, filter on prompt_text
