@@ -292,6 +292,8 @@ class DatasetDatabase:
     def get_beams_for_prompt_and_model(self, prompt: PromptRevision | str, model_id: str) -> list[LLMResponse]:
         """
         Retrieve all beam completions for a given prompt text and model_id.
+
+        Excludes archived completions to avoid loading them into the generation cache.
         """
         if not self.session:
             raise RuntimeError("Session is not initialized. Call initialize() first.")
@@ -304,11 +306,14 @@ class DatasetDatabase:
             return []
 
         # Find completions which have completion_logprobs.logprobs_model_id == given model_id
-        completions = (self.session.query(PromptCompletionLogprobs).join(PromptCompletion).options(
-            joinedload(PromptCompletionLogprobs.prompt_completion)).filter(
-                PromptCompletion.prompt_revision_id == prompt_revision.id,
-                PromptCompletionLogprobs.logprobs_model_id == model_id,
-            ).all())
+        # Exclude archived completions to save memory and avoid using stale alternative logprobs
+        completions = (
+            self.session.query(PromptCompletionLogprobs).join(PromptCompletion).options(
+                joinedload(PromptCompletionLogprobs.prompt_completion)).filter(
+                    PromptCompletion.prompt_revision_id == prompt_revision.id,
+                    PromptCompletionLogprobs.logprobs_model_id == model_id,
+                    PromptCompletion.is_archived == False,  # pylint: disable=singleton-comparison
+                ).all())
 
         responses = []
         for logprobs in completions:

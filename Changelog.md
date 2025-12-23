@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### Added
+- **Clean Alternative Tokens On Archive**: Automatically clean alternative logprobs when archiving completions to save disk space
+  - New `PromptCompletion.clean_alternative_logprobs()` method removes alternative token data from all associated logprobs entries
+  - Archive button in completion widgets now automatically calls `clean_alternative_logprobs()` when archiving
+  - Sampled logprobs are preserved when cleaning alternative logprobs
+  - Archived completions are excluded from `DatasetDatabase.get_beams_for_prompt_and_model()` query
+  - Generation controller cache no longer loads archived completions
+  - Unarchiving a completion does not restore alternative logprobs (they are permanently removed)
+  - Comprehensive test coverage with 8 new unit tests covering all scenarios
+  - All tests passing (821 total, 4 skipped)
+  - Pylint score: 10.00/10 for both py_fade and tests
 - **Refactored Beam Search Window**: Improved beam search interface for better usability and visual consistency
   - Removed temperature and top_k UI controls; beam search now uses deterministic settings (temp=0.0, top_k=1)
   - Replaced standard buttons with icon buttons (QPushButtonWithIcon) with Material Design icons and tooltips

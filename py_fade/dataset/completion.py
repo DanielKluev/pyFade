@@ -10,7 +10,8 @@ from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
-from py_fade.data_formats.base_data_classes import CommonCompletionLogprobs, CommonConversation, CommonCompletionProtocol
+from py_fade.data_formats.base_data_classes import (CommonCompletionLogprobs, CommonConversation, CommonCompletionProtocol,
+                                                    CompletionTopLogprobs)
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.dataset.completion_rating import PromptCompletionRating
@@ -151,3 +152,19 @@ class PromptCompletion(dataset_base):
         True if all tokens match and cover full text, False otherwise.
         """
         return CommonCompletionProtocol.check_full_response_logprobs(self, target_model_id)
+
+    def clean_alternative_logprobs(self) -> None:
+        """
+        Clear alternative logprobs for all associated logprobs entries.
+
+        This saves disk space by removing alternative token data while preserving sampled logprobs.
+        Typically called when archiving a completion.
+        """
+        if not self.logprobs:
+            return
+
+        for logprobs_entry in self.logprobs:
+            # Clear the cached alternative_logprobs
+            logprobs_entry._alternative_logprobs = None  # pylint: disable=protected-access
+            # Set alternative_logprobs_bin to empty compressed data
+            logprobs_entry.alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs([]))

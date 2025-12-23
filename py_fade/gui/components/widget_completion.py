@@ -404,6 +404,11 @@ class CompletionFrame(QFrame):
         completion = self.completion
         new_state = not completion.is_archived
         completion.is_archived = new_state
+
+        # Clean alternative logprobs when archiving to save disk space
+        if new_state and isinstance(completion, PromptCompletion):
+            completion.clean_alternative_logprobs()
+
         try:
             self.dataset.commit()
         except RuntimeError as exc:  # pragma: no cover - defensive guard
