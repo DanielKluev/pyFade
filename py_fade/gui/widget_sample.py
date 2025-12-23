@@ -916,7 +916,7 @@ class WidgetSample(QWidget):
 
         Shows a confirmation dialog before deleting. Deletes:
         - The sample record and cascading associations (tags, images)
-        - Optionally deletes the prompt_revision if it has no other samples
+        - The prompt_revision and all its completions (one-to-one relationship)
 
         For partially saved samples (prompt+completion exist but sample doesn't),
         deletes the prompt_revision and all its completions.
@@ -931,7 +931,7 @@ class WidgetSample(QWidget):
             # Deleting a saved sample
             sample_title = self.sample.title or "Untitled Sample"
             message = (f"Are you sure you want to delete the sample '{sample_title}'?\n\n"
-                       f"This will delete the sample and all its associated data (tags, images).\n\n"
+                       f"This will delete the sample, its prompt, and all completions.\n\n"
                        f"This action cannot be undone.")
         elif self.last_prompt_revision:
             # Deleting a partially saved sample (has prompt_revision but no sample)

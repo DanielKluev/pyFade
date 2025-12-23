@@ -70,6 +70,7 @@ def test_delete_saved_sample_with_confirmation(
     Verifies that:
     - Confirmation dialog is shown
     - Sample is deleted from database
+    - PromptRevision is also deleted from database
     - Signal is emitted after deletion
     """
     caplog.set_level(logging.DEBUG, logger="WidgetSample")
@@ -86,6 +87,7 @@ def test_delete_saved_sample_with_confirmation(
     # Create a widget with a sample
     widget, sample = create_test_widget_sample_with_prompt(app_with_dataset, qt_app)
     sample_id = sample.id
+    prompt_revision_id = sample.prompt_revision.id
     dataset = app_with_dataset.current_dataset
 
     # Connect signal
@@ -110,6 +112,10 @@ def test_delete_saved_sample_with_confirmation(
     # Verify sample was deleted from database
     deleted_sample = dataset.session.query(Sample).filter_by(id=sample_id).first()
     assert deleted_sample is None, "Sample should be deleted from database"
+
+    # Verify prompt_revision was also deleted
+    deleted_prompt = dataset.session.query(PromptRevision).filter_by(id=prompt_revision_id).first()
+    assert deleted_prompt is None, "PromptRevision should be deleted from database"
 
     # Verify signal was emitted
     assert signal_emitted["called"], "sample_deleted signal should be emitted"
@@ -279,6 +285,7 @@ def test_delete_sample_with_tags_and_images(
     - Sample with tags is deleted
     - Associated SampleTag entries are deleted (cascade)
     - Associated SampleImage entries are deleted (cascade)
+    - PromptRevision is also deleted
     """
     caplog.set_level(logging.DEBUG, logger="WidgetSample")
     test_logger = logging.getLogger("test_widget_sample_delete.with_associations")
@@ -292,6 +299,7 @@ def test_delete_sample_with_tags_and_images(
     widget, sample = create_test_widget_sample_with_prompt(app_with_dataset, qt_app)
     dataset = app_with_dataset.current_dataset
     sample_id = sample.id
+    prompt_revision_id = sample.prompt_revision.id
 
     # Add a tag to the sample
     tag = Tag.create(dataset, "Test Tag", "Test tag description")
@@ -310,6 +318,10 @@ def test_delete_sample_with_tags_and_images(
     # Verify sample was deleted
     deleted_sample = dataset.session.query(Sample).filter_by(id=sample_id).first()
     assert deleted_sample is None, "Sample should be deleted from database"
+
+    # Verify prompt_revision was also deleted
+    deleted_prompt = dataset.session.query(PromptRevision).filter_by(id=prompt_revision_id).first()
+    assert deleted_prompt is None, "PromptRevision should be deleted from database"
 
     # Verify tag association was deleted (cascade)
     deleted_association = dataset.session.query(SampleTag).filter_by(sample_id=sample_id, tag_id=tag.id).first()

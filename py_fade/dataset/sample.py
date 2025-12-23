@@ -360,13 +360,17 @@ class Sample(dataset_base):
         """
         Delete this sample from the database.
 
-        Cascades to delete associated sample_tags and sample_images.
-        Does NOT delete the prompt_revision or completions - those may be shared.
+        Cascades to delete:
+        - Associated sample_tags and sample_images
+        - The prompt_revision and all its completions (one-to-one relationship)
 
         Args:
             dataset: The dataset database instance
         """
         session = dataset.get_session()
+        prompt_revision = self.prompt_revision
         session.delete(self)
+        if prompt_revision:
+            session.delete(prompt_revision)
         session.commit()
         self.log.info("Deleted sample: id=%s, title=%s", self.id, self.title)
