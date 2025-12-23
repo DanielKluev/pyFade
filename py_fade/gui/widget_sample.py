@@ -85,6 +85,7 @@ class WidgetSample(QWidget):
 
     sample_saved = pyqtSignal(object)  # Signal emitted when sample is saved
     sample_copied = pyqtSignal(object)  # Signal emitted when sample is copied
+    sample_deleted = pyqtSignal(object)  # Signal emitted when sample is deleted
     completion_archive_toggled = pyqtSignal(object, bool)
     completion_resume_requested = pyqtSignal(object)
 
@@ -285,9 +286,14 @@ class WidgetSample(QWidget):
         self.beam_search_button.setToolTip("Beam Search")
         self.beam_search_button.clicked.connect(self.open_beam_search)
 
+        self.delete_button = QPushButtonWithIcon("delete", "", parent=self, icon_size=20, button_size=32)
+        self.delete_button.setToolTip("Delete Sample")
+        self.delete_button.clicked.connect(self.delete_sample)
+
         buttons_row_layout.addWidget(self.save_button)
         buttons_row_layout.addWidget(self.copy_button)
         buttons_row_layout.addWidget(self.beam_search_button)
+        buttons_row_layout.addWidget(self.delete_button)
         buttons_row_layout.addStretch()  # Push buttons to the left
 
         # Completions filter buttons row (replacing checkbox)
@@ -903,6 +909,73 @@ class WidgetSample(QWidget):
         if not self.sample:
             return
         self.sample_copied.emit(self.sample)
+
+    def delete_sample(self):
+        """
+        Delete the current sample after confirmation.
+
+        Shows a confirmation dialog before deleting. Deletes:
+        - The sample record and cascading associations (tags, images)
+        - Optionally deletes the prompt_revision if it has no other samples
+
+        For partially saved samples (prompt+completion exist but sample doesn't),
+        deletes the prompt_revision and all its completions.
+
+        Emits sample_deleted signal after successful deletion.
+        """
+        if not self.app or not self.dataset or not self.dataset.session:
+            raise RuntimeError("App or dataset not properly initialized.")
+
+        # Determine what we're deleting
+        if self.sample and self.sample.id:
+            # Deleting a saved sample
+            sample_title = self.sample.title or "Untitled Sample"
+            message = (f"Are you sure you want to delete the sample '{sample_title}'?\n\n"
+                       f"This will delete the sample and all its associated data (tags, images).\n\n"
+                       f"This action cannot be undone.")
+        elif self.last_prompt_revision:
+            # Deleting a partially saved sample (has prompt_revision but no sample)
+            message = "Are you sure you want to delete this prompt and all its completions?\n\nThis action cannot be undone."
+        else:
+            # Nothing to delete
+            QMessageBox.warning(self, "Warning", "There is nothing to delete.")
+            return
+
+        # Show confirmation dialog
+        reply = QMessageBox.question(self, "Confirm Deletion", message, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                     QMessageBox.StandardButton.No)
+
+        if reply != QMessageBox.StandardButton.Yes:
+            self.log.debug("Deletion cancelled by user")
+            return
+
+        try:
+            deleted_sample = None
+            if self.sample and self.sample.id:
+                # Delete saved sample
+                deleted_sample = self.sample
+                self.sample.delete(self.dataset)
+                self.log.info("Deleted sample id=%s", deleted_sample.id)
+            elif self.last_prompt_revision:
+                # Delete prompt_revision and all completions
+                self.dataset.session.delete(self.last_prompt_revision)
+                self.dataset.session.commit()
+                self.log.info("Deleted prompt_revision id=%s", self.last_prompt_revision.id)
+
+            # Clear the widget state
+            self.sample = None
+            self.last_prompt_revision = None
+
+            # Emit signal
+            self.sample_deleted.emit(deleted_sample)
+
+            QMessageBox.information(self, "Success", "Sample deleted successfully!")
+
+        except Exception as e:  # pylint: disable=broad-except
+            self.log.exception("Failed to delete sample", exc_info=e)
+            if self.dataset.session:
+                self.dataset.session.rollback()
+            QMessageBox.critical(self, "Error", f"Failed to delete sample:\n{e}")
 
     def open_beam_search(self):
         """Open the beam search window with current prompt."""

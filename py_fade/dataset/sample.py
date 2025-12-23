@@ -355,3 +355,18 @@ class Sample(dataset_base):
             True if the sample has at least one image, False otherwise
         """
         return len(self.images) > 0
+
+    def delete(self, dataset: "DatasetDatabase") -> None:
+        """
+        Delete this sample from the database.
+
+        Cascades to delete associated sample_tags and sample_images.
+        Does NOT delete the prompt_revision or completions - those may be shared.
+
+        Args:
+            dataset: The dataset database instance
+        """
+        session = dataset.get_session()
+        session.delete(self)
+        session.commit()
+        self.log.info("Deleted sample: id=%s, title=%s", self.id, self.title)
