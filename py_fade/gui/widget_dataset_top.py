@@ -839,6 +839,7 @@ class WidgetDatasetTop(QMainWindow):
         self._apply_context_to_sample(sample_widget)
         sample_widget.sample_saved.connect(lambda saved, wid=widget_id: self._on_sample_saved(wid, saved))
         sample_widget.sample_copied.connect(lambda original, wid=widget_id: self._on_sample_copied(wid, original))
+        sample_widget.sample_deleted.connect(lambda deleted, wid=widget_id: self._on_sample_deleted(wid, deleted))
         return widget_id
 
     def create_facet_tab(self, facet: Facet | None, *, focus: bool = True) -> int:
@@ -902,6 +903,19 @@ class WidgetDatasetTop(QMainWindow):
         new_sample = sample.new_copy()
         new_tab_id = self.create_sample_tab(new_sample, focus=True)
         self._focus_widget(self.tabs[new_tab_id]["widget"])
+
+    def _on_sample_deleted(self, widget_id: int, _sample: Sample | None) -> None:
+        """
+        Handle sample deletion: close the tab.
+
+        Args:
+            widget_id: The widget ID of the sample tab
+            _sample: The deleted sample (may be None for partially saved samples)
+        """
+        # Close the sample tab
+        index = self._tab_index(widget_id)
+        if index >= 0:
+            self.close_tab(index)
 
     def _on_facet_saved(self, widget_id: int, facet: Facet) -> None:
         """Handle facet save event: update tab, refresh sidebar and facet combobox."""
