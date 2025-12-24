@@ -27,6 +27,7 @@ from py_fade.gui.auxillary.aux_google_icon_font import google_icon_font
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.gui.components.widget_toggle_button import QPushButtonToggle
 from py_fade.gui.gui_helpers import get_dataset_preferences, update_dataset_preferences
+from py_fade.search_utils import parse_search_value_as_int
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -355,12 +356,7 @@ class WidgetNavigationTree(QWidget):
             # Apply search filter to samples if present
             if search_value:
                 # Check if search value is a valid integer for ID filtering
-                try:
-                    search_id = int(search_value)
-                    is_valid_id = True
-                except ValueError:
-                    search_id = None
-                    is_valid_id = False
+                search_id, is_valid_id = parse_search_value_as_int(search_value)
 
                 # Check if facet name or description matches
                 facet_matches = search_value in facet.name.lower() or search_value in facet.description.lower()
@@ -450,12 +446,7 @@ class WidgetNavigationTree(QWidget):
         # Apply search filter to samples without facet
         if search_value:
             # Check if search value is a valid integer for ID filtering
-            try:
-                search_id = int(search_value)
-                is_valid_id = True
-            except ValueError:
-                search_id = None
-                is_valid_id = False
+            search_id, is_valid_id = parse_search_value_as_int(search_value)
 
             samples_without_facet = [
                 sample for sample in samples_without_facet
@@ -535,12 +526,7 @@ class WidgetNavigationTree(QWidget):
             # Apply search filter to samples if present
             if search_value:
                 # Check if search value is a valid integer for ID filtering
-                try:
-                    search_id = int(search_value)
-                    is_valid_id = True
-                except ValueError:
-                    search_id = None
-                    is_valid_id = False
+                search_id, is_valid_id = parse_search_value_as_int(search_value)
 
                 # Check if tag name or description matches
                 tag_matches = search_value in tag.name.lower() or search_value in tag.description.lower()
@@ -604,12 +590,7 @@ class WidgetNavigationTree(QWidget):
         # Apply search filter to samples without tags
         if search_value:
             # Check if search value is a valid integer for ID filtering
-            try:
-                search_id = int(search_value)
-                is_valid_id = True
-            except ValueError:
-                search_id = None
-                is_valid_id = False
+            search_id, is_valid_id = parse_search_value_as_int(search_value)
 
             samples_without_tags = [
                 sample for sample in samples_without_tags

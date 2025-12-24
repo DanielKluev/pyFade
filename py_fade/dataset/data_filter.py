@@ -3,6 +3,8 @@
 from sqlalchemy.orm import Query
 from sqlalchemy import or_
 
+from py_fade.search_utils import parse_search_value_as_int
+
 
 class DataFilter:
     """
@@ -34,12 +36,7 @@ class DataFilter:
                     continue
 
                 # Check if search value is a valid integer for ID filtering
-                try:
-                    search_id = int(search_value)
-                    is_valid_id = True
-                except ValueError:
-                    search_id = None
-                    is_valid_id = False
+                search_id, is_valid_id = parse_search_value_as_int(search_value)
 
                 # Check if this is a Sample or PromptRevision query by inspecting the query's column descriptions
                 if hasattr(query, 'column_descriptions'):
