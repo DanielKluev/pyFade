@@ -368,3 +368,269 @@ def test_search_all_view_types_do_not_crash(temp_dataset, ensure_google_icon_fon
         # Should not crash
         tree.update_content(criteria, temp_dataset)
         qt_app.processEvents()
+
+
+def test_search_samples_by_id_finds_exact_match(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that search filters samples by ID when search value is a valid integer.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create multiple samples
+    prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt 1", 2048, 512)
+    temp_dataset.commit()
+    sample1 = Sample.create_if_unique(temp_dataset, "Sample One", prompt_rev1, "group_1")
+    temp_dataset.commit()
+
+    prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt 2", 2048, 512)
+    temp_dataset.commit()
+    sample2 = Sample.create_if_unique(temp_dataset, "Sample Two", prompt_rev2, "group_1")
+    temp_dataset.commit()
+
+    prompt_rev3 = PromptRevision.get_or_create(temp_dataset, "prompt 3", 2048, 512)
+    temp_dataset.commit()
+    sample3 = Sample.create_if_unique(temp_dataset, "Sample Three", prompt_rev3, "group_1")
+    temp_dataset.commit()
+
+    # Search for sample2's ID
+    tree = WidgetNavigationTree()
+    criteria = {"show": "Samples by Group", "data_filter": DataFilter([{"type": "text_search", "value": str(sample2.id)}])}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    # Should only show sample2
+    found_samples = []
+    for i in range(tree.tree.topLevelItemCount()):
+        top_item = tree.tree.topLevelItem(i)
+        for j in range(top_item.childCount()):
+            child = top_item.child(j)
+            if child.data(0, Qt.ItemDataRole.UserRole) == "sample":
+                found_samples.append(child.text(0))
+
+    assert len(found_samples) == 1
+    assert "Sample Two" in found_samples
+
+
+def test_search_samples_by_id_does_not_match_partial_id(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that ID search matches exactly, not partially (unlike text search).
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create samples with IDs that will likely be multi-digit
+    samples = []
+    for i in range(5):
+        prompt_rev = PromptRevision.get_or_create(temp_dataset, f"prompt {i}", 2048, 512)
+        temp_dataset.commit()
+        sample = Sample.create_if_unique(temp_dataset, f"Sample {i}", prompt_rev, "group_1")
+        temp_dataset.commit()
+        samples.append(sample)
+
+    # Search for a non-existent ID (like 999)
+    tree = WidgetNavigationTree()
+    criteria = {"show": "Samples by Group", "data_filter": DataFilter([{"type": "text_search", "value": "999"}])}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    # Should find no samples (assuming no sample has ID 999)
+    found_samples = []
+    for i in range(tree.tree.topLevelItemCount()):
+        top_item = tree.tree.topLevelItem(i)
+        for j in range(top_item.childCount()):
+            child = top_item.child(j)
+            if child.data(0, Qt.ItemDataRole.UserRole) == "sample":
+                found_samples.append(child.text(0))
+
+    assert len(found_samples) == 0
+
+
+def test_search_samples_by_id_or_text_matches_both(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that when search value is a valid integer, it matches both ID and text fields.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create a sample with "123" in the title
+    prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt text", 2048, 512)
+    temp_dataset.commit()
+    sample1 = Sample.create_if_unique(temp_dataset, "Sample with 123 in title", prompt_rev1, "group_1")
+    temp_dataset.commit()
+
+    # Create another sample with "123" in the prompt
+    prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt with 123 in text", 2048, 512)
+    temp_dataset.commit()
+    sample2 = Sample.create_if_unique(temp_dataset, "Another Sample", prompt_rev2, "group_1")
+    temp_dataset.commit()
+
+    # Create a third sample (will get some ID)
+    prompt_rev3 = PromptRevision.get_or_create(temp_dataset, "different prompt", 2048, 512)
+    temp_dataset.commit()
+    sample3 = Sample.create_if_unique(temp_dataset, "Different Sample", prompt_rev3, "group_1")
+    temp_dataset.commit()
+
+    # Search for "123" - should match sample1 (title), sample2 (prompt), and potentially sample3 (if its ID is 123)
+    tree = WidgetNavigationTree()
+    criteria = {"show": "Samples by Group", "data_filter": DataFilter([{"type": "text_search", "value": "123"}])}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    # Should find at least sample1 and sample2
+    found_samples = []
+    for i in range(tree.tree.topLevelItemCount()):
+        top_item = tree.tree.topLevelItem(i)
+        for j in range(top_item.childCount()):
+            child = top_item.child(j)
+            if child.data(0, Qt.ItemDataRole.UserRole) == "sample":
+                found_samples.append(child.text(0))
+
+    # At minimum, should find the two samples with "123" in title/prompt
+    assert len(found_samples) >= 2
+    assert "Sample with 123 in title" in found_samples
+    assert "Another Sample" in found_samples
+
+
+def test_search_samples_by_id_in_facet_view(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that ID search works in "Samples by Facet" view.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create facet with a name that doesn't contain numbers
+    facet = Facet.create(temp_dataset, "Quality Facet", "High quality responses")
+    temp_dataset.commit()
+
+    # Create samples with prompts and groups that won't match the ID search
+    prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "first prompt text", 2048, 512)
+    temp_dataset.commit()
+    sample1 = Sample.create_if_unique(temp_dataset, "Sample Alpha", prompt_rev1, "group_alpha")
+    temp_dataset.commit()
+    completion1 = create_test_completion(temp_dataset, prompt_rev1, "completion alpha", "test-model")
+    PromptCompletionRating.set_rating(temp_dataset, completion1, facet, 8)
+
+    prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "second prompt text", 2048, 512)
+    temp_dataset.commit()
+    sample2 = Sample.create_if_unique(temp_dataset, "Sample Beta", prompt_rev2, "group_beta")
+    temp_dataset.commit()
+    completion2 = create_test_completion(temp_dataset, prompt_rev2, "completion beta", "test-model")
+    PromptCompletionRating.set_rating(temp_dataset, completion2, facet, 8)
+
+    # Search for sample1's ID in facet view
+    tree = WidgetNavigationTree()
+    criteria = {"show": "Samples by Facet", "data_filter": DataFilter([{"type": "text_search", "value": str(sample1.id)}])}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    # Find all samples in the tree
+    found_samples = []
+
+    def collect_samples(item):
+        """Helper to recursively collect sample items."""
+        for i in range(item.childCount()):
+            child = item.child(i)
+            if child.data(0, Qt.ItemDataRole.UserRole) == "sample":
+                found_samples.append(child.text(0))
+            else:
+                collect_samples(child)
+
+    for i in range(tree.tree.topLevelItemCount()):
+        top_item = tree.tree.topLevelItem(i)
+        collect_samples(top_item)
+
+    # Should find only sample1
+    assert len(found_samples) == 1
+    assert "Sample Alpha" in found_samples
+
+
+def test_search_samples_by_id_with_flat_list_mode(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that ID search works correctly with flat list mode enabled.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create facet
+    facet = Facet.create(temp_dataset, "Test Facet", "Description")
+    temp_dataset.commit()
+
+    # Create samples
+    prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt 1", 2048, 512)
+    temp_dataset.commit()
+    sample1 = Sample.create_if_unique(temp_dataset, "Sample One", prompt_rev1, "group_1")
+    temp_dataset.commit()
+    completion1 = create_test_completion(temp_dataset, prompt_rev1, "completion 1", "test-model")
+    PromptCompletionRating.set_rating(temp_dataset, completion1, facet, 8)
+
+    prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt 2", 2048, 512)
+    temp_dataset.commit()
+    sample2 = Sample.create_if_unique(temp_dataset, "Sample Two", prompt_rev2, "group_2")
+    temp_dataset.commit()
+    completion2 = create_test_completion(temp_dataset, prompt_rev2, "completion 2", "test-model")
+    PromptCompletionRating.set_rating(temp_dataset, completion2, facet, 8)
+
+    # Search for sample2's ID with flat list mode
+    tree = WidgetNavigationTree()
+    criteria = {
+        "show": "Samples by Facet",
+        "data_filter": DataFilter([{
+            "type": "text_search",
+            "value": str(sample2.id)
+        }]),
+        "flat_list_mode": True
+    }
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    # Find all samples in the tree
+    found_samples = []
+
+    def collect_samples(item):
+        """Helper to recursively collect sample items."""
+        for i in range(item.childCount()):
+            child = item.child(i)
+            if child.data(0, Qt.ItemDataRole.UserRole) == "sample":
+                found_samples.append(child.text(0))
+            else:
+                collect_samples(child)
+
+    for i in range(tree.tree.topLevelItemCount()):
+        top_item = tree.tree.topLevelItem(i)
+        collect_samples(top_item)
+
+    # Should find only sample2
+    assert len(found_samples) == 1
+    assert "Sample Two" in found_samples
+
+
+def test_search_samples_non_numeric_does_not_trigger_id_search(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that non-numeric search values don't trigger ID search.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create samples
+    prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt 1", 2048, 512)
+    temp_dataset.commit()
+    sample1 = Sample.create_if_unique(temp_dataset, "Sample with abc", prompt_rev1, "group_1")
+    temp_dataset.commit()
+
+    prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt 2", 2048, 512)
+    temp_dataset.commit()
+    sample2 = Sample.create_if_unique(temp_dataset, "Different Sample", prompt_rev2, "group_1")
+    temp_dataset.commit()
+
+    # Search for "abc" (non-numeric)
+    tree = WidgetNavigationTree()
+    criteria = {"show": "Samples by Group", "data_filter": DataFilter([{"type": "text_search", "value": "abc"}])}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    # Should find sample1 (has "abc" in title)
+    found_samples = []
+    for i in range(tree.tree.topLevelItemCount()):
+        top_item = tree.tree.topLevelItem(i)
+        for j in range(top_item.childCount()):
+            child = top_item.child(j)
+            if child.data(0, Qt.ItemDataRole.UserRole) == "sample":
+                found_samples.append(child.text(0))
+
+    assert len(found_samples) == 1
+    assert "Sample with abc" in found_samples

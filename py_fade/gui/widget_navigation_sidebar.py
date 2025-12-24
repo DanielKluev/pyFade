@@ -354,14 +354,23 @@ class WidgetNavigationTree(QWidget):
 
             # Apply search filter to samples if present
             if search_value:
+                # Check if search value is a valid integer for ID filtering
+                try:
+                    search_id = int(search_value)
+                    is_valid_id = True
+                except ValueError:
+                    search_id = None
+                    is_valid_id = False
+
                 # Check if facet name or description matches
                 facet_matches = search_value in facet.name.lower() or search_value in facet.description.lower()
 
-                # Filter samples by search term
+                # Filter samples by search term (title, group_path, prompt_text, or ID)
                 filtered_samples = [
                     sample for sample in samples
                     if search_value in sample.title.lower() or (sample.group_path and search_value in sample.group_path.lower()) or
-                    (sample.prompt_revision and search_value in sample.prompt_revision.prompt_text.lower())
+                    (sample.prompt_revision and search_value in sample.prompt_revision.prompt_text.lower()) or
+                    (is_valid_id and sample.id == search_id)
                 ]
 
                 # If facet name doesn't match, show only filtered samples
@@ -440,10 +449,19 @@ class WidgetNavigationTree(QWidget):
 
         # Apply search filter to samples without facet
         if search_value:
+            # Check if search value is a valid integer for ID filtering
+            try:
+                search_id = int(search_value)
+                is_valid_id = True
+            except ValueError:
+                search_id = None
+                is_valid_id = False
+
             samples_without_facet = [
                 sample for sample in samples_without_facet
                 if search_value in sample.title.lower() or (sample.group_path and search_value in sample.group_path.lower()) or
-                (sample.prompt_revision and search_value in sample.prompt_revision.prompt_text.lower())
+                (sample.prompt_revision and search_value in sample.prompt_revision.prompt_text.lower()) or
+                (is_valid_id and sample.id == search_id)
             ]
 
         if samples_without_facet:
@@ -516,14 +534,23 @@ class WidgetNavigationTree(QWidget):
 
             # Apply search filter to samples if present
             if search_value:
+                # Check if search value is a valid integer for ID filtering
+                try:
+                    search_id = int(search_value)
+                    is_valid_id = True
+                except ValueError:
+                    search_id = None
+                    is_valid_id = False
+
                 # Check if tag name or description matches
                 tag_matches = search_value in tag.name.lower() or search_value in tag.description.lower()
 
-                # Filter samples by search term
+                # Filter samples by search term (title, group_path, prompt_text, or ID)
                 filtered_samples = [
                     sample for sample in samples
                     if search_value in sample.title.lower() or (sample.group_path and search_value in sample.group_path.lower()) or
-                    (sample.prompt_revision and search_value in sample.prompt_revision.prompt_text.lower())
+                    (sample.prompt_revision and search_value in sample.prompt_revision.prompt_text.lower()) or
+                    (is_valid_id and sample.id == search_id)
                 ]
 
                 # If tag name doesn't match, show only filtered samples
@@ -576,10 +603,19 @@ class WidgetNavigationTree(QWidget):
 
         # Apply search filter to samples without tags
         if search_value:
+            # Check if search value is a valid integer for ID filtering
+            try:
+                search_id = int(search_value)
+                is_valid_id = True
+            except ValueError:
+                search_id = None
+                is_valid_id = False
+
             samples_without_tags = [
                 sample for sample in samples_without_tags
                 if search_value in sample.title.lower() or (sample.group_path and search_value in sample.group_path.lower()) or
-                (sample.prompt_revision and search_value in sample.prompt_revision.prompt_text.lower())
+                (sample.prompt_revision and search_value in sample.prompt_revision.prompt_text.lower()) or
+                (is_valid_id and sample.id == search_id)
             ]
 
         if samples_without_tags:
