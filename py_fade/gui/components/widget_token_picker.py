@@ -45,6 +45,9 @@ class WidgetTokenPicker(QWidget):
     - Space-prefix filter: shows only tokens starting with a space
     - No-space-prefix filter: shows only tokens NOT starting with a space
     Filters can be combined and are applied via AND logic.
+    
+    Selection state is preserved when filters change - both for visible tokens and tokens hidden by filters.
+    When filters are cleared, previously selected tokens will show as checked in the UI.
     """
 
     tokens_selected = pyqtSignal(list)  # Signal emitted with list of selected tokens
@@ -281,7 +284,11 @@ class WidgetTokenPicker(QWidget):
         return token_str
 
     def _create_button_token(self, token: SinglePositionToken) -> QPushButton:
-        """Create a button widget for single-select mode."""
+        """
+        Create a button widget for single-select mode.
+        
+        Restores the checked state if this token was previously selected.
+        """
         token_str = self._sanitize_token_display(token.token_str)
         button = QPushButton(f"{token_str} [{token.logprob:.2f}]")
         button.setCheckable(True)
@@ -319,7 +326,11 @@ class WidgetTokenPicker(QWidget):
         return button
 
     def _create_checkbox_token(self, token: SinglePositionToken) -> QWidget:
-        """Create a checkbox widget for multi-select mode."""
+        """
+        Create a checkbox widget for multi-select mode.
+        
+        Restores the checked state if this token was previously selected.
+        """
         token_str = self._sanitize_token_display(token.token_str)
         checkbox = QCheckBox(f"{token_str} [{token.logprob:.2f}]")
 
