@@ -311,6 +311,11 @@ class WidgetTokenPicker(QWidget):
         """)
 
         button.clicked.connect(lambda checked, t=token: self._on_single_select(t, checked))
+
+        # Restore checked state if this token was previously selected
+        if token.token_id in self.selected_tokens:
+            button.setChecked(True)
+
         return button
 
     def _create_checkbox_token(self, token: SinglePositionToken) -> QWidget:
@@ -342,6 +347,11 @@ class WidgetTokenPicker(QWidget):
         """)
 
         checkbox.stateChanged.connect(lambda state, t=token: self._on_multi_select(t, state == Qt.CheckState.Checked.value))
+
+        # Restore checked state if this token was previously selected
+        if token.token_id in self.selected_tokens:
+            checkbox.setChecked(True)
+
         return checkbox
 
     def _on_single_select(self, token: SinglePositionToken, checked: bool):
@@ -350,9 +360,12 @@ class WidgetTokenPicker(QWidget):
             # Uncheck all other buttons
             for widget in self.token_widgets:
                 if isinstance(widget, QPushButton):
-                    # Get the token from the widget's text (first line before \n)
-                    widget_token = widget.text().split("\n")[0]
-                    if widget_token != token:
+                    # Compare widget text with the token's display text
+                    # Extract just the token string part (before the logprob display)
+                    widget_token_str = widget.text().split(" [")[0]
+                    # Get the token's sanitized display string for comparison
+                    token_display_str = self._sanitize_token_display(token.token_str)
+                    if widget_token_str != token_display_str:
                         widget.setChecked(False)
 
             self.selected_tokens.clear()

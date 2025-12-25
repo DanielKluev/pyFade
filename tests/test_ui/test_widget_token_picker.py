@@ -333,6 +333,185 @@ def test_token_picker_filter_preserves_selection(ensure_google_icon_font, qt_app
         widget.deleteLater()
 
 
+def test_token_picker_filter_preserves_ui_checkbox_state(ensure_google_icon_font, qt_app):
+    """
+    Test that UI checkbox state is preserved when filters change.
+
+    This test reproduces the bug where checkboxes get cleared when filters are applied/removed.
+    Specifically tests that the visual checkbox state matches the internal selection.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+    tokens = SinglePositionTopLogprobs([
+        create_test_single_position_token("hello", -0.1),
+        create_test_single_position_token("world", -0.2),
+        create_test_single_position_token("test", -0.3),
+    ])
+    widget = WidgetTokenPicker(None, tokens, multi_select=True)
+    qt_app.processEvents()
+
+    try:
+        # Step 1: Select some tokens before filtering
+        first_checkbox = widget.token_widgets[0]
+        second_checkbox = widget.token_widgets[1]
+        first_checkbox.setChecked(True)
+        second_checkbox.setChecked(True)
+        qt_app.processEvents()
+
+        # Verify initial selection
+        assert len(widget.get_selected_tokens()) == 2
+        assert first_checkbox.isChecked()
+        assert second_checkbox.isChecked()
+
+        # Step 2: Apply filter that keeps selected tokens visible
+        widget.search_input.setText("hel")
+        qt_app.processEvents()
+
+        # Should show only "hello" now
+        assert len(widget.token_widgets) == 1
+
+        # Step 3: Verify the visible checkbox is still checked
+        visible_checkbox = widget.token_widgets[0]
+        assert visible_checkbox.isChecked(), "Checkbox should remain checked after filtering"
+
+        # Verify internal selection is still intact
+        assert len(widget.get_selected_tokens()) == 2
+
+        # Step 4: Select another token while filter is active
+        widget.search_input.setText("test")
+        qt_app.processEvents()
+        assert len(widget.token_widgets) == 1
+        test_checkbox = widget.token_widgets[0]
+        test_checkbox.setChecked(True)
+        qt_app.processEvents()
+
+        # Now we should have 3 selected tokens
+        assert len(widget.get_selected_tokens()) == 3
+
+        # Step 5: Clear filter and verify ALL selections are preserved in UI
+        widget.search_input.setText("")
+        qt_app.processEvents()
+
+        # All 3 tokens should be visible again
+        assert len(widget.token_widgets) == 3
+
+        # CRITICAL: All checkboxes should be checked
+        for checkbox in widget.token_widgets:
+            assert isinstance(checkbox, QCheckBox)
+            assert checkbox.isChecked(), "Checkbox for token should be checked after clearing filter"
+
+        # Verify internal selection is still correct
+        assert len(widget.get_selected_tokens()) == 3
+    finally:
+        widget.deleteLater()
+
+
+def test_token_picker_filter_preserves_ui_button_state_single_select(ensure_google_icon_font, qt_app):
+    """
+    Test that UI button state is preserved in single-select mode when filters change.
+
+    This test verifies that the selected button remains checked when filters are applied/removed.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+    tokens = SinglePositionTopLogprobs([
+        create_test_single_position_token("hello", -0.1),
+        create_test_single_position_token("world", -0.2),
+        create_test_single_position_token("test", -0.3),
+    ])
+    widget = WidgetTokenPicker(None, tokens, multi_select=False)
+    qt_app.processEvents()
+
+    try:
+        # Select first token - use setChecked instead of click for more reliable test
+        first_button = widget.token_widgets[0]
+        first_button.setChecked(True)
+        # Manually trigger the handler since setChecked doesn't emit clicked signal
+        widget._on_single_select(widget.tokens[0], True)  # pylint: disable=protected-access
+        qt_app.processEvents()
+
+        # Verify selection
+        assert first_button.isChecked()
+        assert len(widget.get_selected_tokens()) == 1
+
+        # Apply filter that keeps selected token visible
+        widget.search_input.setText("hel")
+        qt_app.processEvents()
+
+        # Should show only "hello"
+        assert len(widget.token_widgets) == 1
+
+        # Button should still be checked
+        visible_button = widget.token_widgets[0]
+        assert visible_button.isChecked(), "Button should remain checked after filtering"
+
+        # Clear filter
+        widget.search_input.setText("")
+        qt_app.processEvents()
+
+        # All tokens visible again
+        assert len(widget.token_widgets) == 3
+
+        # First button should still be checked
+        assert widget.token_widgets[0].isChecked(), "Button should remain checked after clearing filter"
+        assert len(widget.get_selected_tokens()) == 1
+    finally:
+        widget.deleteLater()
+
+
+def test_token_picker_filter_hides_selected_tokens_then_shows_them(ensure_google_icon_font, qt_app):
+    """
+    Test that tokens selected but hidden by filter get their UI state restored when filter is cleared.
+
+    This is the exact scenario from the bug report:
+    1. Select some tokens
+    2. Apply filter that hides them
+    3. Clear filter
+    4. Selected tokens should show as checked again
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+    tokens = SinglePositionTopLogprobs([
+        create_test_single_position_token("hello", -0.1),
+        create_test_single_position_token("world", -0.2),
+        create_test_single_position_token("test", -0.3),
+    ])
+    widget = WidgetTokenPicker(None, tokens, multi_select=True)
+    qt_app.processEvents()
+
+    try:
+        # Select all tokens
+        for checkbox in widget.token_widgets:
+            checkbox.setChecked(True)
+        qt_app.processEvents()
+
+        assert len(widget.get_selected_tokens()) == 3
+
+        # Apply filter that hides "hello" and "world"
+        widget.search_input.setText("test")
+        qt_app.processEvents()
+
+        # Only "test" should be visible
+        assert len(widget.token_widgets) == 1
+        assert widget.token_widgets[0].isChecked()
+
+        # Internal selection should still have all 3
+        assert len(widget.get_selected_tokens()) == 3
+
+        # Clear filter
+        widget.search_input.setText("")
+        qt_app.processEvents()
+
+        # All tokens visible again
+        assert len(widget.token_widgets) == 3
+
+        # ALL checkboxes should be checked
+        for checkbox in widget.token_widgets:
+            assert checkbox.isChecked(), "Previously selected token should show as checked after filter is cleared"
+
+        # Internal selection should still have all 3
+        assert len(widget.get_selected_tokens()) == 3
+    finally:
+        widget.deleteLater()
+
+
 def test_token_picker_is_latin_or_punctuation(ensure_google_icon_font, qt_app):
     """Test the _is_latin_or_punctuation helper method."""
     # pylint: disable=protected-access
