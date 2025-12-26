@@ -320,8 +320,11 @@ class WidgetTokenPicker(QWidget):
         button.clicked.connect(lambda checked, t=token: self._on_single_select(t, checked))
 
         # Restore checked state if this token was previously selected
+        # Block signals during restoration to avoid redundant handler calls
         if token.token_id in self.selected_tokens:
+            button.blockSignals(True)
             button.setChecked(True)
+            button.blockSignals(False)
 
         return button
 
@@ -360,8 +363,11 @@ class WidgetTokenPicker(QWidget):
         checkbox.stateChanged.connect(lambda state, t=token: self._on_multi_select(t, state == Qt.CheckState.Checked.value))
 
         # Restore checked state if this token was previously selected
+        # Block signals during restoration to avoid redundant handler calls
         if token.token_id in self.selected_tokens:
+            checkbox.blockSignals(True)
             checkbox.setChecked(True)
+            checkbox.blockSignals(False)
 
         return checkbox
 
