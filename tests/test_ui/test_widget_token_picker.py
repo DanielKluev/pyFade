@@ -535,3 +535,87 @@ def test_token_picker_is_latin_or_punctuation(ensure_google_icon_font, qt_app):
         assert widget._is_latin_or_punctuation("hello世界") is False  # Mixed
     finally:
         widget.deleteLater()
+
+
+def test_token_picker_filter_bug_with_mouse_clicks(ensure_google_icon_font, qt_app):
+    """
+    Test exact bug workflow using mouse clicks: select tokens -> click filter -> select more -> remove filter.
+    
+    This reproduces: "Beam search -> select beams -> token picker in multi-select mode -> 
+    pick some tokens, click filter -> remove filter -> selection disappears."
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create tokens with mix of space/no-space prefix
+    tokens = SinglePositionTopLogprobs([
+        create_test_single_position_token("hello", -0.1),
+        create_test_single_position_token(" world", -0.2),
+        create_test_single_position_token("test", -0.3),
+        create_test_single_position_token(" space", -0.4),
+    ])
+
+    widget = WidgetTokenPicker(None, tokens, multi_select=True)
+    qt_app.processEvents()
+
+    try:
+        # Step 1: Pick 'hello' and ' world' BEFORE filtering
+        first_checkbox = widget.token_widgets[0]  # "hello"
+        second_checkbox = widget.token_widgets[1]  # " world"
+
+        first_checkbox.setChecked(True)
+        second_checkbox.setChecked(True)
+        qt_app.processEvents()
+
+        assert first_checkbox.isChecked(), "First checkbox should be checked"
+        assert second_checkbox.isChecked(), "Second checkbox should be checked"
+        assert len(widget.get_selected_tokens()) == 2
+
+        # Step 2: Click space prefix filter button
+        widget.space_prefix_button.click()
+        qt_app.processEvents()
+
+        # Should show only " world" and " space" now
+        assert len(widget.token_widgets) == 2
+        # Internal selection should still have both hello and world
+        assert len(widget.get_selected_tokens()) == 2
+
+        # Visible " world" checkbox should still be checked
+        visible_world_checkbox = None
+        for w in widget.token_widgets:
+            if isinstance(w, QCheckBox):
+                token_text = w.text().split(" [")[0].replace("␣", " ")
+                if token_text == " world":
+                    visible_world_checkbox = w
+                    break
+
+        assert visible_world_checkbox is not None, "Should have found ' world' checkbox"
+        assert visible_world_checkbox.isChecked(), "Visible ' world' checkbox should still be checked"
+
+        # Step 3: Select ' space' while filter is active
+        space_checkbox = widget.token_widgets[1]  # Second visible token should be " space"
+        space_checkbox.setChecked(True)
+        qt_app.processEvents()
+
+        assert space_checkbox.isChecked(), "' space' checkbox should be checked"
+        assert len(widget.get_selected_tokens()) == 3, "Should have 3 selected tokens now"
+
+        # Step 4: Remove filter by clicking space prefix button again
+        widget.space_prefix_button.click()
+        qt_app.processEvents()
+
+        # All tokens should be visible again
+        assert len(widget.token_widgets) == 4, "All 4 tokens should be visible"
+
+        # CRITICAL: Check that ALL selected tokens show as checked
+        selected_token_strs = {t.token_str for t in widget.get_selected_tokens()}
+        assert len(selected_token_strs) == 3, "Should still have 3 selected tokens"
+
+        # Verify ALL selected tokens have their checkboxes checked
+        for w in widget.token_widgets:
+            if isinstance(w, QCheckBox):
+                token_text = w.text().split(" [")[0].replace("␣", " ")
+
+                if token_text in selected_token_strs:
+                    assert w.isChecked(), f"BUG FOUND: Token '{token_text}' should be checked but isn't!"
+    finally:
+        widget.deleteLater()
