@@ -29,11 +29,13 @@ from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
+from py_fade.gui.components.widget_clickable_facets import ClickableFacetsWidget
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.components.widget_plain_text_edit import PlainTextEdit
 from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.gui.components.widget_sample_images import WidgetSampleImages
 from py_fade.gui.components.widget_toggle_button import QPushButtonToggle
+from py_fade.gui.dialog_facet_switch import FacetSwitchDialog
 from py_fade.gui.gui_helpers import get_dataset_preferences, update_dataset_preferences
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from py_fade.gui.widget_new_completion import NewCompletionFrame
@@ -222,10 +224,8 @@ class WidgetSample(QWidget):
         facets_label = QLabel("Facets:", self)
         facets_label.setMinimumWidth(80)
         facets_label.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.facets_display = QLabel("", self)
-        self.facets_display.setWordWrap(True)
-        self.facets_display.setStyleSheet("background-color: #f5f5f5; padding: 4px; border-radius: 4px;")
-        self.facets_display.setMinimumHeight(30)
+        self.facets_display = ClickableFacetsWidget(self)
+        self.facets_display.facet_clicked.connect(self.on_facet_clicked)
         facets_row_layout.addWidget(facets_label)
         facets_row_layout.addWidget(self.facets_display)
         # Add spacer to align with tags row which has edit button
@@ -1043,33 +1043,24 @@ class WidgetSample(QWidget):
 
     def update_facets_display(self) -> None:
         """
-        Update the facets display label with the current sample's facets.
+        Update the facets display widget with the current sample's facets.
 
-        Shows facets as comma-separated names in the facets_display label.
-        Highlights the active facet if present.
+        Shows facets as clickable labels. Highlights the active facet if present.
         If the sample is new (not saved), shows a message.
         """
         if not self.sample or not self.sample.id:
-            self.facets_display.setText("<i>No facets yet</i>")
+            self.facets_display.set_placeholder_text("<i>No facets yet</i>")
+            self.facets_display.set_facets([])
             return
 
         facets = self.sample.get_facets(self.dataset)
         if not facets:
-            self.facets_display.setText("<i>No facets</i>")
+            self.facets_display.set_placeholder_text("<i>No facets</i>")
+            self.facets_display.set_facets([])
             return
 
-        # Build HTML to display facets, highlighting the active one
-        facet_parts = []
-        for facet in facets:
-            if self.active_facet and facet.id == self.active_facet.id:
-                # Highlight active facet with bold and background color
-                facet_parts.append(f'<span style="background-color: #4CAF50; color: white; padding: 2px 6px; '
-                                   f'border-radius: 3px; font-weight: bold;">{facet.name}</span>')
-            else:
-                facet_parts.append(facet.name)
-
-        facets_html = ", ".join(facet_parts)
-        self.facets_display.setText(facets_html)
+        # Update the clickable facets widget
+        self.facets_display.set_facets(facets, self.active_facet)
 
     def update_tags_display(self) -> None:
         """
@@ -1133,6 +1124,50 @@ class WidgetSample(QWidget):
             # Refresh tags display
             self.update_tags_display()
             self.log.debug("Tags updated for sample %s", self.sample.id)
+
+    def on_facet_clicked(self, facet: Facet) -> None:
+        """
+        Handle facet click event to show facet switching dialog.
+
+        Opens a dialog that allows the user to remove, change, or copy the facet.
+        Updates the facets display and completion ratings after the dialog is closed.
+
+        Args:
+            facet: The facet that was clicked
+        """
+        if not self.sample or not self.sample.id:
+            QMessageBox.warning(self, "Warning", "Please save the sample before managing facets.")
+            return
+
+        self.log.debug("Facet clicked: %s", facet.name)
+
+        dialog = FacetSwitchDialog(self.dataset, self.sample, facet, parent=self)
+        result = dialog.exec()
+
+        if result == QMessageBox.DialogCode.Accepted:
+            # Refresh facets display
+            self.update_facets_display()
+            # Refresh all completion frames to show updated ratings
+            self.refresh_completion_ratings()
+            self.log.debug("Facet action completed for sample %s, facet %s", self.sample.id, facet.name)
+
+    def refresh_completion_ratings(self) -> None:
+        """
+        Refresh the rating display on all completion frames.
+
+        This is called after facet switching operations to ensure all
+        completion frames show the correct ratings for the active facet.
+        """
+        for index in range(self.output_layout.count()):
+            item = self.output_layout.itemAt(index)
+            widget = item.widget() if item is not None else None
+            if isinstance(widget, CompletionFrame):
+                # The frame will re-fetch ratings for the current facet
+                widget.set_facet(self.active_facet)
+
+        # Re-sort frames to reflect updated ratings
+        self.sort_completion_frames()
+        self.log.debug("Refreshed completion ratings for %d frames", len(self.completion_frames))
 
     def set_active_context(self, facet: Facet | None, model_path: str | None) -> None:
         """Update widget state to reflect currently selected facet and model."""

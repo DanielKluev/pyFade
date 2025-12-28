@@ -49,8 +49,10 @@ def test_widget_sample_facets_display_new_sample(
     widget = WidgetSample(None, app_with_dataset, sample=None)
     qt_app.processEvents()
 
-    # Verify facets display shows message
-    assert "No facets yet" in widget.facets_display.text()
+    # Verify facets display shows message (check placeholder text)
+    assert "No facets yet" in widget.facets_display.placeholder_label.text()
+    # Verify no facet labels are shown
+    assert len(widget.facets_display.facet_labels) == 0
 
     widget.deleteLater()
     qt_app.processEvents()
@@ -76,8 +78,10 @@ def test_widget_sample_facets_display_no_facets(
     # Create a sample without ratings
     widget, _sample = create_test_widget_sample_with_prompt(app_with_dataset, qt_app)
 
-    # Verify facets display shows "No facets"
-    assert "No facets" in widget.facets_display.text()
+    # Verify facets display shows "No facets" (check placeholder)
+    assert "No facets" in widget.facets_display.placeholder_label.text()
+    # Verify no facet labels are shown
+    assert len(widget.facets_display.facet_labels) == 0
 
     widget.deleteLater()
     qt_app.processEvents()
@@ -145,10 +149,12 @@ def test_widget_sample_facets_display_with_facets(
     widget = WidgetSample(None, app_with_dataset, sample=sample)
     qt_app.processEvents()
 
-    # Verify facets display shows facet names (ordered alphabetically)
-    facets_text = widget.facets_display.text()
-    assert "Accuracy" in facets_text
-    assert "Quality" in facets_text
+    # Verify facets display shows facet names
+    # Check that both facets are in the widget
+    facet_names = [label.text() for label in widget.facets_display.facet_labels if hasattr(label, 'facet')]
+    assert "Accuracy" in facet_names
+    assert "Quality" in facet_names
+    assert len([label for label in widget.facets_display.facet_labels if hasattr(label, 'facet')]) == 2
 
     widget.deleteLater()
     qt_app.processEvents()
@@ -216,14 +222,17 @@ def test_widget_sample_facets_display_highlight_active(
     widget = WidgetSample(None, app_with_dataset, sample=sample, active_facet=facet_quality)
     qt_app.processEvents()
 
-    # Verify active facet is highlighted (contains style attributes)
-    facets_text = widget.facets_display.text()
-    test_logger.debug("Facets display text: %s", facets_text)
+    # Verify active facet is highlighted (check for active styling)
+    # Find the Quality facet label
+    quality_label = None
+    for label in widget.facets_display.facet_labels:
+        if hasattr(label, 'facet') and label.facet.name == "Quality":
+            quality_label = label
+            break
 
-    # Check for HTML highlighting
-    assert "Quality" in facets_text
-    assert "span" in facets_text  # HTML tag for highlighting
-    assert "background-color" in facets_text or "font-weight" in facets_text
+    assert quality_label is not None
+    # Check that Quality facet has active styling (green background)
+    assert "#4CAF50" in quality_label.styleSheet()
 
     widget.deleteLater()
     qt_app.processEvents()
@@ -292,22 +301,31 @@ def test_widget_sample_facets_display_update_on_context_change(
     qt_app.processEvents()
 
     # Verify initial active facet highlighting
-    initial_text = widget.facets_display.text()
-    test_logger.debug("Initial facets display text: %s", initial_text)
-    assert "Quality" in initial_text
+    # Find Quality facet
+    quality_label_before = None
+    for label in widget.facets_display.facet_labels:
+        if hasattr(label, 'facet') and label.facet.name == "Quality":
+            quality_label_before = label
+            break
+    assert quality_label_before is not None
+    test_logger.debug("Initial Quality label style: %s", quality_label_before.styleSheet())
 
     # Change active context to different facet
     widget.set_active_context(facet_accuracy, None)
     qt_app.processEvents()
 
     # Verify facets display was updated with new highlighting
-    updated_text = widget.facets_display.text()
-    test_logger.debug("Updated facets display text: %s", updated_text)
-    assert "Accuracy" in updated_text
-    assert "Quality" in updated_text
+    # Find Accuracy facet
+    accuracy_label_after = None
+    for label in widget.facets_display.facet_labels:
+        if hasattr(label, 'facet') and label.facet.name == "Accuracy":
+            accuracy_label_after = label
+            break
+    assert accuracy_label_after is not None
+    test_logger.debug("Updated Accuracy label style: %s", accuracy_label_after.styleSheet())
 
-    # The highlighting should have changed (though exact HTML may vary)
-    assert initial_text != updated_text or "span" in updated_text
+    # Verify Accuracy is now highlighted
+    assert "#4CAF50" in accuracy_label_after.styleSheet()
 
     widget.deleteLater()
     qt_app.processEvents()
@@ -364,10 +382,14 @@ def test_widget_sample_facets_display_no_active_facet(
     qt_app.processEvents()
 
     # Verify facets display shows facets without highlighting
-    facets_text = widget.facets_display.text()
-    test_logger.debug("Facets display text (no active): %s", facets_text)
-    assert "Accuracy" in facets_text
-    assert "Quality" in facets_text
+    facet_names = [label.text() for label in widget.facets_display.facet_labels if hasattr(label, 'facet')]
+    test_logger.debug("Facets display (no active): %s", facet_names)
+    assert "Accuracy" in facet_names
+    assert "Quality" in facet_names
+    # Verify none are highlighted with active color
+    for label in widget.facets_display.facet_labels:
+        if hasattr(label, 'facet'):
+            assert "#4CAF50" not in label.styleSheet()
 
     widget.deleteLater()
     qt_app.processEvents()
@@ -422,11 +444,11 @@ def test_widget_sample_facets_display_single_facet(
     qt_app.processEvents()
 
     # Verify facets display shows single facet
-    facets_text = widget.facets_display.text()
-    test_logger.debug("Facets display text (single facet): %s", facets_text)
-    assert "Quality" in facets_text
-    # Should not contain comma separator
-    assert facets_text.count(",") == 0
+    facet_names = [label.text() for label in widget.facets_display.facet_labels if hasattr(label, 'facet')]
+    test_logger.debug("Facets display (single facet): %s", facet_names)
+    assert "Quality" in facet_names
+    # Should be exactly one facet label (no separators count as facets)
+    assert len(facet_names) == 1
 
     widget.deleteLater()
     qt_app.processEvents()

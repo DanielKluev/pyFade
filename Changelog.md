@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### Added
+- **Facet Switching**: Interactive facet management for samples with clickable facets and comprehensive switching operations
+  - Clickable facets display in sample widget using new ClickableFacetsWidget component
+  - Click any facet to open FacetSwitchDialog with Remove, Change, or Copy operations
+  - Remove facet: Delete all ratings and pairwise rankings for that facet from the sample
+  - Change facet: Transfer all ratings/rankings to another facet, removing from source
+  - Copy facet: Duplicate all ratings/rankings to another facet, keeping source intact
+  - Conflict handling: Never overwrites existing ratings in target facet
+  - Visual feedback: Clickable facets with hover effects and active facet highlighting
+  - Comprehensive test coverage with 22 new unit tests (7 controller, 8 dialog, 7 widget)
+  - All tests passing (846 total, 4 skipped)
+  - Pylint score: 10.00/10 for py_fade, 9.99/10 for tests
 - **Clean Alternative Tokens On Archive**: Automatically clean alternative logprobs when archiving completions to save disk space
   - New `PromptCompletion.clean_alternative_logprobs()` method removes alternative token data from all associated logprobs entries
   - Archive button in completion widgets now automatically calls `clean_alternative_logprobs()` when archiving
