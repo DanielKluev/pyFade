@@ -19,6 +19,7 @@ from py_fade.data_formats.kto_data_format import KTOSample
 
 if TYPE_CHECKING:
     from py_fade.dataset.completion import PromptCompletion
+    from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
     from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.dataset.facet import Facet
     from py_fade.dataset.sample import Sample
@@ -56,12 +57,12 @@ class KTOController:
         self.facet = facet
         self.target_model_id = target_model_id
 
-    def _is_valid_logprob(self, logprobs, min_threshold: float, avg_threshold: float) -> bool:
+    def _is_valid_logprob(self, logprobs: "PromptCompletionLogprobs | None", min_threshold: float, avg_threshold: float) -> bool:
         """
         Check if logprobs meet the minimum thresholds.
         
         Args:
-            logprobs: Logprobs object to check
+            logprobs: Logprobs object to check (or None)
             min_threshold: Minimum logprob threshold
             avg_threshold: Average logprob threshold
             
