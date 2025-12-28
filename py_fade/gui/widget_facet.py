@@ -127,17 +127,31 @@ class WidgetFacet(CrudFormWidget):
 
         # Min Rating
         min_rating_layout = QHBoxLayout()
-        min_rating_label = QLabel("Min Rating:", parent=thresholds_group)
+        min_rating_label = QLabel("Min Rating (Good):", parent=thresholds_group)
         min_rating_label.setStyleSheet("font-weight: bold;")
-        min_rating_label.setToolTip("Minimum rating for completion to be considered valid for training")
+        min_rating_label.setToolTip("Minimum rating for completion to be considered good/valid for training")
         self.min_rating_field = QSpinBox(parent=thresholds_group)
         self.min_rating_field.setRange(0, 10)
         self.min_rating_field.setValue(7)
-        self.min_rating_field.setToolTip("Minimum rating (0-10) for completion to be considered valid")
+        self.min_rating_field.setToolTip("Minimum rating (0-10) for completion to be considered good/valid")
         min_rating_layout.addWidget(min_rating_label)
         min_rating_layout.addWidget(self.min_rating_field)
         min_rating_layout.addStretch()
         thresholds_layout.addLayout(min_rating_layout)
+
+        # Max Rating (for KTO bad samples)
+        max_rating_layout = QHBoxLayout()
+        max_rating_label = QLabel("Max Rating (Bad):", parent=thresholds_group)
+        max_rating_label.setStyleSheet("font-weight: bold;")
+        max_rating_label.setToolTip("Maximum rating for completion to be considered bad for KTO training")
+        self.max_rating_field = QSpinBox(parent=thresholds_group)
+        self.max_rating_field.setRange(0, 10)
+        self.max_rating_field.setValue(5)
+        self.max_rating_field.setToolTip("Maximum rating (0-10) for completion to be considered bad (KTO only)")
+        max_rating_layout.addWidget(max_rating_label)
+        max_rating_layout.addWidget(self.max_rating_field)
+        max_rating_layout.addStretch()
+        thresholds_layout.addLayout(max_rating_layout)
 
         # Min Logprob Threshold
         min_logprob_layout = QHBoxLayout()
@@ -186,6 +200,7 @@ class WidgetFacet(CrudFormWidget):
             self.total_samples_field.setText("0")
             self.date_created_field.setText("Will be set on save")
             self.min_rating_field.setValue(7)
+            self.max_rating_field.setValue(5)
             self.min_logprob_field.setValue(-1.0)
             self.avg_logprob_field.setValue(-0.4)
             self.set_delete_visible(False)
@@ -196,6 +211,7 @@ class WidgetFacet(CrudFormWidget):
             self.total_samples_field.setText(str(facet.total_samples))
             self.date_created_field.setText(facet.date_created.strftime("%Y-%m-%d %H:%M:%S"))
             self.min_rating_field.setValue(facet.min_rating)
+            self.max_rating_field.setValue(facet.max_rating)
             self.min_logprob_field.setValue(facet.min_logprob_threshold)
             self.avg_logprob_field.setValue(facet.avg_logprob_threshold)
             self.set_delete_visible(True)
@@ -225,6 +241,7 @@ class WidgetFacet(CrudFormWidget):
         name = self.name_field.text().strip()
         description = self.description_field.toPlainText().strip()
         min_rating = self.min_rating_field.value()
+        max_rating = self.max_rating_field.value()
         min_logprob_threshold = self.min_logprob_field.value()
         avg_logprob_threshold = self.avg_logprob_field.value()
 
@@ -236,6 +253,7 @@ class WidgetFacet(CrudFormWidget):
                     total_samples=0,
                     date_created=datetime.datetime.now(),
                     min_rating=min_rating,
+                    max_rating=max_rating,
                     min_logprob_threshold=min_logprob_threshold,
                     avg_logprob_threshold=avg_logprob_threshold,
                 )
@@ -244,6 +262,7 @@ class WidgetFacet(CrudFormWidget):
                 self.facet.name = name
                 self.facet.description = description
                 self.facet.min_rating = min_rating
+                self.facet.max_rating = max_rating
                 self.facet.min_logprob_threshold = min_logprob_threshold
                 self.facet.avg_logprob_threshold = avg_logprob_threshold
 

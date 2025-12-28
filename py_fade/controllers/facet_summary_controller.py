@@ -2,7 +2,7 @@
 Controller for generating facet summary reports.
 
 This module provides functionality to analyze facet samples and generate reports
-showing which samples are ready for SFT and DPO training based on completion ratings
+showing which samples are ready for SFT, DPO, and KTO training based on completion ratings
 and logprob thresholds.
 """
 
@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from py_fade.controllers.dpo_controller import DPOController
+from py_fade.controllers.kto_controller import KTOController
 from py_fade.controllers.facet_utils import get_rated_completions
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.providers.providers_manager import MappedModel
@@ -42,6 +43,7 @@ class FacetSummaryReport:
     facet_name: str
     target_model_id: str
     min_rating: int
+    max_rating: int
     min_logprob_threshold: float
     avg_logprob_threshold: float
 
@@ -58,6 +60,15 @@ class FacetSummaryReport:
     dpo_unfinished_samples: int = 0
     dpo_total_loss: float = 0.0
     dpo_unfinished_details: list[UnfinishedSampleInfo] = field(default_factory=list)
+
+    # KTO statistics
+    kto_total_samples: int = 0
+    kto_finished_samples: int = 0
+    kto_unfinished_samples: int = 0
+    kto_good_samples: int = 0
+    kto_bad_samples: int = 0
+    kto_total_loss: float = 0.0
+    kto_unfinished_details: list[UnfinishedSampleInfo] = field(default_factory=list)
 
 
 class FacetSummaryController:
@@ -98,6 +109,7 @@ class FacetSummaryController:
             facet_name=self.facet.name,
             target_model_id=self.target_model.model_id,
             min_rating=self.facet.min_rating,
+            max_rating=self.facet.max_rating,
             min_logprob_threshold=self.facet.min_logprob_threshold,
             avg_logprob_threshold=self.facet.avg_logprob_threshold,
         )
@@ -105,20 +117,22 @@ class FacetSummaryController:
         # Get all samples for this facet
         samples = self.facet.get_samples(self.dataset)
 
-        # Analyze each sample for SFT and DPO readiness
+        # Analyze each sample for SFT, DPO, and KTO readiness
         for sample in samples:
             if sample.is_unfinished(self.dataset):
                 self.log.info("Skipping unfinished sample %s [%s]", sample.id, sample.title)
                 continue  # Skip unfinished samples
             self._analyze_sample_for_sft(sample, report)
             self._analyze_sample_for_dpo(sample, report)
+            self._analyze_sample_for_kto(sample, report)
 
         # Log unfinished sample details
         for unfinished in report.sft_unfinished_details:
             self.log.info("SFT Unfinished Sample %s: %s", unfinished.sample_name, "; ".join(unfinished.reasons))
 
-        self.log.info("Report generated: SFT %d/%d finished, DPO %d/%d finished", report.sft_finished_samples, report.sft_total_samples,
-                      report.dpo_finished_samples, report.dpo_total_samples)
+        self.log.info("Report generated: SFT %d/%d finished, DPO %d/%d finished, KTO %d/%d finished (%d good, %d bad)",
+                      report.sft_finished_samples, report.sft_total_samples, report.dpo_finished_samples, report.dpo_total_samples,
+                      report.kto_finished_samples, report.kto_total_samples, report.kto_good_samples, report.kto_bad_samples)
 
         return report
 
@@ -264,3 +278,53 @@ class FacetSummaryController:
         """
         rating_obj = completion.rating_for_facet(self.facet)
         return rating_obj.rating if rating_obj else 0
+
+    def _analyze_sample_for_kto(self, sample: "Sample", report: FacetSummaryReport) -> None:
+        """
+        Analyze a sample for KTO training readiness using KTOController.
+
+        Uses the unified KTO sample generation logic to determine if sample can produce
+        any valid KTO training samples (good or bad).
+
+        Args:
+            sample: Sample to analyze
+            report: Report to update with results
+        """
+        report.kto_total_samples += 1
+
+        # Use KTO controller to check if sample can generate any samples
+        kto_controller = KTOController(self.dataset, self.facet, self.target_model.model_id)
+        result = kto_controller.generate_samples_for_sample(sample)
+
+        if result.samples:
+            # Sample is ready for KTO - has at least one valid good or bad sample
+            report.kto_finished_samples += 1
+
+            # Count good and bad samples
+            for kto_sample in result.samples:
+                if kto_sample.label:
+                    report.kto_good_samples += 1
+                else:
+                    report.kto_bad_samples += 1
+
+            # Calculate average loss across all completions in generated samples
+            total_loss = 0.0
+            for kto_sample in result.samples:
+                # Find the completion that matches this sample text
+                for comp in sample.completions:
+                    if comp.completion_text == kto_sample.completion:
+                        logprobs = comp.get_logprobs_for_model_id(self.target_model.model_id)
+                        if logprobs and logprobs.avg_logprob is not None:
+                            total_loss += abs(logprobs.avg_logprob)
+                        break
+
+            report.kto_total_loss += total_loss
+        else:
+            # Sample is not ready for KTO
+            report.kto_unfinished_samples += 1
+            report.kto_unfinished_details.append(
+                UnfinishedSampleInfo(
+                    sample_id=sample.id,
+                    sample_name=f"Sample #{sample.id} {sample.title}",
+                    reasons=result.failure_reasons,
+                ))

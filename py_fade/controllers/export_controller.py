@@ -14,6 +14,7 @@ import pyzipper
 from sqlalchemy import exists
 
 from py_fade.controllers.dpo_controller import DPOController
+from py_fade.controllers.kto_controller import KTOController
 from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.sample import Sample
@@ -22,6 +23,7 @@ from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.data_formats.base_data_classes import CommonMessage, CommonConversation
 from py_fade.data_formats.share_gpt_format import ShareGPTFormat
 from py_fade.data_formats.dpo_data_format import DPODataFormat, DPOPair
+from py_fade.data_formats.kto_data_format import KTODataFormat, KTOSample
 from py_fade.data_formats.facet_backup import FacetBackupFormat
 from py_fade.providers.llm_templates import get_template_function
 
@@ -114,6 +116,8 @@ class ExportController:
         # Check training type and route to appropriate export method
         if self.export_template.training_type == "DPO":
             return self._run_dpo_export()
+        if self.export_template.training_type == "KTO":
+            return self._run_kto_export()
         return self._run_sft_export()
 
     def _run_sft_export(self) -> int:
@@ -362,6 +366,136 @@ class ExportController:
         self.export_results.total_exported = len(all_pairs)
         self.log.info("DPO export completed: %d pairs written to %s", len(all_pairs), self.output_path)
         return len(all_pairs)
+
+    def _run_kto_export(self) -> int:
+        """
+        Run KTO export - exports labeled samples (good/bad) for KTO training.
+        Returns the number of samples exported.
+        """
+        # Initialize export results
+        self.export_results = ExportResults()
+
+        # Collect all KTO samples
+        all_samples: list[KTOSample] = []
+        exported_sample_ids = set()  # Track which samples have been exported
+
+        for facet_config in self.export_template.facets_json:
+            facet_id = facet_config["facet_id"]
+
+            # Get the facet object
+            facet = Facet.get_by_id(self.dataset, facet_id)
+            if not facet:
+                self.log.warning("Facet %d not found, skipping", facet_id)
+                continue
+
+            # Create facet summary
+            facet_summary = FacetExportSummary(facet_id=facet.id, facet_name=facet.name)
+            self.export_results.facet_summaries.append(facet_summary)
+
+            # Get target model ID for logprobs validation
+            target_model_id = self.target_model_id
+            if not target_model_id and hasattr(self.app, 'providers_manager') and self.app.providers_manager.model_provider_map:
+                first_mapped_model = next(iter(self.app.providers_manager.model_provider_map.values()))
+                target_model_id = first_mapped_model.model_id
+                self.log.debug("No target model specified, using fallback model: %s", target_model_id)
+
+            if not target_model_id:
+                self.log.warning("No target model available for logprobs validation, skipping facet %d", facet_id)
+                continue
+
+            # Apply template overrides to facet thresholds
+            original_min_rating = facet.min_rating
+            original_max_rating = facet.max_rating
+            original_min_logprob = facet.min_logprob_threshold
+            original_avg_logprob = facet.avg_logprob_threshold
+
+            min_rating = facet_config.get("min_rating")
+            if min_rating is not None:
+                facet.min_rating = min_rating
+            max_rating = facet_config.get("max_rating")
+            if max_rating is not None:
+                facet.max_rating = max_rating
+            min_logprob = facet_config.get("min_logprob")
+            if min_logprob is not None:
+                facet.min_logprob_threshold = min_logprob
+            avg_logprob = facet_config.get("avg_logprob")
+            if avg_logprob is not None:
+                facet.avg_logprob_threshold = avg_logprob
+
+            kto_controller = KTOController(self.dataset, facet, target_model_id)
+
+            # Get samples for this facet
+            samples = facet.get_samples(self.dataset)
+
+            # Apply ordering
+            order = facet_config.get("order", "random")
+            if order == "newest":
+                samples = sorted(samples, key=lambda s: s.date_created, reverse=True)
+            elif order == "oldest":
+                samples = sorted(samples, key=lambda s: s.date_created)
+            elif order == "random":
+                samples = list(samples)
+                random.shuffle(samples)
+
+            # Apply limit
+            limit_type = facet_config.get("limit_type", "percentage")
+            limit_value = facet_config.get("limit_value", 100)
+            if limit_type == "percentage":
+                max_samples = max(1, int(len(samples) * limit_value / 100.0))
+            else:
+                max_samples = int(limit_value)
+
+            # Process samples for this facet
+            exported_count = 0
+            for sample in samples:
+                if exported_count >= max_samples:
+                    break
+
+                # Skip if already exported by another facet
+                if sample.id in exported_sample_ids:
+                    continue
+
+                # Generate KTO samples for this sample
+                result = kto_controller.generate_samples_for_sample(sample)
+
+                sample_info = SampleExportInfo(
+                    sample_id=sample.id,
+                    sample_title=sample.title,
+                    group_path=sample.group_path,
+                )
+
+                if result.samples:
+                    # Add all KTO samples from this dataset sample
+                    all_samples.extend(result.samples)
+                    exported_sample_ids.add(sample.id)
+                    facet_summary.exported_samples.append(sample_info)
+                    exported_count += 1
+                else:
+                    facet_summary.failed_samples.append((sample_info, result.failure_reasons))
+
+            # Restore original facet thresholds
+            facet.min_rating = original_min_rating
+            facet.max_rating = original_max_rating
+            facet.min_logprob_threshold = original_min_logprob
+            facet.avg_logprob_threshold = original_avg_logprob
+
+        # Write using KTODataFormat
+        if not all_samples:
+            # Create helpful error message with details
+            error_parts = ["No eligible KTO samples found for export."]
+            for facet_summary in self.export_results.facet_summaries:
+                failed_count = len(facet_summary.failed_samples)
+                if failed_count > 0:
+                    error_parts.append(f"Facet '{facet_summary.facet_name}': {failed_count} samples failed validation")
+            raise ValueError(" ".join(error_parts))
+
+        kto_format = KTODataFormat(self.output_path)
+        kto_format.set_samples(all_samples)
+        kto_format.save(output_format="jsonl")
+
+        self.export_results.total_exported = len(all_samples)
+        self.log.info("KTO export completed: %d samples written to %s", len(all_samples), self.output_path)
+        return len(all_samples)
 
     def _sample_to_conversation_with_validation(self, sample: Sample, facet: "Facet", min_rating: int, min_logprob: float,
                                                 avg_logprob: float) -> tuple[CommonConversation | None, list[str]]:
