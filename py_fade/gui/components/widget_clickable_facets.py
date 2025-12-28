@@ -52,7 +52,7 @@ class ClickableFacetLabel(QLabel):
         self.setText(facet.name)
         self.setToolTip(f"Click to switch, copy, or remove facet '{facet.name}'")
 
-    def mousePressEvent(self, event: QMouseEvent | None) -> None:
+    def mousePressEvent(self, event: QMouseEvent | None) -> None:  # pylint: disable=invalid-name
         """
         Handle mouse press event.
 
@@ -63,7 +63,7 @@ class ClickableFacetLabel(QLabel):
             self.clicked.emit(self.facet)
         super().mousePressEvent(event)
 
-    def enterEvent(self, event) -> None:
+    def enterEvent(self, event) -> None:  # pylint: disable=invalid-name
         """
         Handle mouse enter event for hover effect.
         """
@@ -74,7 +74,7 @@ class ClickableFacetLabel(QLabel):
             self.setStyleSheet(current_style + " background-color: #e3f2fd;")
         super().enterEvent(event)
 
-    def leaveEvent(self, event) -> None:
+    def leaveEvent(self, event) -> None:  # pylint: disable=invalid-name
         """
         Handle mouse leave event to remove hover effect.
         """

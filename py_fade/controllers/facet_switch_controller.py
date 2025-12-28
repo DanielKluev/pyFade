@@ -63,7 +63,6 @@ class FacetSwitchController:
 
         # Remove all pairwise rankings for this facet
         # We need to check all possible pairs of completions
-        completion_ids = [c.id for c in sample.completions]
         for i, comp1 in enumerate(sample.completions):
             for comp2 in sample.completions[i + 1:]:
                 # Check both directions
