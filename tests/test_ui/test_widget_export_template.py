@@ -181,16 +181,14 @@ def test_navigation_creates_export_template_tab(
         training_type="SFT",
         output_format="JSON",
         model_families=["Gemma3"],
-        facets=[
-            {
-                "facet_id": facets[0].id,
-                "limit_type": "count",
-                "limit_value": 100,
-                "order": "random",
-                "min_logprob": None,
-                "avg_logprob": None,
-            }
-        ],
+        facets=[{
+            "facet_id": facets[0].id,
+            "limit_type": "count",
+            "limit_value": 100,
+            "order": "random",
+            "min_logprob": None,
+            "avg_logprob": None,
+        }],
     )
     session.flush()
     session.commit()
@@ -216,16 +214,93 @@ def test_navigation_creates_export_template_tab(
     widget.sidebar.tree_view.new_item_requested.emit("export_template")
     qt_app.processEvents()
 
-    new_tab_ids = [
-        (wid, info)
-        for wid, info in widget.tabs.items()
-        if info["type"] == "export_template" and info["id"] == 0
-    ]
+    new_tab_ids = [(wid, info) for wid, info in widget.tabs.items() if info["type"] == "export_template" and info["id"] == 0]
     assert new_tab_ids, "Expected a new export template tab to be created"
     for _, info in new_tab_ids:
         new_widget = info["widget"]
         assert isinstance(new_widget, WidgetExportTemplate)
         assert new_widget.template is None
+
+    widget.deleteLater()
+    qt_app.processEvents()
+
+
+def test_widget_export_template_kto_support(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+    ensure_google_icon_font: None,  # Used for side effect of loading icon font
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Test that KTO training type is supported in export template widget.
+
+    Verifies that KTO can be selected, max_rating column appears in facets table,
+    and templates can be created with KTO training type.
+    """
+    test_logger = logging.getLogger("test_widget_export_template.kto")
+    test_logger.setLevel(logging.DEBUG)
+    patch_message_boxes(monkeypatch, test_logger)
+
+    # Create a facet for testing
+    _ = Facet.create(temp_dataset, "KTO Facet", "Test facet for KTO", min_rating=7, max_rating=5)
+    temp_dataset.commit()
+
+    # Create widget
+    widget = WidgetExportTemplate(None, app_with_dataset, temp_dataset, None)
+    qt_app.processEvents()
+
+    # Verify KTO is in training types
+    kto_found = False
+    for i in range(widget.training_combo.count()):
+        if widget.training_combo.itemData(i) == "KTO":
+            kto_found = True
+            break
+    assert kto_found, "KTO should be available in training types"
+
+    # Select KTO training type
+    widget.training_combo.setCurrentIndex(widget.training_combo.findData("KTO"))
+    qt_app.processEvents()
+
+    # Verify output format is set correctly
+    assert widget.output_combo.count() > 0, "Output formats should be populated for KTO"
+    assert "TRL" in widget.output_combo.currentText(), "KTO should have TRL output format"
+
+    # Add facet to template
+    widget.add_selected_facet()
+    qt_app.processEvents()
+
+    # Verify facets table has 9 columns (including max_rating)
+    assert widget.facets_table.columnCount() == 9, "Facets table should have 9 columns including max_rating"
+
+    # Verify max_rating column header
+    header_labels = [widget.facets_table.horizontalHeaderItem(i).text() for i in range(widget.facets_table.columnCount())]
+    assert "Max Rating" in header_labels, "Max Rating column should be in headers"
+
+    # Verify max_rating widget exists in the row
+    max_rating_widget = widget.facets_table.cellWidget(0, 5)
+    assert max_rating_widget is not None, "Max rating widget should exist in row"
+
+    # Set template details and save
+    widget.name_input.setText("KTO Test Template")
+    widget.description_input.setText("Test template for KTO training")
+    widget.model_list.item(0).setCheckState(Qt.CheckState.Checked)
+    qt_app.processEvents()
+
+    assert widget.save_button.isEnabled(), "Save button should be enabled"
+    widget.handle_save()
+    qt_app.processEvents()
+
+    # Verify template was created with KTO training type
+    template = ExportTemplate.get_by_name(temp_dataset, "KTO Test Template")
+    assert template is not None, "Template should be created"
+    assert template.training_type == "KTO", "Template should have KTO training type"
+    assert template.output_format == "JSONL (TRL)", "Template should have TRL output format"
+
+    # Verify facet configuration includes max_rating
+    assert len(template.facets_json) == 1, "Template should have 1 facet"
+    facet_config = template.facets_json[0]
+    assert "max_rating" in facet_config, "Facet config should include max_rating"
 
     widget.deleteLater()
     qt_app.processEvents()

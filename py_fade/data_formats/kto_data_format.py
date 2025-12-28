@@ -15,7 +15,7 @@ import pathlib
 import json
 from dataclasses import dataclass
 
-from py_fade.data_formats.base_data_classes import CommonConversation, CommonMessage
+from py_fade.data_formats.base_data_classes import CommonConversation
 from py_fade.data_formats.base_data_format import BaseDataFormat
 
 

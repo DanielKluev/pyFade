@@ -385,3 +385,54 @@ def test_facet_deleted_updates_navigation_and_combobox(
 
     widget.deleteLater()
     qt_app.processEvents()
+
+
+def test_widget_facet_max_rating_field(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+    ensure_google_icon_font: None,  # Used for side effect of loading icon font
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Test that max_rating field is present and works correctly for KTO support.
+
+    Verifies that the max_rating field is properly initialized, saved, and loaded.
+    """
+    test_logger = logging.getLogger("test_widget_facet.max_rating")
+    test_logger.setLevel(logging.DEBUG)
+    patch_message_boxes(monkeypatch, test_logger)
+
+    # Create facet with specific max_rating value
+    facet = Facet.create(temp_dataset, "KTO Test Facet", "Testing KTO max_rating", min_rating=7, max_rating=4)
+    temp_dataset.commit()
+
+    # Create widget and load the facet
+    widget = WidgetFacet(None, app_with_dataset, temp_dataset, facet)
+    qt_app.processEvents()
+
+    # Verify max_rating field exists and has correct value
+    assert hasattr(widget, 'max_rating_field'), "Widget should have max_rating_field"
+    assert widget.max_rating_field.value() == 4, "max_rating field should be loaded with facet value"
+
+    # Update max_rating value
+    widget.max_rating_field.setValue(3)
+    qt_app.processEvents()
+    widget.handle_save()
+    qt_app.processEvents()
+
+    # Verify it was saved
+    refreshed_facet = Facet.get_by_id(temp_dataset, facet.id)
+    assert refreshed_facet is not None
+    assert refreshed_facet.max_rating == 3, "max_rating should be updated to 3"
+
+    # Create new facet to test default value
+    widget2 = WidgetFacet(None, app_with_dataset, temp_dataset, None)
+    qt_app.processEvents()
+
+    # Verify default max_rating value
+    assert widget2.max_rating_field.value() == 5, "Default max_rating should be 5"
+
+    widget.deleteLater()
+    widget2.deleteLater()
+    qt_app.processEvents()
