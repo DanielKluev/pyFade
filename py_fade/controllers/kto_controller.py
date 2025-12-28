@@ -56,6 +56,20 @@ class KTOController:
         self.facet = facet
         self.target_model_id = target_model_id
 
+    def _is_valid_logprob(self, logprobs, min_threshold: float, avg_threshold: float) -> bool:
+        """
+        Check if logprobs meet the minimum thresholds.
+        
+        Args:
+            logprobs: Logprobs object to check
+            min_threshold: Minimum logprob threshold
+            avg_threshold: Average logprob threshold
+            
+        Returns:
+            True if logprobs meet both thresholds
+        """
+        return (logprobs is not None and logprobs.min_logprob >= min_threshold and logprobs.avg_logprob >= avg_threshold)
+
     def generate_samples_for_sample(self, sample: "Sample") -> KTOSampleGenerationResult:
         """
         Generate all valid KTO samples for a dataset sample.
@@ -97,7 +111,7 @@ class KTOController:
                 self.log.debug("Completion %d has no logprobs for model %s, skipping", completion.id, self.target_model_id)
                 continue
 
-            if (logprobs.min_logprob < self.facet.min_logprob_threshold or logprobs.avg_logprob < self.facet.avg_logprob_threshold):
+            if not self._is_valid_logprob(logprobs, self.facet.min_logprob_threshold, self.facet.avg_logprob_threshold):
                 self.log.debug("Completion %d fails logprob thresholds (min=%.3f/%.3f, avg=%.3f/%.3f), skipping", completion.id,
                                logprobs.min_logprob, self.facet.min_logprob_threshold, logprobs.avg_logprob,
                                self.facet.avg_logprob_threshold)

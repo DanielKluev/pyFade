@@ -481,7 +481,13 @@ class ExportController:
 
         # Write using KTODataFormat
         if not all_samples:
-            raise ValueError("No eligible KTO samples found for export")
+            # Create helpful error message with details
+            error_parts = ["No eligible KTO samples found for export."]
+            for facet_summary in self.export_results.facet_summaries:
+                failed_count = len(facet_summary.failed_samples)
+                if failed_count > 0:
+                    error_parts.append(f"Facet '{facet_summary.facet_name}': {failed_count} samples failed validation")
+            raise ValueError(" ".join(error_parts))
 
         kto_format = KTODataFormat(self.output_path)
         kto_format.set_samples(all_samples)

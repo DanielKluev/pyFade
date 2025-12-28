@@ -209,7 +209,7 @@ class WidgetExportTemplate(CrudFormWidget):
 
         self.facets_table = QTableWidget(0, 9)
         self.facets_table.setAlternatingRowColors(True)
-        self.facets_table.setHorizontalHeaderLabels([
+        facet_headers = [
             "Facet",
             "Limit Type",
             "Limit Value",
@@ -219,11 +219,12 @@ class WidgetExportTemplate(CrudFormWidget):
             "Min Logprob",
             "Avg Logprob",
             "",
-        ])
+        ]
+        self.facets_table.setHorizontalHeaderLabels(facet_headers)
         header = self.facets_table.horizontalHeader()
         if header is not None:
             header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-            for column in range(1, 9):
+            for column in range(1, len(facet_headers)):
                 header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         vertical_header = self.facets_table.verticalHeader()
         if vertical_header is not None:
