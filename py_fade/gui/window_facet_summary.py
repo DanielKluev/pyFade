@@ -122,6 +122,10 @@ class FacetSummaryWindow(QDialog):
         dpo_group = self.create_dpo_section()
         self.content_layout.addWidget(dpo_group)
 
+        # KTO statistics
+        kto_group = self.create_kto_section()
+        self.content_layout.addWidget(kto_group)
+
         # Add stretch at the end
         self.content_layout.addStretch()
 
@@ -133,7 +137,8 @@ class FacetSummaryWindow(QDialog):
         layout = QVBoxLayout(group)
 
         thresholds_text = f"""
-        <b>Min Rating:</b> {self.report.min_rating}<br>
+        <b>Min Rating (Good):</b> {self.report.min_rating}<br>
+        <b>Max Rating (Bad):</b> {self.report.max_rating}<br>
         <b>Min Logprob Threshold:</b> {self.report.min_logprob_threshold:.2f}<br>
         <b>Avg Logprob Threshold:</b> {self.report.avg_logprob_threshold:.2f}
         """
@@ -213,6 +218,46 @@ class FacetSummaryWindow(QDialog):
 
             if len(self.report.dpo_unfinished_details) > 20:
                 more_label = QLabel(f"<i>... and {len(self.report.dpo_unfinished_details) - 20} more</i>")
+                more_label.setStyleSheet("color: #999;")
+                layout.addWidget(more_label)
+
+        return group
+
+    def create_kto_section(self) -> QGroupBox:
+        """Create the KTO statistics section."""
+        if not self.report:
+            raise RuntimeError("Report not generated yet.")
+        group = QGroupBox("KTO (Kahneman-Tversky Optimization) Readiness")
+        layout = QVBoxLayout(group)
+
+        # Summary statistics
+        summary_text = f"""
+        <b>Total Samples:</b> {self.report.kto_total_samples}<br>
+        <b>Finished Samples:</b> {self.report.kto_finished_samples} 
+        ({self._percentage(self.report.kto_finished_samples, self.report.kto_total_samples)}%)<br>
+        <b>Unfinished Samples:</b> {self.report.kto_unfinished_samples}<br>
+        <b>Good Samples (label=true):</b> {self.report.kto_good_samples}<br>
+        <b>Bad Samples (label=false):</b> {self.report.kto_bad_samples}<br>
+        <b>Total Loss (finished):</b> {self.report.kto_total_loss:.4f}
+        """
+        summary_label = QLabel(summary_text)
+        layout.addWidget(summary_label)
+
+        # Unfinished samples details
+        if self.report.kto_unfinished_details:
+            layout.addWidget(QLabel("<b>Unfinished Samples:</b>"))
+            for info in self.report.kto_unfinished_details[:20]:  # Limit to first 20
+                sample_text = f"<b>• {info.sample_name}</b>"
+                sample_label = QLabel(sample_text)
+                layout.addWidget(sample_label)
+
+                for reason in info.reasons:
+                    reason_label = QLabel(f"  └─ {reason}")
+                    reason_label.setStyleSheet("color: #666; font-size: 11px;")
+                    layout.addWidget(reason_label)
+
+            if len(self.report.kto_unfinished_details) > 20:
+                more_label = QLabel(f"<i>... and {len(self.report.kto_unfinished_details) - 20} more</i>")
                 more_label.setStyleSheet("color: #999;")
                 layout.addWidget(more_label)
 

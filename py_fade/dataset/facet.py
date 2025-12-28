@@ -34,6 +34,7 @@ class Facet(dataset_base):
     total_samples: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     date_created: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=datetime.datetime.now)
     min_rating: Mapped[int] = mapped_column(Integer, nullable=False, default=7)
+    max_rating: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
     min_logprob_threshold: Mapped[float] = mapped_column(Float, nullable=False, default=-1.0)
     avg_logprob_threshold: Mapped[float] = mapped_column(Float, nullable=False, default=-0.4)
     completion_ratings: Mapped[list["PromptCompletionRating"]] = relationship(
@@ -105,8 +106,8 @@ class Facet(dataset_base):
         return samples_without_facet
 
     @classmethod
-    def create(cls, dataset: "DatasetDatabase", name: str, description: str, min_rating: int = 7, min_logprob_threshold: float = -1.0,
-               avg_logprob_threshold: float = -0.4) -> "Facet":
+    def create(cls, dataset: "DatasetDatabase", name: str, description: str, min_rating: int = 7, max_rating: int = 5,
+               min_logprob_threshold: float = -1.0, avg_logprob_threshold: float = -0.4) -> "Facet":
         """
         Create a new facet and add it to the database.
 
@@ -114,7 +115,8 @@ class Facet(dataset_base):
             dataset: The dataset database instance
             name: The name of the facet (must be unique)
             description: The description of the facet
-            min_rating: Minimum rating for completion to be considered valid (default 7)
+            min_rating: Minimum rating for completion to be considered good/valid (default 7)
+            max_rating: Maximum rating for completion to be considered bad for KTO (default 5)
             min_logprob_threshold: Minimum logprob threshold (default -1.0)
             avg_logprob_threshold: Average logprob threshold (default -0.4)
 
@@ -137,6 +139,7 @@ class Facet(dataset_base):
             total_samples=0,
             date_created=datetime.datetime.now(),
             min_rating=min_rating,
+            max_rating=max_rating,
             min_logprob_threshold=min_logprob_threshold,
             avg_logprob_threshold=avg_logprob_threshold,
         )
@@ -145,7 +148,7 @@ class Facet(dataset_base):
         return facet
 
     def update(self, dataset: "DatasetDatabase", name: str | None = None, description: str | None = None, min_rating: int | None = None,
-               min_logprob_threshold: float | None = None, avg_logprob_threshold: float | None = None):
+               max_rating: int | None = None, min_logprob_threshold: float | None = None, avg_logprob_threshold: float | None = None):
         """
         Update the facet's properties.
 
@@ -153,7 +156,8 @@ class Facet(dataset_base):
             dataset: The dataset database instance
             name: New name for the facet (optional)
             description: New description for the facet (optional)
-            min_rating: New minimum rating threshold (optional)
+            min_rating: New minimum rating threshold for good completions (optional)
+            max_rating: New maximum rating threshold for bad completions in KTO (optional)
             min_logprob_threshold: New minimum logprob threshold (optional)
             avg_logprob_threshold: New average logprob threshold (optional)
 
@@ -173,6 +177,9 @@ class Facet(dataset_base):
 
         if min_rating is not None:
             self.min_rating = min_rating
+
+        if max_rating is not None:
+            self.max_rating = max_rating
 
         if min_logprob_threshold is not None:
             self.min_logprob_threshold = min_logprob_threshold

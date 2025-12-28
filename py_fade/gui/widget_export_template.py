@@ -207,7 +207,7 @@ class WidgetExportTemplate(CrudFormWidget):
         selector_layout.addStretch()
         facets_layout.addLayout(selector_layout)
 
-        self.facets_table = QTableWidget(0, 8)
+        self.facets_table = QTableWidget(0, 9)
         self.facets_table.setAlternatingRowColors(True)
         self.facets_table.setHorizontalHeaderLabels([
             "Facet",
@@ -215,6 +215,7 @@ class WidgetExportTemplate(CrudFormWidget):
             "Limit Value",
             "Order",
             "Min Rating",
+            "Max Rating",
             "Min Logprob",
             "Avg Logprob",
             "",
@@ -222,7 +223,7 @@ class WidgetExportTemplate(CrudFormWidget):
         header = self.facets_table.horizontalHeader()
         if header is not None:
             header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-            for column in range(1, 8):
+            for column in range(1, 9):
                 header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         vertical_header = self.facets_table.verticalHeader()
         if vertical_header is not None:
@@ -431,19 +432,23 @@ class WidgetExportTemplate(CrudFormWidget):
         rating_spin = self._build_rating_spin(facet)
         self.facets_table.setCellWidget(row, 4, rating_spin)
 
+        # Max rating threshold (for KTO bad samples) ------------------------
+        max_rating_spin = self._build_max_rating_spin(facet)
+        self.facets_table.setCellWidget(row, 5, max_rating_spin)
+
         # Min and avg logprob -----------------------------------------------
         min_spin = self._build_logprob_spin()
         min_spin.setToolTip(f"Min logprob threshold (Default = {facet.min_logprob_threshold:.2f} from facet)")
         avg_spin = self._build_logprob_spin()
         avg_spin.setToolTip(f"Avg logprob threshold (Default = {facet.avg_logprob_threshold:.2f} from facet)")
-        self.facets_table.setCellWidget(row, 5, min_spin)
-        self.facets_table.setCellWidget(row, 6, avg_spin)
+        self.facets_table.setCellWidget(row, 6, min_spin)
+        self.facets_table.setCellWidget(row, 7, avg_spin)
 
         # Remove button ------------------------------------------------------
         remove_button = QPushButtonWithIcon("delete", "")
         remove_button.setToolTip("Remove this facet from the export configuration")
         remove_button.clicked.connect(partial(self._remove_facet_by_button, remove_button))
-        self.facets_table.setCellWidget(row, 7, remove_button)
+        self.facets_table.setCellWidget(row, 8, remove_button)
 
         if config:
             self._apply_facet_row_config(row, config)
@@ -460,6 +465,20 @@ class WidgetExportTemplate(CrudFormWidget):
         spin.setSingleStep(1)
         spin.setKeyboardTracking(False)
         spin.setToolTip(f"Min rating threshold (Default = {facet.min_rating} from facet)")
+        return spin
+
+    def _build_max_rating_spin(self, facet: Facet) -> QDoubleSpinBox:
+        """
+        Build a spin box for max rating threshold (for KTO bad samples) with special value for "Default".
+        """
+        spin = QDoubleSpinBox()
+        spin.setDecimals(0)
+        spin.setRange(-1, 10)  # -1 is special value for "Default"
+        spin.setSpecialValueText("Default")
+        spin.setValue(-1)  # Default to using facet's max_rating
+        spin.setSingleStep(1)
+        spin.setKeyboardTracking(False)
+        spin.setToolTip(f"Max rating threshold for bad samples (Default = {facet.max_rating} from facet, KTO only)")
         return spin
 
     def _build_logprob_spin(self) -> QDoubleSpinBox:
@@ -480,8 +499,9 @@ class WidgetExportTemplate(CrudFormWidget):
         limit_spin = self._widget_from_table(row, 2, QDoubleSpinBox)
         order_combo = self._widget_from_table(row, 3, QComboBox)
         rating_spin = self._widget_from_table(row, 4, QDoubleSpinBox)
-        min_spin = self._widget_from_table(row, 5, QDoubleSpinBox)
-        avg_spin = self._widget_from_table(row, 6, QDoubleSpinBox)
+        max_rating_spin = self._widget_from_table(row, 5, QDoubleSpinBox)
+        min_spin = self._widget_from_table(row, 6, QDoubleSpinBox)
+        avg_spin = self._widget_from_table(row, 7, QDoubleSpinBox)
 
         if limit_combo:
             index = limit_combo.findData(config.get("limit_type", "percentage"))
@@ -495,6 +515,8 @@ class WidgetExportTemplate(CrudFormWidget):
             order_combo.setCurrentIndex(index if index >= 0 else 0)
         if rating_spin:
             self._set_rating_spin_value(rating_spin, config.get("min_rating"))
+        if max_rating_spin:
+            self._set_rating_spin_value(max_rating_spin, config.get("max_rating"))
         if min_spin:
             self._set_logprob_spin_value(min_spin, config.get("min_logprob"))
         if avg_spin:
@@ -530,7 +552,7 @@ class WidgetExportTemplate(CrudFormWidget):
 
     def _remove_facet_by_button(self, button: QPushButton) -> None:
         for row in range(self.facets_table.rowCount()):
-            if self.facets_table.cellWidget(row, 7) is button:
+            if self.facets_table.cellWidget(row, 8) is button:
                 self.facets_table.removeRow(row)
                 break
         self.validate_form()
@@ -641,10 +663,11 @@ class WidgetExportTemplate(CrudFormWidget):
             limit_spin = self._widget_from_table(row, 2, QDoubleSpinBox)
             order_combo = self._widget_from_table(row, 3, QComboBox)
             rating_spin = self._widget_from_table(row, 4, QDoubleSpinBox)
-            min_spin = self._widget_from_table(row, 5, QDoubleSpinBox)
-            avg_spin = self._widget_from_table(row, 6, QDoubleSpinBox)
+            max_rating_spin = self._widget_from_table(row, 5, QDoubleSpinBox)
+            min_spin = self._widget_from_table(row, 6, QDoubleSpinBox)
+            avg_spin = self._widget_from_table(row, 7, QDoubleSpinBox)
 
-            if not all([limit_combo, limit_spin, order_combo, rating_spin, min_spin, avg_spin]):
+            if not all([limit_combo, limit_spin, order_combo, rating_spin, max_rating_spin, min_spin, avg_spin]):
                 raise ValueError("Facet row components are not fully initialized.")
 
             limit_type = limit_combo.currentData()
@@ -660,6 +683,7 @@ class WidgetExportTemplate(CrudFormWidget):
                 "limit_value": limit_value,
                 "order": order_combo.currentData(),
                 "min_rating": (None if rating_spin.value() == rating_spin.minimum() else int(rating_spin.value())),
+                "max_rating": (None if max_rating_spin.value() == max_rating_spin.minimum() else int(max_rating_spin.value())),
                 "min_logprob": (None if min_spin.value() == min_spin.minimum() else min_spin.value()),
                 "avg_logprob": (None if avg_spin.value() == avg_spin.minimum() else avg_spin.value()),
             })

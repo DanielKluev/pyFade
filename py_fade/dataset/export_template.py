@@ -30,10 +30,11 @@ class ExportTemplate(dataset_base):
     __tablename__ = "export_templates"
 
     SUPPORTED_MODEL_FAMILIES: ClassVar[tuple[str, ...]] = ("Gemma3", "Llama3", "Qwen3-Instruct")
-    TRAINING_TYPES: ClassVar[tuple[str, ...]] = ("SFT", "DPO")
+    TRAINING_TYPES: ClassVar[tuple[str, ...]] = ("SFT", "DPO", "KTO")
     OUTPUT_FORMATS: ClassVar[dict[str, tuple[str, ...]]] = {
         "SFT": ("JSON", "JSONL (ShareGPT)"),
         "DPO": ("JSONL (Anthropic)",),
+        "KTO": ("JSONL (TRL)",),
     }
 
     DEFAULT_FILENAME_TEMPLATE: ClassVar[str] = "export-{name}-{timestamp}.jsonl"
@@ -293,12 +294,14 @@ class ExportTemplate(dataset_base):
             min_logprob = facet.get("min_logprob")
             avg_logprob = facet.get("avg_logprob")
             min_rating = facet.get("min_rating")
+            max_rating = facet.get("max_rating")
             normalized.append({
                 "facet_id": facet_id,
                 "limit_type": limit_type,
                 "limit_value": limit_value,
                 "order": order,
                 "min_rating": None if min_rating in (None, "") else int(min_rating),
+                "max_rating": None if max_rating in (None, "") else int(max_rating),
                 "min_logprob": None if min_logprob in (None, "") else float(min_logprob),
                 "avg_logprob": None if avg_logprob in (None, "") else float(avg_logprob),
             })
