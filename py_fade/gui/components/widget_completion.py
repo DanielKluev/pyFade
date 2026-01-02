@@ -44,6 +44,7 @@ class CompletionFrame(QFrame):
     # Existing signals
     archive_toggled = pyqtSignal(object, bool)
     resume_requested = pyqtSignal(object)
+    limited_continuation_requested = pyqtSignal(object)  # LLMResponse for limited continuation in beam mode
     evaluate_requested = pyqtSignal(object, object, object)  # completion, target_model, completion_frame
 
     # New signals for multi-mode support
@@ -82,6 +83,7 @@ class CompletionFrame(QFrame):
         self.actions_layout: QHBoxLayout | None = None
         self.archive_button: QPushButtonWithIcon | None = None
         self.resume_button: QPushButtonWithIcon | None = None
+        self.limited_continuation_button: QPushButtonWithIcon | None = None
         self.evaluate_button: QPushButtonWithIcon | None = None
         self.edit_button: QPushButtonWithIcon | None = None
         self.discard_button: QPushButtonWithIcon | None = None
@@ -207,6 +209,14 @@ class CompletionFrame(QFrame):
             self.resume_button.hide()  # Only shown for truncated completions
             self.actions_layout.addWidget(self.resume_button)
 
+            # Limited continuation button for truncated unsaved beams
+            self.limited_continuation_button = QPushButtonWithIcon("fast_forward", parent=self, icon_size=self.actions_icon_size,
+                                                                   button_size=40)
+            self.limited_continuation_button.setFlat(True)
+            self.limited_continuation_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.limited_continuation_button.hide()  # Only shown for truncated unsaved completions
+            self.actions_layout.addWidget(self.limited_continuation_button)
+
             # Archive button for saved beam completions
             self.archive_button = QPushButtonWithIcon("archive", parent=self, icon_size=self.actions_icon_size, button_size=40)
             self.archive_button.setFlat(True)
@@ -245,6 +255,8 @@ class CompletionFrame(QFrame):
                 self.pin_button.clicked.connect(self._on_pin_clicked)
             if self.resume_button:
                 self.resume_button.clicked.connect(self._on_resume_clicked)
+            if self.limited_continuation_button:
+                self.limited_continuation_button.clicked.connect(self._on_limited_continuation_clicked)
 
     def _log_rating_saved(self, rating: int) -> None:
         """Log rating persistence for debugging purposes."""
@@ -368,6 +380,14 @@ class CompletionFrame(QFrame):
             else:
                 self.resume_button.hide()
 
+        # Limited continuation button for truncated unsaved beams only
+        if self.limited_continuation_button:
+            if is_truncated and not is_saved and not is_archived:
+                self.limited_continuation_button.show()
+                self.limited_continuation_button.setToolTip("Generate limited continuation (Depth tokens only)")
+            else:
+                self.limited_continuation_button.hide()
+
         if self.archive_button:
             self.archive_button.setVisible(is_saved)
             if is_saved:
@@ -467,6 +487,12 @@ class CompletionFrame(QFrame):
         self.is_pinned = not self.is_pinned
         self._update_action_buttons()
         self.pin_toggled.emit(self.completion, self.is_pinned)
+
+    def _on_limited_continuation_clicked(self) -> None:
+        """Handle limited continuation button click for beam mode."""
+        if self.display_mode != "beam":
+            return
+        self.limited_continuation_requested.emit(self.completion)
 
     def _on_heatmap_toggled(self, enabled: bool) -> None:
         """Handle heatmap button toggle."""

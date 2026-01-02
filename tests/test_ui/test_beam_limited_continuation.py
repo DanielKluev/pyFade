@@ -1,0 +1,415 @@
+"""
+Unit tests for beam mode limited continuation functionality.
+
+Tests the limited continuation button visibility and behavior for unsaved truncated beams.
+"""
+
+# pylint: disable=protected-access,too-many-positional-arguments
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from py_fade.dataset.prompt import PromptRevision
+from py_fade.dataset.sample import Sample
+from py_fade.gui.components.widget_completion import CompletionFrame
+from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
+from tests.helpers.data_helpers import create_simple_llm_response, create_test_completion
+from tests.helpers.ui_helpers import create_mock_mapped_model
+
+if TYPE_CHECKING:
+    from PyQt6.QtWidgets import QApplication
+
+    from py_fade.app import pyFadeApp
+    from py_fade.dataset.dataset import DatasetDatabase
+
+logger = logging.getLogger(__name__)
+
+
+class TestLimitedContinuationButtonVisibility:
+    """
+    Test limited continuation button visibility for beam mode completions.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _setup_font(self, ensure_google_icon_font):
+        """Auto-use the ensure_google_icon_font fixture."""
+        _ = ensure_google_icon_font
+
+    def test_limited_continuation_button_hidden_for_non_truncated_unsaved_beam(self, app_with_dataset):
+        """
+        Test limited continuation button is hidden for non-truncated transient beams.
+        """
+        # Create a non-truncated LLMResponse
+        beam = create_simple_llm_response("test-model", "Complete beam text")
+        beam.is_truncated = False
+
+        # Create a completion frame in beam mode
+        frame = CompletionFrame(app_with_dataset.current_dataset, beam, parent=None, display_mode="beam")
+
+        # Limited continuation button should exist but be hidden
+        assert frame.limited_continuation_button is not None
+        assert frame.limited_continuation_button.isHidden()
+
+    def test_limited_continuation_button_shown_for_truncated_unsaved_beam(self, app_with_dataset):
+        """
+        Test limited continuation button is shown for truncated transient beams.
+        """
+        # Create a truncated LLMResponse
+        beam = create_simple_llm_response("test-model", "Truncated beam")
+        beam.is_truncated = True
+
+        # Create a completion frame in beam mode
+        frame = CompletionFrame(app_with_dataset.current_dataset, beam, parent=None, display_mode="beam")
+
+        # Limited continuation button should be visible
+        assert frame.limited_continuation_button is not None
+        assert not frame.limited_continuation_button.isHidden()
+        assert frame.limited_continuation_button.toolTip() == "Generate limited continuation (Depth tokens only)"
+
+    def test_limited_continuation_button_hidden_for_truncated_saved_beam(self, temp_dataset):
+        """
+        Test limited continuation button is hidden for truncated saved beam completions.
+        
+        Limited continuation is only for unsaved beams.
+        """
+        session = temp_dataset.session
+        assert session is not None
+
+        # Create a sample and truncated completion
+        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 128)
+        sample = Sample.create_if_unique(temp_dataset, "Test sample", prompt_revision, None)
+        if sample is None:
+            sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
+            session.add(sample)
+            session.commit()
+
+        completion = create_test_completion(session, prompt_revision, {"is_truncated": True, "completion_text": "Truncated completion"})
+        session.refresh(completion)
+
+        # Create a completion frame in beam mode with saved completion
+        frame = CompletionFrame(temp_dataset, completion, parent=None, display_mode="beam")
+
+        # Limited continuation button should be hidden because it's saved
+        assert frame.limited_continuation_button is not None
+        assert frame.limited_continuation_button.isHidden()
+
+    def test_limited_continuation_button_hidden_for_archived_beam(self, temp_dataset):
+        """
+        Test limited continuation button is hidden for archived beam completions even if truncated and unsaved.
+        """
+        session = temp_dataset.session
+        assert session is not None
+
+        # Create a sample and truncated + archived completion
+        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 128)
+        sample = Sample.create_if_unique(temp_dataset, "Test sample", prompt_revision, None)
+        if sample is None:
+            sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
+            session.add(sample)
+            session.commit()
+
+        completion = create_test_completion(session, prompt_revision, {
+            "is_truncated": True,
+            "is_archived": True,
+            "completion_text": "Archived truncated"
+        })
+        session.refresh(completion)
+
+        # Create a completion frame in beam mode
+        frame = CompletionFrame(temp_dataset, completion, parent=None, display_mode="beam")
+
+        # Limited continuation button should be hidden because it's archived
+        assert frame.limited_continuation_button is not None
+        assert frame.limited_continuation_button.isHidden()
+
+    def test_limited_continuation_button_not_in_sample_mode(self, temp_dataset):
+        """
+        Test limited continuation button doesn't exist in sample mode.
+        """
+        session = temp_dataset.session
+        assert session is not None
+
+        # Create a sample and truncated completion
+        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 128)
+        sample = Sample.create_if_unique(temp_dataset, "Test sample", prompt_revision, None)
+        if sample is None:
+            sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
+            session.add(sample)
+            session.commit()
+
+        completion = create_test_completion(session, prompt_revision, {"is_truncated": True, "completion_text": "Truncated completion"})
+        session.refresh(completion)
+
+        # Create a completion frame in sample mode
+        frame = CompletionFrame(temp_dataset, completion, parent=None, display_mode="sample")
+
+        # Limited continuation button should not exist in sample mode
+        assert frame.limited_continuation_button is None
+
+
+class TestLimitedContinuationHandler:
+    """
+    Test limited continuation handler in WidgetCompletionBeams.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _setup_font(self, ensure_google_icon_font):
+        """Auto-use the ensure_google_icon_font fixture."""
+        _ = ensure_google_icon_font
+
+    def test_limited_continuation_generates_with_depth_tokens(self, app_with_dataset, monkeypatch):
+        """
+        Test that limited continuation uses the Depth spin value for max_tokens.
+        """
+        # Create widget
+        mapped_model = create_mock_mapped_model()
+        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
+
+        # Set depth to 15 tokens
+        widget.depth_spin.setValue(15)
+
+        # Create a truncated transient beam
+        truncated_beam = create_simple_llm_response("test-model", "Truncated")
+        truncated_beam.is_truncated = True
+        truncated_beam.context_length = 1024
+        truncated_beam.max_tokens = 128
+        truncated_beam.prompt_revision = MagicMock()
+
+        # Add beam to widget
+        widget.add_beam_frame(truncated_beam)
+        assert len(widget.beam_frames) == 1
+
+        # Mock the text generation controller to return expanded completion
+        expanded_beam = create_simple_llm_response("test-model", "Truncated expanded")
+        expanded_beam.is_truncated = True  # Still truncated after limited continuation
+        expanded_beam.context_length = 1024
+        expanded_beam.max_tokens = 15  # Should match depth value
+
+        mock_controller = MagicMock()
+        mock_controller.generate_continuation.return_value = expanded_beam
+
+        # Mock get_or_create_text_generation_controller
+        monkeypatch.setattr(app_with_dataset, "get_or_create_text_generation_controller", lambda *args, **kwargs: mock_controller)
+
+        # Trigger limited continuation
+        widget.on_beam_limited_continuation_requested(truncated_beam)
+
+        # Verify the continuation was generated with limited max_tokens (15)
+        mock_controller.generate_continuation.assert_called_once()
+        call_kwargs = mock_controller.generate_continuation.call_args[1]
+        assert call_kwargs['max_tokens'] == 15
+
+        # Verify the beam frame was updated with the expanded completion
+        assert len(widget.beam_frames) == 1
+        updated_beam, updated_frame = widget.beam_frames[0]
+        assert updated_beam is expanded_beam
+        assert updated_frame.completion is expanded_beam
+
+    def test_limited_continuation_updates_frame_in_place(self, app_with_dataset, monkeypatch):
+        """
+        Test that limited continuation updates the beam frame in place.
+        """
+        # Create widget
+        mapped_model = create_mock_mapped_model()
+        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
+
+        # Set depth to 20 tokens
+        widget.depth_spin.setValue(20)
+
+        # Create a truncated transient beam
+        truncated_beam = create_simple_llm_response("test-model", "Truncated")
+        truncated_beam.is_truncated = True
+        truncated_beam.context_length = 1024
+        truncated_beam.max_tokens = 128
+        truncated_beam.prompt_revision = MagicMock()
+
+        # Add beam to widget
+        widget.add_beam_frame(truncated_beam)
+
+        # Mock the text generation controller
+        expanded_beam = create_simple_llm_response("test-model", "Truncated with limited continuation")
+        expanded_beam.is_truncated = False  # Completed within limit
+        expanded_beam.context_length = 1024
+        expanded_beam.max_tokens = 20
+
+        mock_controller = MagicMock()
+        mock_controller.generate_continuation.return_value = expanded_beam
+
+        monkeypatch.setattr(app_with_dataset, "get_or_create_text_generation_controller", lambda *args, **kwargs: mock_controller)
+
+        # Trigger limited continuation
+        widget.on_beam_limited_continuation_requested(truncated_beam)
+
+        # Verify continuation was generated
+        mock_controller.generate_continuation.assert_called_once()
+
+        # Verify frame was updated
+        assert len(widget.beam_frames) == 1
+        updated_beam, updated_frame = widget.beam_frames[0]
+        assert updated_beam is expanded_beam
+        assert updated_frame.completion is expanded_beam
+
+    def test_limited_continuation_handles_generation_failure(self, app_with_dataset, monkeypatch):
+        """
+        Test that limited continuation handles generation failures gracefully.
+        """
+        # Create widget
+        mapped_model = MagicMock()
+        mapped_model.model_id = "test-model"
+        mapped_model.path = "test-model"
+
+        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
+
+        # Set depth
+        widget.depth_spin.setValue(10)
+
+        # Create a truncated transient beam
+        truncated_beam = create_simple_llm_response("test-model", "Truncated")
+        truncated_beam.is_truncated = True
+        truncated_beam.context_length = 1024
+        truncated_beam.max_tokens = 128
+        truncated_beam.prompt_revision = MagicMock()
+
+        # Add beam to widget
+        widget.add_beam_frame(truncated_beam)
+
+        # Mock the text generation controller to raise an error
+        mock_controller = MagicMock()
+        mock_controller.generate_continuation.side_effect = RuntimeError("Generation failed")
+
+        # Mock get_or_create_text_generation_controller
+        monkeypatch.setattr(app_with_dataset, "get_or_create_text_generation_controller", lambda *args, **kwargs: mock_controller)
+
+        # Mock QMessageBox to avoid dialog
+        with patch("py_fade.gui.widget_completion_beams.QMessageBox.warning"):
+            # Trigger limited continuation
+            widget.on_beam_limited_continuation_requested(truncated_beam)
+
+        # Verify the beam frame was NOT modified
+        assert len(widget.beam_frames) == 1
+        beam, _frame = widget.beam_frames[0]
+        assert beam is truncated_beam
+
+    def test_limited_continuation_handles_no_controller(self, app_with_dataset, monkeypatch):
+        """
+        Test that limited continuation handles missing controller gracefully.
+        """
+        # Create widget
+        mapped_model = MagicMock()
+        mapped_model.model_id = "test-model"
+        mapped_model.path = "test-model"
+
+        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
+
+        # Set depth
+        widget.depth_spin.setValue(10)
+
+        # Create a truncated transient beam
+        truncated_beam = create_simple_llm_response("test-model", "Truncated")
+        truncated_beam.is_truncated = True
+        truncated_beam.context_length = 1024
+        truncated_beam.max_tokens = 128
+        truncated_beam.prompt_revision = MagicMock()
+
+        # Add beam to widget
+        widget.add_beam_frame(truncated_beam)
+
+        # Mock get_or_create_text_generation_controller to return None
+        monkeypatch.setattr(app_with_dataset, "get_or_create_text_generation_controller", lambda *args, **kwargs: None)
+
+        # Mock QMessageBox to avoid dialog
+        with patch("py_fade.gui.widget_completion_beams.QMessageBox.warning"):
+            # Trigger limited continuation
+            widget.on_beam_limited_continuation_requested(truncated_beam)
+
+        # Verify the beam frame was NOT modified
+        assert len(widget.beam_frames) == 1
+        beam, _frame = widget.beam_frames[0]
+        assert beam is truncated_beam
+
+    def test_limited_continuation_ignores_persisted_beams(self, app_with_dataset, temp_dataset, monkeypatch):
+        """
+        Test that limited continuation ignores persisted (saved) beams.
+        """
+        session = temp_dataset.session
+        assert session is not None
+
+        # Create a sample and truncated completion
+        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 128)
+        sample = Sample.create_if_unique(temp_dataset, "Test sample", prompt_revision, None)
+        if sample is None:
+            sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
+            session.add(sample)
+            session.commit()
+
+        completion = create_test_completion(session, prompt_revision, {"is_truncated": True, "completion_text": "Truncated completion"})
+        session.refresh(completion)
+
+        # Create widget
+        mapped_model = MagicMock()
+        mapped_model.model_id = "test-model"
+        mapped_model.path = "test-model"
+
+        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
+
+        # Mock controller to track if it's called
+        mock_controller = MagicMock()
+
+        monkeypatch.setattr(app_with_dataset, "get_or_create_text_generation_controller", lambda *args, **kwargs: mock_controller)
+
+        # Trigger limited continuation for persisted completion
+        widget.on_beam_limited_continuation_requested(completion)
+
+        # Verify the controller was NOT called
+        mock_controller.generate_continuation.assert_not_called()
+
+    def test_limited_continuation_can_still_be_truncated(self, app_with_dataset, monkeypatch):
+        """
+        Test that limited continuation can still result in a truncated completion if it hits the limit.
+        """
+        # Create widget
+        mapped_model = create_mock_mapped_model()
+        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
+
+        # Set depth to a small value
+        widget.depth_spin.setValue(5)
+
+        # Create a truncated transient beam
+        truncated_beam = create_simple_llm_response("test-model", "Truncated")
+        truncated_beam.is_truncated = True
+        truncated_beam.context_length = 1024
+        truncated_beam.max_tokens = 128
+        truncated_beam.prompt_revision = MagicMock()
+
+        # Add beam to widget
+        widget.add_beam_frame(truncated_beam)
+
+        # Mock the text generation controller to return still-truncated completion
+        expanded_beam = create_simple_llm_response("test-model", "Truncated with 5 more tokens but still truncated")
+        expanded_beam.is_truncated = True  # Still truncated after limited continuation
+        expanded_beam.context_length = 1024
+        expanded_beam.max_tokens = 5
+
+        mock_controller = MagicMock()
+        mock_controller.generate_continuation.return_value = expanded_beam
+
+        monkeypatch.setattr(app_with_dataset, "get_or_create_text_generation_controller", lambda *args, **kwargs: mock_controller)
+
+        # Trigger limited continuation
+        widget.on_beam_limited_continuation_requested(truncated_beam)
+
+        # Verify continuation was generated with limited tokens
+        mock_controller.generate_continuation.assert_called_once()
+        call_kwargs = mock_controller.generate_continuation.call_args[1]
+        assert call_kwargs['max_tokens'] == 5
+
+        # Verify frame was updated with still-truncated completion
+        assert len(widget.beam_frames) == 1
+        updated_beam, _updated_frame = widget.beam_frames[0]
+        assert updated_beam is expanded_beam
+        assert updated_beam.is_truncated is True
