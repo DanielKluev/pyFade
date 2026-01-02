@@ -490,6 +490,7 @@ class WidgetCompletionBeams(QWidget):
         frame.save_requested.connect(self.on_beam_accepted)
         frame.pin_toggled.connect(self.on_beam_pinned)
         frame.resume_requested.connect(self.on_beam_resume_requested)
+        frame.limited_continuation_requested.connect(self.on_beam_limited_continuation_requested)
         frame.beam_out_requested.connect(self.on_beam_out_requested)
 
         self.beam_frames.append((beam, frame))
@@ -663,6 +664,68 @@ class WidgetCompletionBeams(QWidget):
                 break
 
         self.status_label.setText("Continuation generated successfully.")
+        # Re-sort beams to reflect any changes in logprobs
+        self.sort_beam_frames()
+
+    @pyqtSlot(object)
+    def on_beam_limited_continuation_requested(self, completion):
+        """
+        Handle limited continuation request for a truncated unsaved beam.
+        
+        Generates continuation limited to current Depth tokens value.
+        """
+        # Only handle transient completions (not saved to database)
+        is_persisted = isinstance(completion, PromptCompletion) and hasattr(completion, "id") and completion.id is not None
+
+        if is_persisted:
+            self.log.warning("Limited continuation requested for persisted completion - this should not happen")
+            return
+
+        # Get current depth value
+        limited_max_tokens = self.depth_spin.value()
+
+        # Get context_length from the original completion
+        context_length = completion.context_length
+
+        # Create or get the text generation controller
+        generation_controller = self.app.get_or_create_text_generation_controller(self.mapped_model, self.prompt,
+                                                                                  context_length=context_length,
+                                                                                  max_tokens=limited_max_tokens)
+
+        if generation_controller is None:
+            self.log.error("Generation controller could not be created for model %s", self.mapped_model.model_id)
+            QMessageBox.warning(self, "Provider unavailable", "Cannot continue generation because no provider is available for this model.")
+            return
+
+        # Update status
+        self.status_label.setText(f"Generating limited continuation ({limited_max_tokens} tokens max) for truncated beam...")
+
+        try:
+            # Generate limited continuation using the controller
+            response = generation_controller.generate_continuation(original_completion=completion, max_tokens=limited_max_tokens,
+                                                                   context_length=context_length)
+        except (RuntimeError, ValueError, ImportError, GenerationError) as exc:  # pragma: no cover - defensive logging
+            self.log.error("Limited continuation generation failed: %s", exc)
+            QMessageBox.warning(self, "Generation failed", f"Limited continuation generation failed: {exc}")
+            self.status_label.setText("Limited continuation generation failed.")
+            return
+
+        if response is None:
+            self.log.warning("Limited continuation generation returned None")
+            QMessageBox.warning(self, "Generation failed", "Limited continuation generation returned no response.")
+            self.status_label.setText("Limited continuation generation failed.")
+            return
+
+        # Find the beam frame and update it with the new expanded completion
+        for index, (_beam, frame) in enumerate(self.beam_frames):
+            if frame.completion is completion:
+                # Replace the old beam with the new expanded one
+                self.beam_frames[index] = (response, frame)
+                frame.set_completion(response)
+                self.log.info("Updated beam frame with limited continuation")
+                break
+
+        self.status_label.setText(f"Limited continuation generated successfully ({limited_max_tokens} tokens max).")
         # Re-sort beams to reflect any changes in logprobs
         self.sort_beam_frames()
 
