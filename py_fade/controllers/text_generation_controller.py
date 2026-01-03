@@ -421,6 +421,8 @@ class TextGenerationController:
         completion_prefill = self.construct_completion_prefill(completion)
         eval_logprobs = self.mapped_model.evaluate_completion(prompt=completion.prompt_conversation, completion=completion_prefill,
                                                               context_length=max(self.default_context_length, completion.context_length))
+        if not eval_logprobs.is_valid():
+            raise Exception("Failed to evaluate token logprobs!")
         if save and self.dataset.session:
             PromptCompletionLogprobs.get_or_create_from_llm_response_logprobs(self.dataset, completion, self.mapped_model.model_id,
                                                                               eval_logprobs)

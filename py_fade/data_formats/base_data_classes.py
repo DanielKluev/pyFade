@@ -518,6 +518,9 @@ class CommonCompletionLogprobs:
             return None
         return self.min_logprob + self.avg_logprob * 2
 
+    def is_valid(self) -> bool:
+        return self.min_logprob is not None
+
 
 @dataclass(frozen=True, slots=True)
 class CompletionPrefill:
