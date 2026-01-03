@@ -308,3 +308,103 @@ class TestBeamSearchAdaptiveGrid:
         if widget.grid_width != initial_grid_width:
             # Verify beams are still in the layout
             assert widget.beams_layout.count() >= 2
+
+
+class TestBeamSearchContextLength:
+    """
+    Test that beam search uses the correct context_length from the sample.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _setup_font(self, ensure_google_icon_font):
+        """Auto-use the ensure_google_icon_font fixture."""
+        _ = ensure_google_icon_font
+
+    def test_beam_widget_uses_sample_context_length(self, app_with_dataset, monkeypatch):
+        """
+        Test that beam search widget uses context_length from sample widget, not default.
+        
+        This reproduces the bug where beam search ignores sample's custom context size.
+        """
+        # Create a mock sample widget with non-default context_length
+        mock_sample_widget = MagicMock()
+        mock_sample_widget.context_length_field.value.return_value = 2048  # Non-default
+
+        # Create mapped model
+        mapped_model = create_mock_mapped_model()
+
+        # Create beam widget with sample widget reference
+        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", mock_sample_widget, mapped_model)
+
+        # Verify that the beam widget has access to sample widget
+        assert widget.sample_widget is mock_sample_widget
+
+        # Mock the controller creation to capture the context_length parameter
+        controller_params = {}
+
+        def mock_get_or_create_controller(*_args, **kwargs):  # pylint: disable=unused-argument
+            controller_params.update(kwargs)
+            mock_controller = MagicMock()
+            return mock_controller
+
+        monkeypatch.setattr(app_with_dataset, "get_or_create_text_generation_controller", mock_get_or_create_controller)
+
+        # Call _get_or_create_beam_controller which should pass context_length
+        widget._get_or_create_beam_controller()  # pylint: disable=protected-access
+
+        # Verify that context_length was passed and equals 2048, not default 1024
+        assert 'context_length' in controller_params, "context_length should be passed to controller"
+        assert controller_params['context_length'] == 2048, f"Expected context_length=2048, got {controller_params.get('context_length')}"
+
+    def test_beam_worker_uses_sample_context_length(self, app_with_dataset):
+        """
+        Test that BeamGenerationWorker uses context_length from sample, not default.
+        """
+        # Create a mock beam controller
+        beam_controller = MagicMock()
+
+        # Create worker with explicit context_length=2048
+        worker = BeamGenerationWorker(
+            app=app_with_dataset,
+            beam_controller=beam_controller,
+            prefill="test",
+            width=3,
+            depth=10,
+            context_length=2048,  # Should use this, not default 1024
+        )
+
+        # Verify worker has correct context_length
+        assert worker.context_length == 2048, f"Expected context_length=2048, got {worker.context_length}"
+
+    def test_beam_widget_without_sample_widget_uses_default_context_length(self, app_with_dataset, monkeypatch):
+        """
+        Test that beam widget uses default context_length when no sample widget is provided.
+        """
+        # Create mapped model
+        mapped_model = create_mock_mapped_model()
+
+        # Create beam widget without sample widget
+        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
+
+        # Verify that sample_widget is None
+        assert widget.sample_widget is None
+
+        # Mock the controller creation to capture the context_length parameter
+        controller_params = {}
+
+        def mock_get_or_create_controller(*_args, **kwargs):  # pylint: disable=unused-argument
+            controller_params.update(kwargs)
+            mock_controller = MagicMock()
+            return mock_controller
+
+        monkeypatch.setattr(app_with_dataset, "get_or_create_text_generation_controller", mock_get_or_create_controller)
+
+        # Call _get_or_create_beam_controller
+        widget._get_or_create_beam_controller()  # pylint: disable=protected-access
+
+        # When sample_widget is None, should use default context_length (1024)
+        # If context_length is not explicitly passed, it defaults to app.config.default_context_length
+        expected_context_length = app_with_dataset.config.default_context_length
+        if 'context_length' in controller_params:
+            assert controller_params['context_length'] == expected_context_length, \
+                f"Expected default context_length={expected_context_length}, got {controller_params['context_length']}"

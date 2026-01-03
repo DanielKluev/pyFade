@@ -136,6 +136,12 @@ class WidgetCompletionBeams(QWidget):
         self.generation_start_beam_count = 0  # Number of beams before generation starts
         self.expected_new_beams = 0  # Expected number of new beams in current generation
 
+        # Get context_length from sample_widget if available, otherwise use default
+        if sample_widget and hasattr(sample_widget, 'context_length_field'):
+            self.context_length = sample_widget.context_length_field.value()
+        else:
+            self.context_length = app.config.default_context_length
+
         self.setWindowTitle("Beam Search Generation")
         self.setGeometry(200, 200, 1400, 900)
 
@@ -311,7 +317,7 @@ class WidgetCompletionBeams(QWidget):
             prefill=self.prefill_edit.toPlainText(),
             width=self.width_spin.value(),
             depth=self.depth_spin.value(),
-            context_length=self.app.config.default_context_length,
+            context_length=self.context_length,
             max_tokens=self.app.config.default_max_tokens,
         )
 
@@ -324,7 +330,8 @@ class WidgetCompletionBeams(QWidget):
     def _get_or_create_beam_controller(self) -> TextGenerationController:
         """Get or create the beam controller for the current parameters."""
         model_path = self.model_combo.currentText()
-        controller = self.app.get_or_create_text_generation_controller(mapped_model=model_path, prompt_revision=self.prompt)
+        controller = self.app.get_or_create_text_generation_controller(mapped_model=model_path, prompt_revision=self.prompt,
+                                                                       context_length=self.context_length)
         return controller
 
     def selective_beams(self):
@@ -419,7 +426,7 @@ class WidgetCompletionBeams(QWidget):
             width=len(beam_tokens),  # Use number of selected tokens as width
             depth=self.depth_spin.value(),
             beam_tokens=beam_tokens,
-            context_length=self.app.config.default_context_length,
+            context_length=self.context_length,
             max_tokens=self.app.config.default_max_tokens,
         )
 
