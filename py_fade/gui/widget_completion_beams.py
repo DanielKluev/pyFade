@@ -106,6 +106,9 @@ class WidgetCompletionBeams(QWidget):
     Generated beams render as ``CompletionFrame`` widgets in a scrollable grid
     sorted by pinned status and scored log probability.
 
+    The widget uses the context_length from the parent sample widget if available,
+    otherwise defaults to the application's default context length.
+
     The grid layout adapts to window width, showing more columns when more
     space is available. For beam search, temperature is fixed at 0.0 and
     top_k at 1 for deterministic generation.
