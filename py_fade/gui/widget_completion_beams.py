@@ -138,6 +138,7 @@ class WidgetCompletionBeams(QWidget):
         self.token_picker_window: QDialog | None = None  # Token picker window
         self.generation_start_beam_count = 0  # Number of beams before generation starts
         self.expected_new_beams = 0  # Expected number of new beams in current generation
+        self.prefill_history: list[str] = []  # History of used prefill texts (max 50, no dupes)
 
         # Get context_length from sample_widget if available, otherwise use default
         if sample_widget and hasattr(sample_widget, 'context_length_field'):
@@ -178,12 +179,33 @@ class WidgetCompletionBeams(QWidget):
         # Parameter controls in grid
         params_layout = QGridLayout()
 
-        # Prefill
+        # Prefill with history
         params_layout.addWidget(QLabel("Prefill:"), 0, 0)
+
+        # Create a container for prefill field and history combo
+        prefill_container = QVBoxLayout()
+        prefill_container.setSpacing(4)
+
         self.prefill_edit = QPlainTextEdit(self)
         self.prefill_edit.setPlaceholderText("Optional prefill text...")
-        self.prefill_edit.setMaximumHeight(60)
-        params_layout.addWidget(self.prefill_edit, 0, 1)
+        self.prefill_edit.setMinimumHeight(90)  # Increased from 60 to ~90 for 2-3 more rows
+        self.prefill_edit.setMaximumHeight(150)
+        prefill_container.addWidget(self.prefill_edit)
+
+        # Prefill history combobox
+        prefill_history_layout = QHBoxLayout()
+        prefill_history_layout.setSpacing(4)
+        prefill_history_layout.addWidget(QLabel("History:"))
+        self.prefill_history_combo = QComboBox(self)
+        self.prefill_history_combo.setEditable(False)
+        self.prefill_history_combo.setPlaceholderText("Select from history...")
+        self.prefill_history_combo.addItem("(No history)")
+        self.prefill_history_combo.setCurrentIndex(0)
+        self.prefill_history_combo.currentIndexChanged.connect(self._on_history_selected)
+        prefill_history_layout.addWidget(self.prefill_history_combo, stretch=1)
+        prefill_container.addLayout(prefill_history_layout)
+
+        params_layout.addLayout(prefill_container, 0, 1)
 
         # Model picker
         params_layout.addWidget(QLabel("Model:"), 0, 2)
@@ -259,6 +281,63 @@ class WidgetCompletionBeams(QWidget):
 
         self.setLayout(layout)
 
+    def _on_history_selected(self, index: int):
+        """Handle selection from prefill history combobox."""
+        # Get the actual text from userData (full text, not truncated display text)
+        if index >= 0:
+            user_data = self.prefill_history_combo.itemData(index)
+            if user_data and user_data != "(No history)":
+                self.prefill_edit.setPlainText(user_data)
+                self.log.debug("Selected prefill from history: %s", user_data[:50])
+
+    def _add_to_prefill_history(self, prefill_text: str):
+        """
+        Add prefill text to history if not empty and not already present.
+        
+        Maintains a maximum of 50 unique items, with most recent at the top.
+        """
+        if not prefill_text or not prefill_text.strip():
+            return
+
+        # Remove if already exists (will be re-added at the top)
+        if prefill_text in self.prefill_history:
+            self.prefill_history.remove(prefill_text)
+
+        # Add to the beginning of the list
+        self.prefill_history.insert(0, prefill_text)
+
+        # Keep only the last 50 items
+        if len(self.prefill_history) > 50:
+            self.prefill_history = self.prefill_history[:50]
+
+        # Update the combobox
+        self._update_history_combo()
+
+        self.log.debug("Added prefill to history, total items: %d", len(self.prefill_history))
+
+    def _update_history_combo(self):
+        """Update the prefill history combobox with current history."""
+        # Block signals during update to prevent triggering selection
+        self.prefill_history_combo.blockSignals(True)
+
+        # Clear and rebuild
+        self.prefill_history_combo.clear()
+
+        if not self.prefill_history:
+            self.prefill_history_combo.addItem("(No history)")
+        else:
+            for item in self.prefill_history:
+                # Truncate long items for display
+                display_text = item[:100] + "..." if len(item) > 100 else item
+                # Replace newlines with space for display
+                display_text = display_text.replace("\n", " ").replace("\r", " ")
+                self.prefill_history_combo.addItem(display_text, userData=item)
+
+        # Reset to first item (no selection)
+        self.prefill_history_combo.setCurrentIndex(-1)
+
+        self.prefill_history_combo.blockSignals(False)
+
     def set_prompt(self, prompt: str):
         """Set the prompt text."""
         self.prompt = prompt
@@ -292,6 +371,10 @@ class WidgetCompletionBeams(QWidget):
 
         # Clear previous results (keeps pinned beams)
         self.clear_beam_results()
+
+        # Get prefill text and add to history
+        prefill_text = self.prefill_edit.toPlainText()
+        self._add_to_prefill_history(prefill_text)
 
         # Track generation progress (excluding pinned beams)
         self.generation_start_beam_count = len(self.beam_frames)
@@ -402,6 +485,10 @@ class WidgetCompletionBeams(QWidget):
         # Clear previous results (keeps pinned beams)
         self.clear_beam_results()
 
+        # Get prefill text and add to history
+        prefill_text = self.prefill_edit.toPlainText()
+        self._add_to_prefill_history(prefill_text)
+
         # Track generation progress (excluding pinned beams)
         self.generation_start_beam_count = len(self.beam_frames)
         self.expected_new_beams = len(beam_tokens)
@@ -502,6 +589,7 @@ class WidgetCompletionBeams(QWidget):
         frame.resume_requested.connect(self.on_beam_resume_requested)
         frame.limited_continuation_requested.connect(self.on_beam_limited_continuation_requested)
         frame.beam_out_requested.connect(self.on_beam_out_requested)
+        frame.use_as_prefill_requested.connect(self.on_use_as_prefill_requested)
 
         self.beam_frames.append((beam, frame))
 
@@ -879,3 +967,21 @@ class WidgetCompletionBeams(QWidget):
 
         # Start beam generation with selected tokens
         self._generate_beams_with_tokens(selected_tokens)
+
+    @pyqtSlot(str)
+    def on_use_as_prefill_requested(self, completion_text: str):
+        """
+        Handle request to use completion text as prefill.
+        
+        Replaces current prefill text with the completion text and saves the old prefill to history.
+        """
+        # Save current prefill to history before replacing
+        current_prefill = self.prefill_edit.toPlainText()
+        if current_prefill and current_prefill.strip():
+            self._add_to_prefill_history(current_prefill)
+
+        # Set the completion text as the new prefill
+        self.prefill_edit.setPlainText(completion_text)
+
+        self.log.info("Set completion text as prefill (length: %d)", len(completion_text))
+        self.status_label.setText("Completion text set as prefill")
