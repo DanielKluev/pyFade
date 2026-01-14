@@ -2,6 +2,7 @@
 Test Export Wizard UI functionality with pytest-qt.
 """
 
+import pathlib
 from unittest.mock import Mock, patch
 
 from py_fade.dataset.export_template import ExportTemplate
@@ -506,3 +507,138 @@ def test_export_wizard_model_selection_next_button_state(app_with_dataset, temp_
     else:
         # If no models available, next button should be disabled
         assert not wizard.next_button.isEnabled()
+
+
+def test_export_wizard_uses_last_export_path(app_with_dataset, temp_dataset, qtbot, tmp_path):
+    """
+    Test that ExportWizard uses last_export_path from config as default directory.
+    """
+    # Create a test template
+    _facet, _template = create_test_template(temp_dataset)
+
+    # Set up last export path in config
+    export_dir = tmp_path / "my_exports"
+    export_dir.mkdir()
+    app_with_dataset.config.last_export_path = str(export_dir)
+
+    wizard = ExportWizard(None, app_with_dataset, temp_dataset)
+    qtbot.addWidget(wizard)
+
+    # Select template and navigate to output selection
+    wizard.template_list.setCurrentRow(0)
+    wizard.show_step(ExportWizard.STEP_OUTPUT_SELECTION)
+
+    # Mock QFileDialog to capture the default path
+    with patch('py_fade.gui.window_export_wizard.QFileDialog.getSaveFileName') as mock_dialog:
+        test_path = export_dir / "test_export.jsonl"
+        mock_dialog.return_value = (str(test_path), "")
+
+        wizard.browse_button.click()
+        qtbot.wait(100)
+
+        # Verify the default path passed to dialog includes the saved directory
+        # Third argument (index 2) is the directory parameter which includes full path
+        call_args = mock_dialog.call_args
+        default_path_arg = call_args[0][2]  # Third positional argument is directory (full path)
+        assert str(export_dir) in default_path_arg
+
+
+def test_export_wizard_saves_export_path_to_config(app_with_dataset, temp_dataset, qtbot, tmp_path):
+    """
+    Test that ExportWizard saves the selected export directory to config.
+    """
+    # Create a test template
+    _facet, _template = create_test_template(temp_dataset)
+
+    wizard = ExportWizard(None, app_with_dataset, temp_dataset)
+    qtbot.addWidget(wizard)
+
+    # Select template and navigate to output selection
+    wizard.template_list.setCurrentRow(0)
+    wizard.show_step(ExportWizard.STEP_OUTPUT_SELECTION)
+
+    # Create test export directory
+    export_dir = tmp_path / "new_export_location"
+    export_dir.mkdir()
+    test_path = export_dir / "test_export.jsonl"
+
+    # Initially no last export path
+    assert app_with_dataset.config.last_export_path is None
+
+    # Browse and select path
+    with patch('py_fade.gui.window_export_wizard.QFileDialog.getSaveFileName') as mock_dialog:
+        mock_dialog.return_value = (str(test_path), "")
+
+        wizard.browse_button.click()
+        qtbot.wait(100)
+
+    # Verify the directory was saved to config
+    assert app_with_dataset.config.last_export_path == str(export_dir)
+
+
+def test_export_wizard_handles_nonexistent_saved_path(app_with_dataset, temp_dataset, qtbot, tmp_path):
+    """
+    Test that ExportWizard falls back to home directory if saved path doesn't exist.
+    """
+    # Create a test template
+    _facet, _template = create_test_template(temp_dataset)
+
+    # Set last export path to a directory that doesn't exist
+    nonexistent_dir = tmp_path / "nonexistent_directory"
+    app_with_dataset.config.last_export_path = str(nonexistent_dir)
+
+    wizard = ExportWizard(None, app_with_dataset, temp_dataset)
+    qtbot.addWidget(wizard)
+
+    # Select template and navigate to output selection
+    wizard.template_list.setCurrentRow(0)
+    wizard.show_step(ExportWizard.STEP_OUTPUT_SELECTION)
+
+    # Mock QFileDialog to capture the default path
+    with patch('py_fade.gui.window_export_wizard.QFileDialog.getSaveFileName') as mock_dialog:
+        mock_dialog.return_value = ("", "")  # User cancels
+
+        wizard.browse_button.click()
+        qtbot.wait(100)
+
+        # Verify the default path falls back to home directory
+        # Third argument (index 2) is the directory parameter which includes full path
+        call_args = mock_dialog.call_args
+        default_path_arg = call_args[0][2]
+        # Should contain home directory, not the nonexistent one
+        assert str(pathlib.Path.home()) in default_path_arg
+        assert str(nonexistent_dir) not in default_path_arg
+
+
+def test_export_wizard_updates_config_on_subsequent_exports(app_with_dataset, temp_dataset, qtbot, tmp_path):
+    """
+    Test that ExportWizard updates config when user selects a different directory.
+    """
+    # Create a test template
+    _facet, _template = create_test_template(temp_dataset)
+
+    # Set initial export path
+    export_dir1 = tmp_path / "exports1"
+    export_dir1.mkdir()
+    app_with_dataset.config.last_export_path = str(export_dir1)
+
+    wizard = ExportWizard(None, app_with_dataset, temp_dataset)
+    qtbot.addWidget(wizard)
+
+    # Select template and navigate to output selection
+    wizard.template_list.setCurrentRow(0)
+    wizard.show_step(ExportWizard.STEP_OUTPUT_SELECTION)
+
+    # Select a different directory
+    export_dir2 = tmp_path / "exports2"
+    export_dir2.mkdir()
+    test_path = export_dir2 / "test_export.jsonl"
+
+    with patch('py_fade.gui.window_export_wizard.QFileDialog.getSaveFileName') as mock_dialog:
+        mock_dialog.return_value = (str(test_path), "")
+
+        wizard.browse_button.click()
+        qtbot.wait(100)
+
+    # Verify config was updated to new directory
+    assert app_with_dataset.config.last_export_path == str(export_dir2)

@@ -376,7 +376,16 @@ class ExportWizard(BaseWizard):
         else:
             suggested_name += ".json"
 
-        default_path = pathlib.Path.home() / suggested_name
+        # Use last export path from config if available, otherwise use home directory
+        if self.app.config.last_export_path:
+            default_dir = pathlib.Path(self.app.config.last_export_path)
+            # Verify directory still exists, fall back to home if not
+            if not default_dir.exists() or not default_dir.is_dir():
+                default_dir = pathlib.Path.home()
+        else:
+            default_dir = pathlib.Path.home()
+
+        default_path = default_dir / suggested_name
 
         selected_path, _ = QFileDialog.getSaveFileName(self, "Select Export Output File", str(default_path),
                                                        "JSON Lines (*.jsonl);;JSON Files (*.json);;All Files (*.*)")
@@ -385,6 +394,11 @@ class ExportWizard(BaseWizard):
             self.output_path = pathlib.Path(selected_path)
             self.output_path_input.setText(str(self.output_path))
             self.update_next_button()
+
+            # Save the directory to config for future use
+            export_dir = self.output_path.parent
+            self.app.config.last_export_path = str(export_dir)
+            self.app.config.save()
 
     def show_step(self, step: int):
         """

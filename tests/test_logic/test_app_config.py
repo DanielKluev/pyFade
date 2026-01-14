@@ -445,3 +445,72 @@ class TestHIPVisibleDevices:
         config = AppConfig(appname="test_app")
         assert config.hip_visible_devices is None
         assert "HIP_VISIBLE_DEVICES" not in os.environ
+
+
+class TestLastExportPath:
+    """Test last_export_path management."""
+
+    def test_last_export_path_default_none(self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """
+        Test that last_export_path defaults to None.
+        
+        Tests default initialization of last export path.
+        """
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setattr(pathlib.Path, "home", lambda: fake_home)
+
+        config = AppConfig(appname="test_app")
+        assert config.last_export_path is None
+
+    def test_last_export_path_persist(self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """
+        Test that last_export_path is saved and loaded correctly.
+        
+        Tests full persistence cycle for last export path.
+        """
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setattr(pathlib.Path, "home", lambda: fake_home)
+
+        # Create test export directory
+        export_dir = tmp_path / "exports"
+        export_dir.mkdir()
+
+        config1 = AppConfig(appname="test_app")
+        config1.last_export_path = str(export_dir)
+        config1.save()
+
+        config2 = AppConfig(appname="test_app")
+        assert config2.last_export_path == str(export_dir)
+
+    def test_last_export_path_update_and_persist(self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """
+        Test updating last_export_path and persisting the change.
+        
+        Tests that updated export path is correctly saved and reloaded.
+        """
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setattr(pathlib.Path, "home", lambda: fake_home)
+
+        # Create test export directories
+        export_dir1 = tmp_path / "exports1"
+        export_dir1.mkdir()
+        export_dir2 = tmp_path / "exports2"
+        export_dir2.mkdir()
+
+        # First save
+        config1 = AppConfig(appname="test_app")
+        config1.last_export_path = str(export_dir1)
+        config1.save()
+
+        # Update with new path
+        config2 = AppConfig(appname="test_app")
+        assert config2.last_export_path == str(export_dir1)
+        config2.last_export_path = str(export_dir2)
+        config2.save()
+
+        # Verify new path is persisted
+        config3 = AppConfig(appname="test_app")
+        assert config3.last_export_path == str(export_dir2)
