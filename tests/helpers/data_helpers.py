@@ -654,7 +654,7 @@ def setup_export_test_with_facet_and_model(app, temp_dataset: "DatasetDatabase",
     return facet, mapped_model
 
 
-def create_sample_with_good_completion(temp_dataset: "DatasetDatabase", facet: Facet, model_id: str, title: str = "Sample 1",
+def create_sample_with_good_completion(temp_dataset: "DatasetDatabase", facet: "Facet", model_id: str, title: str = "Sample 1",
                                        completion_text: str = "Good answer"):
     """
     Create a sample with a high-rated completion for export testing.
@@ -698,7 +698,7 @@ def run_export_expecting_error(app, temp_dataset: "DatasetDatabase", template, t
     export_controller = ExportController(app, temp_dataset, template, target_model_id=model_id)
     export_controller.set_output_path(temp_path)
 
-    # Should raise error because no pairs/samples can be formed
+    # Should raise error with expected message
     try:
         export_controller.run_export()
         assert False, "Expected ValueError to be raised"
