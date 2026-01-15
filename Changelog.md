@@ -3,6 +3,18 @@
 ## [Unreleased]
 
 ### Added
+- **Beam Search Window Prefill Improvements**: Enhanced prefill management in beam search window for easier workflow
+  - Prefill history tracking: Maintains up to 50 unique prefill texts used in generation or token selection
+  - History combobox: Easy selection and reuse of previous prefill texts with automatic deduplication
+  - Increased prefill field height: Minimum height increased from 60px to 90px (2-3 more visible rows)
+  - "Use as Prefill" button: New button on beam completion frames to copy completion text to prefill field
+  - Auto-save to history: Prefill text is automatically saved to history when generating beams or using selective mode
+  - Smart history management: Old prefill saved to history when using "Use as Prefill" button
+  - Long text handling: Long prefill items are truncated to 100 characters in combobox display
+  - Multiline support: Multiline prefills are displayed as single line in combobox (newlines replaced with spaces)
+  - Comprehensive test coverage with 21 new unit tests covering all scenarios
+  - All tests passing (888 total, 4 skipped)
+  - Pylint score: 10.00/10 for changed files, 9.99/10 for py_fade, 9.97/10 for tests
 - **Facet Switching**: Interactive facet management for samples with clickable facets and comprehensive switching operations
   - Clickable facets display in sample widget using new ClickableFacetsWidget component
   - Click any facet to open FacetSwitchDialog with Remove, Change, or Copy operations

@@ -53,6 +53,7 @@ class CompletionFrame(QFrame):
     save_requested = pyqtSignal(object)  # LLMResponse for beam mode
     pin_toggled = pyqtSignal(object, bool)  # LLMResponse, is_pinned
     beam_out_requested = pyqtSignal(int)  # token_index - clicked token in heatmap mode
+    use_as_prefill_requested = pyqtSignal(str)  # completion_text - for beam mode
 
     icons_size = 24
     actions_icon_size = 22
@@ -90,6 +91,7 @@ class CompletionFrame(QFrame):
         self.save_button: QPushButtonWithIcon | None = None
         self.pin_button: QPushButtonWithIcon | None = None
         self.heatmap_button: QPushButtonWithIcon | None = None
+        self.use_as_prefill_button: QPushButtonWithIcon | None = None
 
         self.setup_ui()
         self.connect_signals()
@@ -224,6 +226,13 @@ class CompletionFrame(QFrame):
             self.archive_button.hide()  # Only shown after beam is saved
             self.actions_layout.addWidget(self.archive_button)
 
+            # Use as Prefill button for beam completions
+            self.use_as_prefill_button = QPushButtonWithIcon("input", parent=self, icon_size=self.actions_icon_size, button_size=40)
+            self.use_as_prefill_button.setFlat(True)
+            self.use_as_prefill_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.use_as_prefill_button.setToolTip("Use this completion text as prefill")
+            self.actions_layout.addWidget(self.use_as_prefill_button)
+
     def connect_signals(self) -> None:
         """Wire internal signals for logging purposes."""
         # Connect rating widget for sample mode
@@ -257,6 +266,8 @@ class CompletionFrame(QFrame):
                 self.resume_button.clicked.connect(self._on_resume_clicked)
             if self.limited_continuation_button:
                 self.limited_continuation_button.clicked.connect(self._on_limited_continuation_clicked)
+            if self.use_as_prefill_button:
+                self.use_as_prefill_button.clicked.connect(self._on_use_as_prefill_clicked)
 
     def _log_rating_saved(self, rating: int) -> None:
         """Log rating persistence for debugging purposes."""
@@ -493,6 +504,13 @@ class CompletionFrame(QFrame):
         if self.display_mode != "beam":
             return
         self.limited_continuation_requested.emit(self.completion)
+
+    def _on_use_as_prefill_clicked(self) -> None:
+        """Handle use as prefill button click for beam mode."""
+        if self.display_mode != "beam":
+            return
+        # Emit the completion text to be used as prefill
+        self.use_as_prefill_requested.emit(self.completion.completion_text)
 
     def _on_heatmap_toggled(self, enabled: bool) -> None:
         """Handle heatmap button toggle."""
