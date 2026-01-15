@@ -6,15 +6,13 @@ template handling, and JSONL output.
 """
 from __future__ import annotations
 
-import pathlib
-import tempfile
 import json
 
 from py_fade.controllers.export_controller import ExportController
-from py_fade.dataset.export_template import ExportTemplate
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.completion_rating import PromptCompletionRating
-from tests.helpers.data_helpers import create_test_sample_with_completion, create_test_completion_with_params, create_test_logprobs
+from tests.helpers.data_helpers import (create_test_sample_with_completion, create_test_completion_with_params, create_test_logprobs,
+                                        create_export_template_and_setup)
 
 
 def test_dpo_export_basic(app_with_dataset, temp_dataset):
@@ -41,25 +39,7 @@ def test_dpo_export_basic(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Create DPO export template
-    template = ExportTemplate.create(
-        temp_dataset,
-        name="Test DPO Template",
-        description="Test DPO export",
-        training_type="DPO",
-        output_format="JSONL (Anthropic)",
-        model_families=["Llama3"],
-        facets=[{
-            "facet_id": facet.id,
-            "limit_type": "percentage",
-            "limit_value": 100,
-            "order": "random"
-        }],
-    )
-    temp_dataset.commit()
-
-    # Export
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
-        temp_path = pathlib.Path(f.name)
+    template, temp_path = create_export_template_and_setup(temp_dataset, facet, "DPO", "JSONL (Anthropic)", ["Llama3"])
 
     try:
         export_controller = ExportController(app_with_dataset, temp_dataset, template, target_model_id=mapped_model.model_id)
@@ -121,25 +101,7 @@ def test_dpo_export_multiple_pairs(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Create DPO export template
-    template = ExportTemplate.create(
-        temp_dataset,
-        name="Test DPO Template",
-        description="Test DPO export",
-        training_type="DPO",
-        output_format="JSONL (Anthropic)",
-        model_families=["Llama3"],
-        facets=[{
-            "facet_id": facet.id,
-            "limit_type": "percentage",
-            "limit_value": 100,
-            "order": "random"
-        }],
-    )
-    temp_dataset.commit()
-
-    # Export
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
-        temp_path = pathlib.Path(f.name)
+    template, temp_path = create_export_template_and_setup(temp_dataset, facet, "DPO", "JSONL (Anthropic)", ["Llama3"])
 
     try:
         export_controller = ExportController(app_with_dataset, temp_dataset, template, target_model_id=mapped_model.model_id)
@@ -195,25 +157,8 @@ def test_dpo_export_with_sample_limit(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Create DPO export template with limit of 2 samples
-    template = ExportTemplate.create(
-        temp_dataset,
-        name="Test DPO Template",
-        description="Test DPO export with limit",
-        training_type="DPO",
-        output_format="JSONL (Anthropic)",
-        model_families=["Llama3"],
-        facets=[{
-            "facet_id": facet.id,
-            "limit_type": "count",
-            "limit_value": 2,
-            "order": "random"
-        }],
-    )
-    temp_dataset.commit()
-
-    # Export
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
-        temp_path = pathlib.Path(f.name)
+    template, temp_path = create_export_template_and_setup(temp_dataset, facet, "DPO", "JSONL (Anthropic)", ["Llama3"], limit_type="count",
+                                                           limit_value=2)
 
     try:
         export_controller = ExportController(app_with_dataset, temp_dataset, template, target_model_id=mapped_model.model_id)
@@ -245,25 +190,7 @@ def test_dpo_export_no_eligible_pairs(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Create DPO export template
-    template = ExportTemplate.create(
-        temp_dataset,
-        name="Test DPO Template",
-        description="Test DPO export",
-        training_type="DPO",
-        output_format="JSONL (Anthropic)",
-        model_families=["Llama3"],
-        facets=[{
-            "facet_id": facet.id,
-            "limit_type": "percentage",
-            "limit_value": 100,
-            "order": "random"
-        }],
-    )
-    temp_dataset.commit()
-
-    # Export
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
-        temp_path = pathlib.Path(f.name)
+    template, temp_path = create_export_template_and_setup(temp_dataset, facet, "DPO", "JSONL (Anthropic)", ["Llama3"])
 
     try:
         export_controller = ExportController(app_with_dataset, temp_dataset, template, target_model_id=mapped_model.model_id)

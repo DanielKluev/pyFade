@@ -14,11 +14,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from py_fade.dataset.prompt import PromptRevision
-from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
-from tests.helpers.data_helpers import create_simple_llm_response, create_test_completion
+from tests.helpers.data_helpers import create_simple_llm_response, create_sample_with_truncated_completion
 from tests.helpers.ui_helpers import mock_three_way_editor, create_mock_mapped_model
 
 if TYPE_CHECKING:
@@ -75,19 +73,8 @@ class TestBeamModeResumeButton:
         """
         Test resume button is shown for truncated saved beam completions.
         """
-        session = temp_dataset.session
-        assert session is not None
-
         # Create a sample and truncated completion
-        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 128)
-        sample = Sample.create_if_unique(temp_dataset, "Test sample", prompt_revision, None)
-        if sample is None:
-            sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
-            session.add(sample)
-            session.commit()
-
-        completion = create_test_completion(session, prompt_revision, {"is_truncated": True, "completion_text": "Truncated completion"})
-        session.refresh(completion)
+        _, completion = create_sample_with_truncated_completion(temp_dataset)
 
         # Create a completion frame in beam mode with saved completion
         frame = CompletionFrame(temp_dataset, completion, parent=None, display_mode="beam")
@@ -100,6 +87,10 @@ class TestBeamModeResumeButton:
         """
         Test resume button is hidden for archived beam completions even if truncated.
         """
+        from tests.helpers.data_helpers import create_test_completion  # pylint: disable=import-outside-toplevel
+        from py_fade.dataset.prompt import PromptRevision  # pylint: disable=import-outside-toplevel
+        from py_fade.dataset.sample import Sample  # pylint: disable=import-outside-toplevel
+
         session = temp_dataset.session
         assert session is not None
 
@@ -111,8 +102,11 @@ class TestBeamModeResumeButton:
             session.add(sample)
             session.commit()
 
-        completion = create_test_completion(session, prompt_revision, {"is_truncated": True, "is_archived": True,
-                                                                       "completion_text": "Archived truncated"})
+        completion = create_test_completion(session, prompt_revision, {
+            "is_truncated": True,
+            "is_archived": True,
+            "completion_text": "Archived truncated"
+        })
         session.refresh(completion)
 
         # Create a completion frame in beam mode
@@ -252,19 +246,8 @@ class TestBeamModeResumeHandlers:
         """
         Test that resuming a persisted beam opens the three-way editor.
         """
-        session = temp_dataset.session
-        assert session is not None
-
         # Create a sample and truncated completion
-        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 128)
-        sample = Sample.create_if_unique(temp_dataset, "Test sample", prompt_revision, None)
-        if sample is None:
-            sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
-            session.add(sample)
-            session.commit()
-
-        completion = create_test_completion(session, prompt_revision, {"is_truncated": True, "completion_text": "Truncated completion"})
-        session.refresh(completion)
+        _, completion = create_sample_with_truncated_completion(temp_dataset)
 
         # Create widget with sample widget
         mapped_model = MagicMock()
@@ -290,19 +273,8 @@ class TestBeamModeResumeHandlers:
         """
         Test that resuming a persisted beam refreshes the sample widget when editor returns success.
         """
-        session = temp_dataset.session
-        assert session is not None
-
         # Create a sample and truncated completion
-        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 128)
-        sample = Sample.create_if_unique(temp_dataset, "Test sample", prompt_revision, None)
-        if sample is None:
-            sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
-            session.add(sample)
-            session.commit()
-
-        completion = create_test_completion(session, prompt_revision, {"is_truncated": True, "completion_text": "Truncated completion"})
-        session.refresh(completion)
+        _, completion = create_sample_with_truncated_completion(temp_dataset)
 
         # Create widget with sample widget
         mapped_model = MagicMock()

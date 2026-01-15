@@ -14,11 +14,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from py_fade.dataset.prompt import PromptRevision
-from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
-from tests.helpers.data_helpers import create_simple_llm_response, create_test_completion
+from tests.helpers.data_helpers import create_simple_llm_response, create_sample_with_truncated_completion
 from tests.helpers.ui_helpers import create_mock_mapped_model
 
 if TYPE_CHECKING:
@@ -77,19 +75,8 @@ class TestLimitedContinuationButtonVisibility:
         
         Limited continuation is only for unsaved beams.
         """
-        session = temp_dataset.session
-        assert session is not None
-
         # Create a sample and truncated completion
-        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 128)
-        sample = Sample.create_if_unique(temp_dataset, "Test sample", prompt_revision, None)
-        if sample is None:
-            sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
-            session.add(sample)
-            session.commit()
-
-        completion = create_test_completion(session, prompt_revision, {"is_truncated": True, "completion_text": "Truncated completion"})
-        session.refresh(completion)
+        _, completion = create_sample_with_truncated_completion(temp_dataset)
 
         # Create a completion frame in beam mode with saved completion
         frame = CompletionFrame(temp_dataset, completion, parent=None, display_mode="beam")
@@ -102,6 +89,10 @@ class TestLimitedContinuationButtonVisibility:
         """
         Test limited continuation button is hidden for archived beam completions even if truncated and unsaved.
         """
+        from tests.helpers.data_helpers import create_test_completion  # pylint: disable=import-outside-toplevel
+        from py_fade.dataset.prompt import PromptRevision  # pylint: disable=import-outside-toplevel
+        from py_fade.dataset.sample import Sample  # pylint: disable=import-outside-toplevel
+
         session = temp_dataset.session
         assert session is not None
 
@@ -131,19 +122,8 @@ class TestLimitedContinuationButtonVisibility:
         """
         Test limited continuation button doesn't exist in sample mode.
         """
-        session = temp_dataset.session
-        assert session is not None
-
         # Create a sample and truncated completion
-        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 128)
-        sample = Sample.create_if_unique(temp_dataset, "Test sample", prompt_revision, None)
-        if sample is None:
-            sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
-            session.add(sample)
-            session.commit()
-
-        completion = create_test_completion(session, prompt_revision, {"is_truncated": True, "completion_text": "Truncated completion"})
-        session.refresh(completion)
+        _, completion = create_sample_with_truncated_completion(temp_dataset)
 
         # Create a completion frame in sample mode
         frame = CompletionFrame(temp_dataset, completion, parent=None, display_mode="sample")
@@ -336,19 +316,8 @@ class TestLimitedContinuationHandler:
         """
         Test that limited continuation ignores persisted (saved) beams.
         """
-        session = temp_dataset.session
-        assert session is not None
-
         # Create a sample and truncated completion
-        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 128)
-        sample = Sample.create_if_unique(temp_dataset, "Test sample", prompt_revision, None)
-        if sample is None:
-            sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
-            session.add(sample)
-            session.commit()
-
-        completion = create_test_completion(session, prompt_revision, {"is_truncated": True, "completion_text": "Truncated completion"})
-        session.refresh(completion)
+        _, completion = create_sample_with_truncated_completion(temp_dataset)
 
         # Create widget
         mapped_model = MagicMock()

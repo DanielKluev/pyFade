@@ -467,3 +467,84 @@ def create_test_completion_pair(temp_dataset, prompt_revision, sha256_1: str = "
     temp_dataset.commit()
 
     return completion1, completion2
+
+
+def create_export_template_and_setup(temp_dataset, facet, training_type: str, output_format: str, model_families: list[str],
+                                     limit_type: str = "percentage", limit_value: int = 100, order: str = "random",
+                                     facet_overrides: dict | None = None):
+    """
+    Create an export template with standard configuration.
+
+    This helper eliminates duplicate export template creation code across test files.
+
+    Args:
+        temp_dataset: Dataset to create template in
+        facet: Facet to use in template
+        training_type: Training type (e.g., "DPO", "KTO")
+        output_format: Output format (e.g., "JSONL (Anthropic)", "JSONL (TRL)")
+        model_families: List of model families
+        limit_type: Limit type for facet ("percentage" or "count")
+        limit_value: Limit value for facet
+        order: Order for facet ("random", "created", etc.)
+        facet_overrides: Optional dict of additional facet-specific overrides (e.g., {"max_rating": 6})
+
+    Returns:
+        Created ExportTemplate and temp file path
+    """
+    import pathlib  # pylint: disable=import-outside-toplevel
+    import tempfile  # pylint: disable=import-outside-toplevel
+    from py_fade.dataset.export_template import ExportTemplate  # pylint: disable=import-outside-toplevel
+
+    # Build facet configuration
+    facet_config = {"facet_id": facet.id, "limit_type": limit_type, "limit_value": limit_value, "order": order}
+    if facet_overrides:
+        facet_config.update(facet_overrides)
+
+    # Create export template
+    template = ExportTemplate.create(temp_dataset, name=f"Test {training_type} Template", description=f"Test {training_type} export",
+                                     training_type=training_type, output_format=output_format, model_families=model_families,
+                                     facets=[facet_config])
+    temp_dataset.commit()
+
+    # Create temporary output file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        temp_path = pathlib.Path(f.name)
+
+    return template, temp_path
+
+
+def create_sample_with_truncated_completion(temp_dataset, prompt_text: str = "Test prompt", sample_title: str = "Test sample",
+                                            completion_text: str = "Truncated completion", context_length: int = 2048,
+                                            max_tokens: int = 128):
+    """
+    Create a sample with a truncated completion for beam mode testing.
+
+    This helper eliminates duplicate sample and truncated completion creation code
+    that appears in beam mode tests.
+
+    Args:
+        temp_dataset: Dataset to create sample in
+        prompt_text: Prompt text
+        sample_title: Sample title
+        completion_text: Completion text
+        context_length: Context length
+        max_tokens: Max tokens
+
+    Returns:
+        Tuple of (sample, completion)
+    """
+    session = temp_dataset.session
+    assert session is not None
+
+    # Create a sample and truncated completion
+    prompt_revision = PromptRevision.get_or_create(temp_dataset, prompt_text, context_length, max_tokens)
+    sample = Sample.create_if_unique(temp_dataset, sample_title, prompt_revision, None)
+    if sample is None:
+        sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
+        session.add(sample)
+        session.commit()
+
+    completion = create_test_completion(session, prompt_revision, {"is_truncated": True, "completion_text": completion_text})
+    session.refresh(completion)
+
+    return sample, completion
