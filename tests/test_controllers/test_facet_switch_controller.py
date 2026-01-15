@@ -15,9 +15,6 @@ from py_fade.controllers.facet_switch_controller import FacetSwitchController
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_pairwise_ranks import PromptCompletionPairwiseRanking
 from py_fade.dataset.completion_rating import PromptCompletionRating
-from py_fade.dataset.facet import Facet
-from py_fade.dataset.prompt import PromptRevision
-from py_fade.dataset.sample import Sample
 from tests.helpers.data_helpers import create_test_completion_pair, create_facet_pair_and_sample
 
 

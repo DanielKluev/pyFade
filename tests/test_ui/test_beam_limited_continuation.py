@@ -14,8 +14,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from py_fade.dataset.prompt import PromptRevision
-from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from tests.helpers.data_helpers import (create_simple_llm_response, create_sample_with_truncated_completion,
