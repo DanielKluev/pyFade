@@ -31,6 +31,7 @@ class AppConfig:
     dataset_preferences: dict[str, dict[str, int | str | None]] = (
         {}
     )  # Per-dataset persisted UI selections
+    last_export_path: str | None = None  # Last directory used for export save location
 
     def __init__(
         self,
@@ -39,17 +40,13 @@ class AppConfig:
         config_path: Optional[str | pathlib.Path] = None,
     ):
         # Compile list of attributes of the class, excluding methods and private attributes
-        self._attributes = [
-            key for key in self.__class__.__annotations__.keys() if not key.startswith("_")
-        ]
+        self._attributes = [key for key in self.__class__.__annotations__.keys() if not key.startswith("_")]
         self.log = logging.getLogger("AppConfig")
         self.appname = appname
         self.debug = debug
         if self.debug:
             self.app_dir = f"{appname}_debug"
-            self.log.warning(
-                "Debug mode is enabled. Configuration will be saved in a separate directory."
-            )
+            self.log.warning("Debug mode is enabled. Configuration will be saved in a separate directory.")
         else:
             self.app_dir = appname
         self.base_dir = pathlib.Path.home() / self.app_dir
