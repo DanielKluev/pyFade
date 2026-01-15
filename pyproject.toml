@@ -84,7 +84,8 @@ disable = [
     "R0915",  # too-many-statements
     "R0917",  # too-many-positional-arguments
     "R0903",  # too-few-public-methods
-    "C0302",  # too-many-lines - copilot generated code can be long, let it be for now
+    "R0904",  # too-many-public-methods
+    "C0302",  # too-many-lines - copilot generated code can be long, let it be for now    
 ]
 
 [tool.pylint.REPORTS]
