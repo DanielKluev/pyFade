@@ -18,8 +18,9 @@ from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
-from tests.helpers.data_helpers import create_simple_llm_response, create_sample_with_truncated_completion, create_test_completion
-from tests.helpers.ui_helpers import create_mock_mapped_model
+from tests.helpers.data_helpers import (create_simple_llm_response, create_sample_with_truncated_completion,
+                                        create_sample_with_archived_truncated_completion)
+from tests.helpers.ui_helpers import create_mock_mapped_model, create_transient_truncated_beam
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -91,23 +92,8 @@ class TestLimitedContinuationButtonVisibility:
         """
         Test limited continuation button is hidden for archived beam completions even if truncated and unsaved.
         """
-        session = temp_dataset.session
-        assert session is not None
-
         # Create a sample and truncated + archived completion
-        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 128)
-        sample = Sample.create_if_unique(temp_dataset, "Test sample", prompt_revision, None)
-        if sample is None:
-            sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
-            session.add(sample)
-            session.commit()
-
-        completion = create_test_completion(session, prompt_revision, {
-            "is_truncated": True,
-            "is_archived": True,
-            "completion_text": "Archived truncated"
-        })
-        session.refresh(completion)
+        _, completion = create_sample_with_archived_truncated_completion(temp_dataset)
 
         # Create a completion frame in beam mode
         frame = CompletionFrame(temp_dataset, completion, parent=None, display_mode="beam")
@@ -152,11 +138,7 @@ class TestLimitedContinuationHandler:
         widget.depth_spin.setValue(15)
 
         # Create a truncated transient beam
-        truncated_beam = create_simple_llm_response("test-model", "Truncated")
-        truncated_beam.is_truncated = True
-        truncated_beam.context_length = 1024
-        truncated_beam.max_tokens = 128
-        truncated_beam.prompt_revision = MagicMock()
+        truncated_beam = create_transient_truncated_beam()
 
         # Add beam to widget
         widget.add_beam_frame(truncated_beam)
@@ -200,11 +182,7 @@ class TestLimitedContinuationHandler:
         widget.depth_spin.setValue(20)
 
         # Create a truncated transient beam
-        truncated_beam = create_simple_llm_response("test-model", "Truncated")
-        truncated_beam.is_truncated = True
-        truncated_beam.context_length = 1024
-        truncated_beam.max_tokens = 128
-        truncated_beam.prompt_revision = MagicMock()
+        truncated_beam = create_transient_truncated_beam()
 
         # Add beam to widget
         widget.add_beam_frame(truncated_beam)
@@ -247,11 +225,7 @@ class TestLimitedContinuationHandler:
         widget.depth_spin.setValue(10)
 
         # Create a truncated transient beam
-        truncated_beam = create_simple_llm_response("test-model", "Truncated")
-        truncated_beam.is_truncated = True
-        truncated_beam.context_length = 1024
-        truncated_beam.max_tokens = 128
-        truncated_beam.prompt_revision = MagicMock()
+        truncated_beam = create_transient_truncated_beam()
 
         # Add beam to widget
         widget.add_beam_frame(truncated_beam)
@@ -288,11 +262,7 @@ class TestLimitedContinuationHandler:
         widget.depth_spin.setValue(10)
 
         # Create a truncated transient beam
-        truncated_beam = create_simple_llm_response("test-model", "Truncated")
-        truncated_beam.is_truncated = True
-        truncated_beam.context_length = 1024
-        truncated_beam.max_tokens = 128
-        truncated_beam.prompt_revision = MagicMock()
+        truncated_beam = create_transient_truncated_beam()
 
         # Add beam to widget
         widget.add_beam_frame(truncated_beam)
@@ -347,11 +317,7 @@ class TestLimitedContinuationHandler:
         widget.depth_spin.setValue(5)
 
         # Create a truncated transient beam
-        truncated_beam = create_simple_llm_response("test-model", "Truncated")
-        truncated_beam.is_truncated = True
-        truncated_beam.context_length = 1024
-        truncated_beam.max_tokens = 128
-        truncated_beam.prompt_revision = MagicMock()
+        truncated_beam = create_transient_truncated_beam()
 
         # Add beam to widget
         widget.add_beam_frame(truncated_beam)

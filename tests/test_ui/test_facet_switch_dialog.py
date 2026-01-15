@@ -22,7 +22,7 @@ from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.gui.dialog_facet_switch import FacetSwitchDialog
-from tests.helpers.data_helpers import create_test_completion_pair
+from tests.helpers.data_helpers import create_test_completion_pair, create_facet_pair_and_sample
 from tests.helpers.ui_helpers import patch_message_boxes
 
 if TYPE_CHECKING:
@@ -47,15 +47,8 @@ def test_facet_switch_dialog_initialization(
     test_logger.setLevel(logging.DEBUG)
     patch_message_boxes(monkeypatch, test_logger)
 
-    # Create facets
-    facet1 = Facet.create(temp_dataset, "Quality", "Quality facet")
-    facet2 = Facet.create(temp_dataset, "Accuracy", "Accuracy facet")  # pylint: disable=unused-variable
-    temp_dataset.commit()
-
-    # Create sample
-    prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
-    temp_dataset.commit()
+    # Create facets and sample
+    facet1, _, sample = create_facet_pair_and_sample(temp_dataset)
 
     # Create dialog
     dialog = FacetSwitchDialog(temp_dataset, sample, facet1)
@@ -130,14 +123,8 @@ def test_facet_switch_dialog_default_action_is_remove(
     test_logger.setLevel(logging.DEBUG)
     patch_message_boxes(monkeypatch, test_logger)
 
-    # Create facets
-    facet1 = Facet.create(temp_dataset, "Quality", "Quality facet")
-    temp_dataset.commit()
-
-    # Create sample
-    prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
-    temp_dataset.commit()
+    # Create facets and sample
+    facet1, _, sample = create_facet_pair_and_sample(temp_dataset)
 
     # Create dialog
     dialog = FacetSwitchDialog(temp_dataset, sample, facet1)
@@ -171,15 +158,8 @@ def test_facet_switch_dialog_change_action_enables_combo(
     test_logger.setLevel(logging.DEBUG)
     patch_message_boxes(monkeypatch, test_logger)
 
-    # Create facets
-    facet1 = Facet.create(temp_dataset, "Quality", "Quality facet")
-    facet2 = Facet.create(temp_dataset, "Accuracy", "Accuracy facet")  # pylint: disable=unused-variable
-    temp_dataset.commit()
-
-    # Create sample
-    prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
-    temp_dataset.commit()
+    # Create facets and sample
+    facet1, _, sample = create_facet_pair_and_sample(temp_dataset)
 
     # Create dialog
     dialog = FacetSwitchDialog(temp_dataset, sample, facet1)
@@ -278,16 +258,10 @@ def test_facet_switch_dialog_change_action(
     message_box_mock.information.return_value = None
     monkeypatch.setattr("py_fade.gui.dialog_facet_switch.QMessageBox", message_box_mock)
 
-    # Create facets
-    facet1 = Facet.create(temp_dataset, "Quality", "Quality facet")
-    facet2 = Facet.create(temp_dataset, "Accuracy", "Accuracy facet")
-    temp_dataset.commit()
+    # Create facets and sample
+    facet1, facet2, sample = create_facet_pair_and_sample(temp_dataset)
 
-    # Create sample with ratings
-    prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
-
-    completion, _ = create_test_completion_pair(temp_dataset, prompt_revision, completion_text_1="Test completion")
+    completion, _ = create_test_completion_pair(temp_dataset, sample.prompt_revision, completion_text_1="Test completion")
 
     PromptCompletionRating.set_rating(temp_dataset, completion, facet1, 8)
 
@@ -341,16 +315,10 @@ def test_facet_switch_dialog_copy_action(
     message_box_mock.information.return_value = None
     monkeypatch.setattr("py_fade.gui.dialog_facet_switch.QMessageBox", message_box_mock)
 
-    # Create facets
-    facet1 = Facet.create(temp_dataset, "Quality", "Quality facet")
-    facet2 = Facet.create(temp_dataset, "Accuracy", "Accuracy facet")
-    temp_dataset.commit()
+    # Create facets and sample
+    facet1, facet2, sample = create_facet_pair_and_sample(temp_dataset)
 
-    # Create sample with ratings
-    prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
-
-    completion, _ = create_test_completion_pair(temp_dataset, prompt_revision, completion_text_1="Test completion")
+    completion, _ = create_test_completion_pair(temp_dataset, sample.prompt_revision, completion_text_1="Test completion")
 
     PromptCompletionRating.set_rating(temp_dataset, completion, facet1, 8)
 

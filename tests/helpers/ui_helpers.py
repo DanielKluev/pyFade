@@ -258,3 +258,32 @@ def create_test_widget_sample_empty(app: "pyFadeApp", qt_app):
     qt_app.processEvents()
 
     return widget
+
+
+def create_transient_truncated_beam(model_id: str = "test-model", completion_text: str = "Truncated", context_length: int = 1024,
+                                    max_tokens: int = 128):
+    """
+    Create a transient truncated beam for testing beam mode functionality.
+
+    This helper reduces duplicate beam creation code that appears frequently
+    in beam mode tests.
+
+    Args:
+        model_id: Model identifier
+        completion_text: Completion text
+        context_length: Context length
+        max_tokens: Max tokens
+
+    Returns:
+        LLMResponse: A truncated transient beam with MagicMock prompt_revision
+    """
+    from unittest.mock import MagicMock  # pylint: disable=import-outside-toplevel
+    from tests.helpers.data_helpers import create_simple_llm_response  # pylint: disable=import-outside-toplevel
+
+    truncated_beam = create_simple_llm_response(model_id, completion_text)
+    truncated_beam.is_truncated = True
+    truncated_beam.context_length = context_length
+    truncated_beam.max_tokens = max_tokens
+    truncated_beam.prompt_revision = MagicMock()
+
+    return truncated_beam

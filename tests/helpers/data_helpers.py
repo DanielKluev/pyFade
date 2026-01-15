@@ -547,3 +547,79 @@ def create_sample_with_truncated_completion(temp_dataset: "DatasetDatabase", pro
     session.refresh(completion)
 
     return sample, completion
+
+
+def create_sample_with_archived_truncated_completion(temp_dataset: "DatasetDatabase", prompt_text: str = "Test prompt",
+                                                     sample_title: str = "Test sample", completion_text: str = "Archived truncated",
+                                                     context_length: int = 2048, max_tokens: int = 128) -> tuple[Sample, PromptCompletion]:
+    """
+    Create a sample with an archived truncated completion for testing.
+
+    This helper eliminates duplicate sample and archived completion creation code.
+
+    Args:
+        temp_dataset: Dataset to create sample in
+        prompt_text: Prompt text
+        sample_title: Sample title
+        completion_text: Completion text
+        context_length: Context length
+        max_tokens: Max tokens
+
+    Returns:
+        Tuple of (sample, completion)
+    """
+    session = temp_dataset.session
+    assert session is not None
+
+    # Create a sample and truncated + archived completion
+    prompt_revision = PromptRevision.get_or_create(temp_dataset, prompt_text, context_length, max_tokens)
+    sample = Sample.create_if_unique(temp_dataset, sample_title, prompt_revision, None)
+    if sample is None:
+        sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
+        session.add(sample)
+        session.commit()
+
+    completion = create_test_completion(session, prompt_revision, {
+        "is_truncated": True,
+        "is_archived": True,
+        "completion_text": completion_text
+    })
+    session.refresh(completion)
+
+    return sample, completion
+
+
+def create_facet_pair_and_sample(temp_dataset: "DatasetDatabase", facet1_name: str = "Quality", facet1_desc: str = "Quality facet",
+                                 facet2_name: str = "Accuracy", facet2_desc: str = "Accuracy facet", sample_title: str = "Test Sample",
+                                 prompt_text: str = "Test prompt", context_length: int = 2048,
+                                 max_tokens: int = 512) -> tuple[Facet, Facet, Sample]:
+    """
+    Create two facets and a sample for facet switch testing.
+
+    This helper eliminates duplicate facet and sample creation code that appears
+    in facet switch tests.
+
+    Args:
+        temp_dataset: Dataset to create entities in
+        facet1_name: Name for first facet
+        facet1_desc: Description for first facet
+        facet2_name: Name for second facet
+        facet2_desc: Description for second facet
+        sample_title: Sample title
+        prompt_text: Prompt text
+        context_length: Context length
+        max_tokens: Max tokens
+
+    Returns:
+        Tuple of (facet1, facet2, sample)
+    """
+    facet1 = Facet.create(temp_dataset, facet1_name, facet1_desc)
+    facet2 = Facet.create(temp_dataset, facet2_name, facet2_desc)
+    temp_dataset.commit()
+
+    # Create sample
+    prompt_revision = PromptRevision.get_or_create(temp_dataset, prompt_text, context_length, max_tokens)
+    sample = Sample.create_if_unique(temp_dataset, sample_title, prompt_revision)
+    temp_dataset.commit()
+
+    return facet1, facet2, sample

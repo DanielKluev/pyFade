@@ -18,7 +18,7 @@ from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
-from tests.helpers.data_helpers import create_test_completion_pair
+from tests.helpers.data_helpers import create_test_completion_pair, create_facet_pair_and_sample
 
 
 def test_remove_facet_from_sample_with_ratings(
@@ -32,17 +32,11 @@ def test_remove_facet_from_sample_with_ratings(
     """
     caplog.set_level(logging.DEBUG)
 
-    # Create facets
-    facet1 = Facet.create(temp_dataset, "Quality", "Quality facet")
-    facet2 = Facet.create(temp_dataset, "Accuracy", "Accuracy facet")
-    temp_dataset.commit()
-
-    # Create sample with completions
-    prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
+    # Create facets and sample
+    facet1, facet2, sample = create_facet_pair_and_sample(temp_dataset)
 
     # Add completions
-    completion1, completion2 = create_test_completion_pair(temp_dataset, prompt_revision)
+    completion1, completion2 = create_test_completion_pair(temp_dataset, sample.prompt_revision)
 
     # Add ratings for both facets
     PromptCompletionRating.set_rating(temp_dataset, completion1, facet1, 8)
@@ -77,16 +71,11 @@ def test_remove_facet_from_sample_with_rankings(
     """
     caplog.set_level(logging.DEBUG)
 
-    # Create facets
-    facet1 = Facet.create(temp_dataset, "Quality", "Quality facet")
-    temp_dataset.commit()
-
-    # Create sample with completions
-    prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
+    # Create facets and sample
+    facet1, _, sample = create_facet_pair_and_sample(temp_dataset)
 
     # Add completions
-    completion1, completion2 = create_test_completion_pair(temp_dataset, prompt_revision)
+    completion1, completion2 = create_test_completion_pair(temp_dataset, sample.prompt_revision)
 
     # Add pairwise ranking
     ranking = PromptCompletionPairwiseRanking.get_or_create(temp_dataset, completion1, completion2, facet1)
@@ -113,17 +102,12 @@ def test_change_facet_for_sample(
     """
     caplog.set_level(logging.DEBUG)
 
-    # Create facets
-    source_facet = Facet.create(temp_dataset, "Source", "Source facet")
-    target_facet = Facet.create(temp_dataset, "Target", "Target facet")
-    temp_dataset.commit()
-
-    # Create sample with completions
-    prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
+    # Create facets and sample
+    source_facet, target_facet, sample = create_facet_pair_and_sample(temp_dataset, facet1_name="Source", facet1_desc="Source facet",
+                                                                       facet2_name="Target", facet2_desc="Target facet")
 
     # Add completions
-    completion1, completion2 = create_test_completion_pair(temp_dataset, prompt_revision)
+    completion1, completion2 = create_test_completion_pair(temp_dataset, sample.prompt_revision)
 
     # Add ratings to source facet
     PromptCompletionRating.set_rating(temp_dataset, completion1, source_facet, 8)
@@ -159,17 +143,12 @@ def test_change_facet_with_existing_target_ratings(
     """
     caplog.set_level(logging.DEBUG)
 
-    # Create facets
-    source_facet = Facet.create(temp_dataset, "Source", "Source facet")
-    target_facet = Facet.create(temp_dataset, "Target", "Target facet")
-    temp_dataset.commit()
-
-    # Create sample with completions
-    prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
+    # Create facets and sample
+    source_facet, target_facet, sample = create_facet_pair_and_sample(temp_dataset, facet1_name="Source", facet1_desc="Source facet",
+                                                                       facet2_name="Target", facet2_desc="Target facet")
 
     # Add completions
-    completion1, completion2 = create_test_completion_pair(temp_dataset, prompt_revision)
+    completion1, completion2 = create_test_completion_pair(temp_dataset, sample.prompt_revision)
 
     # Add ratings to source facet
     PromptCompletionRating.set_rating(temp_dataset, completion1, source_facet, 8)
@@ -210,17 +189,12 @@ def test_copy_facet_for_sample(
     """
     caplog.set_level(logging.DEBUG)
 
-    # Create facets
-    source_facet = Facet.create(temp_dataset, "Source", "Source facet")
-    target_facet = Facet.create(temp_dataset, "Target", "Target facet")
-    temp_dataset.commit()
-
-    # Create sample with completions
-    prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
+    # Create facets and sample
+    source_facet, target_facet, sample = create_facet_pair_and_sample(temp_dataset, facet1_name="Source", facet1_desc="Source facet",
+                                                                       facet2_name="Target", facet2_desc="Target facet")
 
     # Add completions
-    completion1, completion2 = create_test_completion_pair(temp_dataset, prompt_revision)
+    completion1, completion2 = create_test_completion_pair(temp_dataset, sample.prompt_revision)
 
     # Add ratings to source facet
     PromptCompletionRating.set_rating(temp_dataset, completion1, source_facet, 8)
@@ -260,19 +234,14 @@ def test_copy_facet_with_pairwise_rankings(
     """
     caplog.set_level(logging.DEBUG)
 
-    # Create facets
-    source_facet = Facet.create(temp_dataset, "Source", "Source facet")
-    target_facet = Facet.create(temp_dataset, "Target", "Target facet")
-    temp_dataset.commit()
-
-    # Create sample with completions
-    prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
+    # Create facets and sample
+    source_facet, target_facet, sample = create_facet_pair_and_sample(temp_dataset, facet1_name="Source", facet1_desc="Source facet",
+                                                                       facet2_name="Target", facet2_desc="Target facet")
 
     # Add completions
-    completion1, completion2 = create_test_completion_pair(temp_dataset, prompt_revision)
+    completion1, completion2 = create_test_completion_pair(temp_dataset, sample.prompt_revision)
     completion3 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
+        prompt_revision_id=sample.prompt_revision.id,
         sha256="c" * 64,
         model_id="test-model",
         temperature=0.7,
@@ -315,17 +284,12 @@ def test_copy_facet_with_existing_target_rankings(
     """
     caplog.set_level(logging.DEBUG)
 
-    # Create facets
-    source_facet = Facet.create(temp_dataset, "Source", "Source facet")
-    target_facet = Facet.create(temp_dataset, "Target", "Target facet")
-    temp_dataset.commit()
-
-    # Create sample with completions
-    prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
+    # Create facets and sample
+    source_facet, target_facet, sample = create_facet_pair_and_sample(temp_dataset, facet1_name="Source", facet1_desc="Source facet",
+                                                                       facet2_name="Target", facet2_desc="Target facet")
 
     # Add completions
-    completion1, completion2 = create_test_completion_pair(temp_dataset, prompt_revision)
+    completion1, completion2 = create_test_completion_pair(temp_dataset, sample.prompt_revision)
 
     # Add pairwise ranking to source facet
     PromptCompletionPairwiseRanking.get_or_create(temp_dataset, completion1, completion2, source_facet)
