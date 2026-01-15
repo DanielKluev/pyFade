@@ -288,8 +288,7 @@ def test_widget_sample_facets_display_no_active_facet(
     sample = Sample.create_if_unique(dataset, "Test Sample", prompt_revision)
 
     # Add completions with ratings for different facets
-    completion1, _ = create_test_completion_pair(dataset, prompt_revision)
-    completion = completion1
+    completion, _ = create_test_completion_pair(dataset, prompt_revision)
 
     # Add ratings for facets
     PromptCompletionRating.set_rating(dataset, completion, facet_quality, 8)
