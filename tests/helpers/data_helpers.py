@@ -623,3 +623,84 @@ def create_facet_pair_and_sample(temp_dataset: "DatasetDatabase", facet1_name: s
     temp_dataset.commit()
 
     return facet1, facet2, sample
+
+
+def setup_export_test_with_facet_and_model(app, temp_dataset: "DatasetDatabase", min_rating: int = 7, max_rating: int | None = None):
+    """
+    Set up a facet and mock model for export testing.
+
+    This helper reduces duplicate setup code in DPO and KTO export tests.
+
+    Args:
+        app: The pyFadeApp instance
+        temp_dataset: Dataset to create facet in
+        min_rating: Minimum rating threshold for facet
+        max_rating: Maximum rating threshold for facet (optional, used for KTO)
+
+    Returns:
+        tuple: (facet, mapped_model) - The created facet and mock model
+    """
+    # Create facet
+    kwargs = {"min_rating": min_rating, "min_logprob_threshold": -0.5, "avg_logprob_threshold": -0.3}
+    if max_rating is not None:
+        kwargs["max_rating"] = max_rating
+
+    facet = Facet.create(temp_dataset, "Test Facet", "Test description", **kwargs)
+    temp_dataset.commit()
+
+    # Get mock model
+    mapped_model = app.providers_manager.get_mock_model()
+
+    return facet, mapped_model
+
+
+def create_sample_with_good_completion(temp_dataset: "DatasetDatabase", facet: Facet, model_id: str, title: str = "Sample 1",
+                                       completion_text: str = "Good answer"):
+    """
+    Create a sample with a high-rated completion for export testing.
+
+    This helper reduces duplicate sample creation code in DPO and KTO export tests.
+
+    Args:
+        temp_dataset: Dataset to create sample in
+        facet: Facet to rate completion against
+        model_id: Model ID for completion
+        title: Sample title
+        completion_text: Completion text
+
+    Returns:
+        tuple: (sample, completion) - The created sample and completion
+    """
+    sample, completion = create_test_sample_with_completion(temp_dataset, facet, rating=9, min_logprob=-0.4, avg_logprob=-0.2, title=title,
+                                                            completion_text=completion_text, model_id=model_id)
+    return sample, completion
+
+
+def run_export_expecting_error(app, temp_dataset: "DatasetDatabase", template, temp_path, expected_error_msg: str, model_id: str):
+    """
+    Run export controller expecting a ValueError with specific message.
+
+    This helper reduces duplicate error handling test code in export tests.
+
+    Args:
+        app: The pyFadeApp instance
+        temp_dataset: Dataset to export from
+        template: Export template to use
+        temp_path: Output path for export
+        expected_error_msg: Expected error message substring
+        model_id: Target model ID for export
+
+    Raises:
+        AssertionError: If expected error was not raised
+    """
+    from py_fade.controllers.export_controller import ExportController  # pylint: disable=import-outside-toplevel
+
+    export_controller = ExportController(app, temp_dataset, template, target_model_id=model_id)
+    export_controller.set_output_path(temp_path)
+
+    # Should raise error because no pairs/samples can be formed
+    try:
+        export_controller.run_export()
+        assert False, "Expected ValueError to be raised"
+    except ValueError as e:
+        assert expected_error_msg in str(e)

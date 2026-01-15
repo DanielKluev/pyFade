@@ -18,7 +18,9 @@ from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from tests.helpers.data_helpers import (create_simple_llm_response, create_sample_with_truncated_completion,
                                         create_sample_with_archived_truncated_completion)
-from tests.helpers.ui_helpers import mock_three_way_editor, create_mock_mapped_model, create_transient_truncated_beam
+from tests.helpers.ui_helpers import (mock_three_way_editor, create_mock_mapped_model, create_transient_truncated_beam,
+                                      assert_beam_frame_updated, setup_beam_generation_error_test, assert_beam_frame_unchanged,
+                                      create_beam_widget_with_truncated_beam, create_beam_widget_with_sample_widget)
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -143,34 +145,14 @@ class TestBeamModeResumeHandlers:
         mock_controller.generate_continuation.assert_called_once()
 
         # Verify the beam frame was updated with the expanded completion
-        assert len(widget.beam_frames) == 1
-        updated_beam, updated_frame = widget.beam_frames[0]
-        assert updated_beam is expanded_beam
-        assert updated_frame.completion is expanded_beam
+        assert_beam_frame_updated(widget, expanded_beam)
 
     def test_transient_beam_resume_handles_generation_failure(self, app_with_dataset, monkeypatch):
         """
         Test that resuming a transient beam handles generation failures gracefully.
         """
-        # Create widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
-
-        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
-
-        # Create a truncated transient beam
-        truncated_beam = create_transient_truncated_beam()
-
-        # Add beam to widget
-        widget.add_beam_frame(truncated_beam)
-
-        # Mock the text generation controller to raise an error
-        mock_controller = MagicMock()
-        mock_controller.generate_continuation.side_effect = RuntimeError("Generation failed")
-
-        # Mock get_or_create_text_generation_controller
-        monkeypatch.setattr(app_with_dataset, "get_or_create_text_generation_controller", lambda *args, **kwargs: mock_controller)
+        # Set up widget with error-raising controller
+        widget, truncated_beam, _mock_controller = setup_beam_generation_error_test(app_with_dataset, monkeypatch)
 
         # Mock QMessageBox to avoid dialog
         with patch("py_fade.gui.widget_completion_beams.QMessageBox.warning"):
@@ -178,26 +160,14 @@ class TestBeamModeResumeHandlers:
             widget.on_beam_resume_requested(truncated_beam)
 
         # Verify the beam frame was NOT modified
-        assert len(widget.beam_frames) == 1
-        beam, _frame = widget.beam_frames[0]
-        assert beam is truncated_beam
+        assert_beam_frame_unchanged(widget, truncated_beam)
 
     def test_transient_beam_resume_handles_no_controller(self, app_with_dataset, monkeypatch):
         """
         Test that resuming a transient beam handles missing controller gracefully.
         """
-        # Create widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
-
-        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
-
-        # Create a truncated transient beam
-        truncated_beam = create_transient_truncated_beam()
-
-        # Add beam to widget
-        widget.add_beam_frame(truncated_beam)
+        # Create widget with truncated beam
+        widget, truncated_beam, _mapped_model = create_beam_widget_with_truncated_beam(app_with_dataset)
 
         # Mock get_or_create_text_generation_controller to return None
         monkeypatch.setattr(app_with_dataset, "get_or_create_text_generation_controller", lambda *args, **kwargs: None)
@@ -208,9 +178,7 @@ class TestBeamModeResumeHandlers:
             widget.on_beam_resume_requested(truncated_beam)
 
         # Verify the beam frame was NOT modified
-        assert len(widget.beam_frames) == 1
-        beam, _frame = widget.beam_frames[0]
-        assert beam is truncated_beam
+        assert_beam_frame_unchanged(widget, truncated_beam)
 
     def test_persisted_beam_resume_opens_three_way_editor(self, app_with_dataset, temp_dataset, monkeypatch, qt_app):
         """
@@ -220,14 +188,7 @@ class TestBeamModeResumeHandlers:
         _, completion = create_sample_with_truncated_completion(temp_dataset)
 
         # Create widget with sample widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
-
-        sample_widget = MagicMock()
-        sample_widget.active_facet = None
-
-        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", sample_widget, mapped_model)
+        widget, _mapped_model, _sample_widget = create_beam_widget_with_sample_widget(app_with_dataset)
 
         # Track if ThreeWayCompletionEditorWindow is created
         editor_instances = mock_three_way_editor(monkeypatch)
@@ -247,14 +208,7 @@ class TestBeamModeResumeHandlers:
         _, completion = create_sample_with_truncated_completion(temp_dataset)
 
         # Create widget with sample widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
-
-        sample_widget = MagicMock()
-        sample_widget.active_facet = None
-
-        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", sample_widget, mapped_model)
+        widget, _mapped_model, sample_widget = create_beam_widget_with_sample_widget(app_with_dataset)
 
         # Mock the editor and simulate success (return 1)
         _ = mock_three_way_editor(monkeypatch)
