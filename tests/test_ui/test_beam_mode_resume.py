@@ -14,9 +14,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from py_fade.dataset.prompt import PromptRevision
+from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
-from tests.helpers.data_helpers import create_simple_llm_response, create_sample_with_truncated_completion
+from tests.helpers.data_helpers import create_simple_llm_response, create_sample_with_truncated_completion, create_test_completion
 from tests.helpers.ui_helpers import mock_three_way_editor, create_mock_mapped_model
 
 if TYPE_CHECKING:
@@ -87,10 +89,6 @@ class TestBeamModeResumeButton:
         """
         Test resume button is hidden for archived beam completions even if truncated.
         """
-        from tests.helpers.data_helpers import create_test_completion  # pylint: disable=import-outside-toplevel
-        from py_fade.dataset.prompt import PromptRevision  # pylint: disable=import-outside-toplevel
-        from py_fade.dataset.sample import Sample  # pylint: disable=import-outside-toplevel
-
         session = temp_dataset.session
         assert session is not None
 
