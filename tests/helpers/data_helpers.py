@@ -5,12 +5,15 @@ from __future__ import annotations
 
 import datetime
 import hashlib
+import pathlib
+import tempfile
 from typing import TYPE_CHECKING, List, Tuple
 
 from py_fade.data_formats.base_data_classes import CommonConversation, CommonMessage
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.dataset.completion_rating import PromptCompletionRating
+from py_fade.dataset.export_template import ExportTemplate
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
@@ -491,10 +494,6 @@ def create_export_template_and_setup(temp_dataset, facet, training_type: str, ou
     Returns:
         Created ExportTemplate and temp file path
     """
-    import pathlib  # pylint: disable=import-outside-toplevel
-    import tempfile  # pylint: disable=import-outside-toplevel
-    from py_fade.dataset.export_template import ExportTemplate  # pylint: disable=import-outside-toplevel
-
     # Build facet configuration
     facet_config = {"facet_id": facet.id, "limit_type": limit_type, "limit_value": limit_value, "order": order}
     if facet_overrides:
