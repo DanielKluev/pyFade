@@ -116,31 +116,7 @@ def test_widget_sample_facets_display_with_facets(
     sample = Sample.create_if_unique(dataset, "Test Sample", prompt_revision)
 
     # Add completions with ratings for different facets
-    completion1 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 1",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    completion2 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="b" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 2",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    dataset.session.add(completion1)
-    dataset.session.add(completion2)
-    dataset.commit()
+    completion1, completion2 = create_test_completion_pair(dataset, prompt_revision)
 
     # Add ratings for different facets
     PromptCompletionRating.set_rating(dataset, completion1, facet_quality, 8)
@@ -314,8 +290,6 @@ def test_widget_sample_facets_display_no_active_facet(
     # Add completions with ratings for different facets
     completion1, _ = create_test_completion_pair(dataset, prompt_revision)
     completion = completion1
-    dataset.session.add(completion)
-    dataset.commit()
 
     # Add ratings for facets
     PromptCompletionRating.set_rating(dataset, completion, facet_quality, 8)
@@ -366,19 +340,7 @@ def test_widget_sample_facets_display_single_facet(
     sample = Sample.create_if_unique(dataset, "Test Sample", prompt_revision)
 
     # Add completion with rating
-    completion = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    dataset.session.add(completion)
-    dataset.commit()
+    completion, _ = create_test_completion_pair(dataset, prompt_revision, completion_text_1="Test completion")
 
     # Add rating
     PromptCompletionRating.set_rating(dataset, completion, facet_quality, 8)

@@ -231,19 +231,7 @@ def test_facet_switch_dialog_remove_action_with_confirmation(
     prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
     sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
 
-    completion = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    temp_dataset.session.add(completion)
-    temp_dataset.commit()
+    completion, _ = create_test_completion_pair(temp_dataset, prompt_revision, completion_text_1="Test completion")
 
     PromptCompletionRating.set_rating(temp_dataset, completion, facet1, 8)
 
@@ -300,19 +288,7 @@ def test_facet_switch_dialog_change_action(
     prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
     sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
 
-    completion = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    temp_dataset.session.add(completion)
-    temp_dataset.commit()
+    completion, _ = create_test_completion_pair(temp_dataset, prompt_revision, completion_text_1="Test completion")
 
     PromptCompletionRating.set_rating(temp_dataset, completion, facet1, 8)
 
@@ -375,19 +351,7 @@ def test_facet_switch_dialog_copy_action(
     prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 512)
     sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
 
-    completion = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    temp_dataset.session.add(completion)
-    temp_dataset.commit()
+    completion, _ = create_test_completion_pair(temp_dataset, prompt_revision, completion_text_1="Test completion")
 
     PromptCompletionRating.set_rating(temp_dataset, completion, facet1, 8)
 
