@@ -433,3 +433,37 @@ def add_tag_to_samples(dataset: "DatasetDatabase", tag, samples: list[Sample]) -
     for sample in samples:
         sample.add_tag(dataset, tag)
     dataset.commit()
+
+
+def create_test_completion_pair(temp_dataset, prompt_revision, sha256_1: str = "a" * 64, sha256_2: str = "b" * 64,
+                                completion_text_1: str = "Test completion 1", completion_text_2: str = "Test completion 2",
+                                **kwargs) -> tuple[PromptCompletion, PromptCompletion]:
+    """
+    Create a pair of test completions with common defaults.
+
+    This helper eliminates the duplicate code pattern of creating two similar completions
+    that appears frequently in tests.
+
+    Args:
+        temp_dataset: Dataset to add completions to
+        prompt_revision: PromptRevision to associate completions with
+        sha256_1: SHA256 for first completion
+        sha256_2: SHA256 for second completion
+        completion_text_1: Text for first completion
+        completion_text_2: Text for second completion
+        **kwargs: Additional parameters to override defaults (applied to both completions)
+
+    Returns:
+        Tuple of (completion1, completion2)
+    """
+    defaults = {"model_id": "test-model", "temperature": 0.7, "top_k": 50, "context_length": 2048, "max_tokens": 512, "is_truncated": False}
+    defaults.update(kwargs)
+
+    completion1 = PromptCompletion(prompt_revision_id=prompt_revision.id, sha256=sha256_1, completion_text=completion_text_1, **defaults)
+    completion2 = PromptCompletion(prompt_revision_id=prompt_revision.id, sha256=sha256_2, completion_text=completion_text_2, **defaults)
+
+    temp_dataset.session.add(completion1)
+    temp_dataset.session.add(completion2)
+    temp_dataset.commit()
+
+    return completion1, completion2

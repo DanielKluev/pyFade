@@ -23,6 +23,7 @@ from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.gui.dialog_facet_switch import FacetSwitchDialog
+from tests.helpers.data_helpers import create_test_completion_pair
 from tests.helpers.ui_helpers import patch_message_boxes
 
 if TYPE_CHECKING:

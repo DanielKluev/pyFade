@@ -21,6 +21,7 @@ from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.gui.widget_sample import WidgetSample
+from tests.helpers.data_helpers import create_test_completion_pair
 from tests.helpers.ui_helpers import create_test_widget_sample_with_prompt, patch_message_boxes
 
 if TYPE_CHECKING:
@@ -188,31 +189,7 @@ def test_widget_sample_facets_display_highlight_active(
     sample = Sample.create_if_unique(dataset, "Test Sample", prompt_revision)
 
     # Add completions with ratings for different facets
-    completion1 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 1",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    completion2 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="b" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 2",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    dataset.session.add(completion1)
-    dataset.session.add(completion2)
-    dataset.commit()
+    completion1, completion2 = create_test_completion_pair(dataset, prompt_revision)
 
     # Add ratings for different facets
     PromptCompletionRating.set_rating(dataset, completion1, facet_quality, 8)
@@ -266,31 +243,7 @@ def test_widget_sample_facets_display_update_on_context_change(
     sample = Sample.create_if_unique(dataset, "Test Sample", prompt_revision)
 
     # Add completions with ratings for different facets
-    completion1 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 1",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    completion2 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="b" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 2",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    dataset.session.add(completion1)
-    dataset.session.add(completion2)
-    dataset.commit()
+    completion1, completion2 = create_test_completion_pair(dataset, prompt_revision)
 
     # Add ratings for different facets
     PromptCompletionRating.set_rating(dataset, completion1, facet_quality, 8)
@@ -359,23 +312,14 @@ def test_widget_sample_facets_display_no_active_facet(
     sample = Sample.create_if_unique(dataset, "Test Sample", prompt_revision)
 
     # Add completions with ratings for different facets
-    completion1 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 1",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    dataset.session.add(completion1)
+    completion1, _ = create_test_completion_pair(dataset, prompt_revision)
+    completion = completion1
+    dataset.session.add(completion)
     dataset.commit()
 
     # Add ratings for facets
-    PromptCompletionRating.set_rating(dataset, completion1, facet_quality, 8)
-    PromptCompletionRating.set_rating(dataset, completion1, facet_accuracy, 9)
+    PromptCompletionRating.set_rating(dataset, completion, facet_quality, 8)
+    PromptCompletionRating.set_rating(dataset, completion, facet_accuracy, 9)
 
     # Create widget with sample but no active facet
     widget = WidgetSample(None, app_with_dataset, sample=sample, active_facet=None)

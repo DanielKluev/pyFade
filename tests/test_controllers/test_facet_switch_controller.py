@@ -18,6 +18,7 @@ from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
+from tests.helpers.data_helpers import create_test_completion_pair
 
 
 def test_remove_facet_from_sample_with_ratings(
@@ -41,31 +42,7 @@ def test_remove_facet_from_sample_with_ratings(
     sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
 
     # Add completions
-    completion1 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 1",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    completion2 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="b" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 2",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    temp_dataset.session.add(completion1)
-    temp_dataset.session.add(completion2)
-    temp_dataset.commit()
+    completion1, completion2 = create_test_completion_pair(temp_dataset, prompt_revision)
 
     # Add ratings for both facets
     PromptCompletionRating.set_rating(temp_dataset, completion1, facet1, 8)
@@ -109,31 +86,7 @@ def test_remove_facet_from_sample_with_rankings(
     sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
 
     # Add completions
-    completion1 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 1",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    completion2 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="b" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 2",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    temp_dataset.session.add(completion1)
-    temp_dataset.session.add(completion2)
-    temp_dataset.commit()
+    completion1, completion2 = create_test_completion_pair(temp_dataset, prompt_revision)
 
     # Add pairwise ranking
     ranking = PromptCompletionPairwiseRanking.get_or_create(temp_dataset, completion1, completion2, facet1)
@@ -170,31 +123,7 @@ def test_change_facet_for_sample(
     sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
 
     # Add completions
-    completion1 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 1",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    completion2 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="b" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 2",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    temp_dataset.session.add(completion1)
-    temp_dataset.session.add(completion2)
-    temp_dataset.commit()
+    completion1, completion2 = create_test_completion_pair(temp_dataset, prompt_revision)
 
     # Add ratings to source facet
     PromptCompletionRating.set_rating(temp_dataset, completion1, source_facet, 8)
@@ -240,31 +169,7 @@ def test_change_facet_with_existing_target_ratings(
     sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
 
     # Add completions
-    completion1 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 1",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    completion2 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="b" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 2",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    temp_dataset.session.add(completion1)
-    temp_dataset.session.add(completion2)
-    temp_dataset.commit()
+    completion1, completion2 = create_test_completion_pair(temp_dataset, prompt_revision)
 
     # Add ratings to source facet
     PromptCompletionRating.set_rating(temp_dataset, completion1, source_facet, 8)
@@ -315,31 +220,7 @@ def test_copy_facet_for_sample(
     sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
 
     # Add completions
-    completion1 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 1",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    completion2 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="b" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 2",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    temp_dataset.session.add(completion1)
-    temp_dataset.session.add(completion2)
-    temp_dataset.commit()
+    completion1, completion2 = create_test_completion_pair(temp_dataset, prompt_revision)
 
     # Add ratings to source facet
     PromptCompletionRating.set_rating(temp_dataset, completion1, source_facet, 8)
@@ -389,28 +270,7 @@ def test_copy_facet_with_pairwise_rankings(
     sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
 
     # Add completions
-    completion1 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 1",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    completion2 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="b" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 2",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
+    completion1, completion2 = create_test_completion_pair(temp_dataset, prompt_revision)
     completion3 = PromptCompletion(
         prompt_revision_id=prompt_revision.id,
         sha256="c" * 64,
@@ -422,8 +282,6 @@ def test_copy_facet_with_pairwise_rankings(
         max_tokens=512,
         is_truncated=False,
     )
-    temp_dataset.session.add(completion1)
-    temp_dataset.session.add(completion2)
     temp_dataset.session.add(completion3)
     temp_dataset.commit()
 
@@ -467,31 +325,7 @@ def test_copy_facet_with_existing_target_rankings(
     sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_revision)
 
     # Add completions
-    completion1 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="a" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 1",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    completion2 = PromptCompletion(
-        prompt_revision_id=prompt_revision.id,
-        sha256="b" * 64,
-        model_id="test-model",
-        temperature=0.7,
-        top_k=50,
-        completion_text="Test completion 2",
-        context_length=2048,
-        max_tokens=512,
-        is_truncated=False,
-    )
-    temp_dataset.session.add(completion1)
-    temp_dataset.session.add(completion2)
-    temp_dataset.commit()
+    completion1, completion2 = create_test_completion_pair(temp_dataset, prompt_revision)
 
     # Add pairwise ranking to source facet
     PromptCompletionPairwiseRanking.get_or_create(temp_dataset, completion1, completion2, source_facet)
