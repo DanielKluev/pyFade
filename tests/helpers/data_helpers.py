@@ -438,9 +438,9 @@ def add_tag_to_samples(dataset: "DatasetDatabase", tag, samples: list[Sample]) -
     dataset.commit()
 
 
-def create_test_completion_pair(temp_dataset, prompt_revision, sha256_1: str = "a" * 64, sha256_2: str = "b" * 64,
-                                completion_text_1: str = "Test completion 1", completion_text_2: str = "Test completion 2",
-                                **kwargs) -> tuple[PromptCompletion, PromptCompletion]:
+def create_test_completion_pair(temp_dataset: "DatasetDatabase", prompt_revision: PromptRevision, sha256_1: str = "a" * 64,
+                                sha256_2: str = "b" * 64, completion_text_1: str = "Test completion 1",
+                                completion_text_2: str = "Test completion 2", **kwargs) -> tuple[PromptCompletion, PromptCompletion]:
     """
     Create a pair of test completions with common defaults.
 
@@ -472,9 +472,9 @@ def create_test_completion_pair(temp_dataset, prompt_revision, sha256_1: str = "
     return completion1, completion2
 
 
-def create_export_template_and_setup(temp_dataset, facet, training_type: str, output_format: str, model_families: list[str],
-                                     limit_type: str = "percentage", limit_value: int = 100, order: str = "random",
-                                     facet_overrides: dict | None = None):
+def create_export_template_and_setup(temp_dataset: "DatasetDatabase", facet: Facet, training_type: str, output_format: str,
+                                     model_families: list[str], limit_type: str = "percentage", limit_value: int = 100,
+                                     order: str = "random", facet_overrides: dict | None = None) -> tuple[ExportTemplate, pathlib.Path]:
     """
     Create an export template with standard configuration.
 
@@ -492,7 +492,7 @@ def create_export_template_and_setup(temp_dataset, facet, training_type: str, ou
         facet_overrides: Optional dict of additional facet-specific overrides (e.g., {"max_rating": 6})
 
     Returns:
-        Created ExportTemplate and temp file path
+        Tuple of (ExportTemplate, pathlib.Path)
     """
     # Build facet configuration
     facet_config = {"facet_id": facet.id, "limit_type": limit_type, "limit_value": limit_value, "order": order}
@@ -512,9 +512,9 @@ def create_export_template_and_setup(temp_dataset, facet, training_type: str, ou
     return template, temp_path
 
 
-def create_sample_with_truncated_completion(temp_dataset, prompt_text: str = "Test prompt", sample_title: str = "Test sample",
-                                            completion_text: str = "Truncated completion", context_length: int = 2048,
-                                            max_tokens: int = 128):
+def create_sample_with_truncated_completion(temp_dataset: "DatasetDatabase", prompt_text: str = "Test prompt",
+                                            sample_title: str = "Test sample", completion_text: str = "Truncated completion",
+                                            context_length: int = 2048, max_tokens: int = 128) -> tuple[Sample, PromptCompletion]:
     """
     Create a sample with a truncated completion for beam mode testing.
 
