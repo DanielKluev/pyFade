@@ -17,7 +17,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
