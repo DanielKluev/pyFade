@@ -14,12 +14,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from py_fade.dataset.prompt import PromptRevision
-from py_fade.dataset.sample import Sample
 from py_fade.gui.components.widget_completion import CompletionFrame
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
-from tests.helpers.data_helpers import create_simple_llm_response, create_test_completion
-from tests.helpers.ui_helpers import create_mock_mapped_model
+from tests.helpers.data_helpers import (create_simple_llm_response, create_sample_with_truncated_completion,
+                                        create_sample_with_archived_truncated_completion)
+from tests.helpers.ui_helpers import (create_mock_mapped_model, create_transient_truncated_beam, assert_beam_frame_updated,
+                                      setup_beam_generation_error_test, assert_beam_frame_unchanged, create_beam_widget_with_truncated_beam,
+                                      create_beam_widget_with_sample_widget)
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -77,19 +78,8 @@ class TestLimitedContinuationButtonVisibility:
         
         Limited continuation is only for unsaved beams.
         """
-        session = temp_dataset.session
-        assert session is not None
-
         # Create a sample and truncated completion
-        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 128)
-        sample = Sample.create_if_unique(temp_dataset, "Test sample", prompt_revision, None)
-        if sample is None:
-            sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
-            session.add(sample)
-            session.commit()
-
-        completion = create_test_completion(session, prompt_revision, {"is_truncated": True, "completion_text": "Truncated completion"})
-        session.refresh(completion)
+        _, completion = create_sample_with_truncated_completion(temp_dataset)
 
         # Create a completion frame in beam mode with saved completion
         frame = CompletionFrame(temp_dataset, completion, parent=None, display_mode="beam")
@@ -102,23 +92,8 @@ class TestLimitedContinuationButtonVisibility:
         """
         Test limited continuation button is hidden for archived beam completions even if truncated and unsaved.
         """
-        session = temp_dataset.session
-        assert session is not None
-
         # Create a sample and truncated + archived completion
-        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 128)
-        sample = Sample.create_if_unique(temp_dataset, "Test sample", prompt_revision, None)
-        if sample is None:
-            sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
-            session.add(sample)
-            session.commit()
-
-        completion = create_test_completion(session, prompt_revision, {
-            "is_truncated": True,
-            "is_archived": True,
-            "completion_text": "Archived truncated"
-        })
-        session.refresh(completion)
+        _, completion = create_sample_with_archived_truncated_completion(temp_dataset)
 
         # Create a completion frame in beam mode
         frame = CompletionFrame(temp_dataset, completion, parent=None, display_mode="beam")
@@ -131,19 +106,8 @@ class TestLimitedContinuationButtonVisibility:
         """
         Test limited continuation button doesn't exist in sample mode.
         """
-        session = temp_dataset.session
-        assert session is not None
-
         # Create a sample and truncated completion
-        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 128)
-        sample = Sample.create_if_unique(temp_dataset, "Test sample", prompt_revision, None)
-        if sample is None:
-            sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
-            session.add(sample)
-            session.commit()
-
-        completion = create_test_completion(session, prompt_revision, {"is_truncated": True, "completion_text": "Truncated completion"})
-        session.refresh(completion)
+        _, completion = create_sample_with_truncated_completion(temp_dataset)
 
         # Create a completion frame in sample mode
         frame = CompletionFrame(temp_dataset, completion, parent=None, display_mode="sample")
@@ -174,11 +138,7 @@ class TestLimitedContinuationHandler:
         widget.depth_spin.setValue(15)
 
         # Create a truncated transient beam
-        truncated_beam = create_simple_llm_response("test-model", "Truncated")
-        truncated_beam.is_truncated = True
-        truncated_beam.context_length = 1024
-        truncated_beam.max_tokens = 128
-        truncated_beam.prompt_revision = MagicMock()
+        truncated_beam = create_transient_truncated_beam()
 
         # Add beam to widget
         widget.add_beam_frame(truncated_beam)
@@ -222,11 +182,7 @@ class TestLimitedContinuationHandler:
         widget.depth_spin.setValue(20)
 
         # Create a truncated transient beam
-        truncated_beam = create_simple_llm_response("test-model", "Truncated")
-        truncated_beam.is_truncated = True
-        truncated_beam.context_length = 1024
-        truncated_beam.max_tokens = 128
-        truncated_beam.prompt_revision = MagicMock()
+        truncated_beam = create_transient_truncated_beam()
 
         # Add beam to widget
         widget.add_beam_frame(truncated_beam)
@@ -249,41 +205,17 @@ class TestLimitedContinuationHandler:
         mock_controller.generate_continuation.assert_called_once()
 
         # Verify frame was updated
-        assert len(widget.beam_frames) == 1
-        updated_beam, updated_frame = widget.beam_frames[0]
-        assert updated_beam is expanded_beam
-        assert updated_frame.completion is expanded_beam
+        assert_beam_frame_updated(widget, expanded_beam)
 
     def test_limited_continuation_handles_generation_failure(self, app_with_dataset, monkeypatch):
         """
         Test that limited continuation handles generation failures gracefully.
         """
-        # Create widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
-
-        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
+        # Set up widget with error-raising controller
+        widget, truncated_beam, _mock_controller = setup_beam_generation_error_test(app_with_dataset, monkeypatch)
 
         # Set depth
         widget.depth_spin.setValue(10)
-
-        # Create a truncated transient beam
-        truncated_beam = create_simple_llm_response("test-model", "Truncated")
-        truncated_beam.is_truncated = True
-        truncated_beam.context_length = 1024
-        truncated_beam.max_tokens = 128
-        truncated_beam.prompt_revision = MagicMock()
-
-        # Add beam to widget
-        widget.add_beam_frame(truncated_beam)
-
-        # Mock the text generation controller to raise an error
-        mock_controller = MagicMock()
-        mock_controller.generate_continuation.side_effect = RuntimeError("Generation failed")
-
-        # Mock get_or_create_text_generation_controller
-        monkeypatch.setattr(app_with_dataset, "get_or_create_text_generation_controller", lambda *args, **kwargs: mock_controller)
 
         # Mock QMessageBox to avoid dialog
         with patch("py_fade.gui.widget_completion_beams.QMessageBox.warning"):
@@ -291,33 +223,17 @@ class TestLimitedContinuationHandler:
             widget.on_beam_limited_continuation_requested(truncated_beam)
 
         # Verify the beam frame was NOT modified
-        assert len(widget.beam_frames) == 1
-        beam, _frame = widget.beam_frames[0]
-        assert beam is truncated_beam
+        assert_beam_frame_unchanged(widget, truncated_beam)
 
     def test_limited_continuation_handles_no_controller(self, app_with_dataset, monkeypatch):
         """
         Test that limited continuation handles missing controller gracefully.
         """
-        # Create widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
-
-        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
+        # Create widget with truncated beam
+        widget, truncated_beam, _mapped_model = create_beam_widget_with_truncated_beam(app_with_dataset)
 
         # Set depth
         widget.depth_spin.setValue(10)
-
-        # Create a truncated transient beam
-        truncated_beam = create_simple_llm_response("test-model", "Truncated")
-        truncated_beam.is_truncated = True
-        truncated_beam.context_length = 1024
-        truncated_beam.max_tokens = 128
-        truncated_beam.prompt_revision = MagicMock()
-
-        # Add beam to widget
-        widget.add_beam_frame(truncated_beam)
 
         # Mock get_or_create_text_generation_controller to return None
         monkeypatch.setattr(app_with_dataset, "get_or_create_text_generation_controller", lambda *args, **kwargs: None)
@@ -328,34 +244,17 @@ class TestLimitedContinuationHandler:
             widget.on_beam_limited_continuation_requested(truncated_beam)
 
         # Verify the beam frame was NOT modified
-        assert len(widget.beam_frames) == 1
-        beam, _frame = widget.beam_frames[0]
-        assert beam is truncated_beam
+        assert_beam_frame_unchanged(widget, truncated_beam)
 
     def test_limited_continuation_ignores_persisted_beams(self, app_with_dataset, temp_dataset, monkeypatch):
         """
         Test that limited continuation ignores persisted (saved) beams.
         """
-        session = temp_dataset.session
-        assert session is not None
-
         # Create a sample and truncated completion
-        prompt_revision = PromptRevision.get_or_create(temp_dataset, "Test prompt", 2048, 128)
-        sample = Sample.create_if_unique(temp_dataset, "Test sample", prompt_revision, None)
-        if sample is None:
-            sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
-            session.add(sample)
-            session.commit()
+        _, completion = create_sample_with_truncated_completion(temp_dataset)
 
-        completion = create_test_completion(session, prompt_revision, {"is_truncated": True, "completion_text": "Truncated completion"})
-        session.refresh(completion)
-
-        # Create widget
-        mapped_model = MagicMock()
-        mapped_model.model_id = "test-model"
-        mapped_model.path = "test-model"
-
-        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
+        # Create widget with sample widget
+        widget, _mapped_model, _sample_widget = create_beam_widget_with_sample_widget(app_with_dataset)
 
         # Mock controller to track if it's called
         mock_controller = MagicMock()
@@ -380,11 +279,7 @@ class TestLimitedContinuationHandler:
         widget.depth_spin.setValue(5)
 
         # Create a truncated transient beam
-        truncated_beam = create_simple_llm_response("test-model", "Truncated")
-        truncated_beam.is_truncated = True
-        truncated_beam.context_length = 1024
-        truncated_beam.max_tokens = 128
-        truncated_beam.prompt_revision = MagicMock()
+        truncated_beam = create_transient_truncated_beam()
 
         # Add beam to widget
         widget.add_beam_frame(truncated_beam)

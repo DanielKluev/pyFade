@@ -258,3 +258,142 @@ def create_test_widget_sample_empty(app: "pyFadeApp", qt_app):
     qt_app.processEvents()
 
     return widget
+
+
+def create_transient_truncated_beam(model_id: str = "test-model", completion_text: str = "Truncated", context_length: int = 1024,
+                                    max_tokens: int = 128):
+    """
+    Create a transient truncated beam for testing beam mode functionality.
+
+    This helper reduces duplicate beam creation code that appears frequently
+    in beam mode tests.
+
+    Args:
+        model_id: Model identifier
+        completion_text: Completion text
+        context_length: Context length
+        max_tokens: Max tokens
+
+    Returns:
+        LLMResponse: A truncated transient beam with MagicMock prompt_revision
+    """
+    from unittest.mock import MagicMock  # pylint: disable=import-outside-toplevel
+    from tests.helpers.data_helpers import create_simple_llm_response  # pylint: disable=import-outside-toplevel
+
+    truncated_beam = create_simple_llm_response(model_id, completion_text)
+    truncated_beam.is_truncated = True
+    truncated_beam.context_length = context_length
+    truncated_beam.max_tokens = max_tokens
+    truncated_beam.prompt_revision = MagicMock()
+
+    return truncated_beam
+
+
+def create_beam_widget_with_truncated_beam(app, prompt_text: str = "Test prompt"):
+    """
+    Create a WidgetCompletionBeams with a truncated transient beam added.
+
+    This helper reduces duplicate widget setup code in beam mode tests.
+
+    Args:
+        app: The pyFadeApp instance
+        prompt_text: The prompt text for the widget
+
+    Returns:
+        tuple: (widget, truncated_beam, mapped_model) - The widget, beam, and model
+    """
+    from py_fade.gui.widget_completion_beams import WidgetCompletionBeams  # pylint: disable=import-outside-toplevel
+
+    mapped_model = create_mock_mapped_model()
+    widget = WidgetCompletionBeams(None, app, prompt_text, None, mapped_model)
+    truncated_beam = create_transient_truncated_beam()
+    widget.add_beam_frame(truncated_beam)
+
+    return widget, truncated_beam, mapped_model
+
+
+def setup_beam_generation_error_test(app, monkeypatch, prompt_text: str = "Test prompt"):
+    """
+    Set up a beam widget with mocked text generation controller that raises an error.
+
+    This helper reduces duplicate error handling test setup code in beam mode tests.
+
+    Args:
+        app: The pyFadeApp instance
+        monkeypatch: Pytest monkeypatch fixture
+        prompt_text: The prompt text for the widget
+
+    Returns:
+        tuple: (widget, truncated_beam, mock_controller) - Widget, beam, and mocked controller
+    """
+    from unittest.mock import MagicMock  # pylint: disable=import-outside-toplevel
+    from py_fade.gui.widget_completion_beams import WidgetCompletionBeams  # pylint: disable=import-outside-toplevel
+
+    mapped_model = create_mock_mapped_model()
+    widget = WidgetCompletionBeams(None, app, prompt_text, None, mapped_model)
+    truncated_beam = create_transient_truncated_beam()
+    widget.add_beam_frame(truncated_beam)
+
+    # Mock the text generation controller to raise an error
+    mock_controller = MagicMock()
+    mock_controller.generate_continuation.side_effect = RuntimeError("Generation failed")
+
+    # Mock get_or_create_text_generation_controller
+    monkeypatch.setattr(app, "get_or_create_text_generation_controller", lambda *args, **kwargs: mock_controller)
+
+    return widget, truncated_beam, mock_controller
+
+
+def assert_beam_frame_unchanged(widget, expected_beam):
+    """
+    Assert that the beam frame was NOT modified during an operation.
+
+    This helper reduces duplicate assertion code in beam error handling tests.
+
+    Args:
+        widget: The WidgetCompletionBeams instance
+        expected_beam: The beam that should still be present unchanged
+    """
+    assert len(widget.beam_frames) == 1
+    beam, _frame = widget.beam_frames[0]
+    assert beam is expected_beam
+
+
+def assert_beam_frame_updated(widget, expected_beam):
+    """
+    Assert that the beam frame was successfully updated with a new beam.
+
+    This helper reduces duplicate assertion code in beam continuation tests.
+
+    Args:
+        widget: The WidgetCompletionBeams instance
+        expected_beam: The new beam that should be present in the frame
+    """
+    assert len(widget.beam_frames) == 1
+    updated_beam, updated_frame = widget.beam_frames[0]
+    assert updated_beam is expected_beam
+    assert updated_frame.completion is expected_beam
+
+
+def create_beam_widget_with_sample_widget(app, prompt_text: str = "Test prompt"):
+    """
+    Create a WidgetCompletionBeams with a sample widget for persisted beam testing.
+
+    This helper reduces duplicate widget setup code in beam mode persisted beam tests.
+
+    Args:
+        app: The pyFadeApp instance
+        prompt_text: The prompt text for the widget
+
+    Returns:
+        tuple: (widget, mapped_model, sample_widget) - The widget, model, and sample widget mock
+    """
+    from unittest.mock import MagicMock  # pylint: disable=import-outside-toplevel
+    from py_fade.gui.widget_completion_beams import WidgetCompletionBeams  # pylint: disable=import-outside-toplevel
+
+    mapped_model = create_mock_mapped_model()
+    sample_widget = MagicMock()
+    sample_widget.active_facet = None
+    widget = WidgetCompletionBeams(None, app, prompt_text, sample_widget, mapped_model)
+
+    return widget, mapped_model, sample_widget

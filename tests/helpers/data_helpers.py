@@ -5,12 +5,15 @@ from __future__ import annotations
 
 import datetime
 import hashlib
+import pathlib
+import tempfile
 from typing import TYPE_CHECKING, List, Tuple
 
 from py_fade.data_formats.base_data_classes import CommonConversation, CommonMessage
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.dataset.completion_rating import PromptCompletionRating
+from py_fade.dataset.export_template import ExportTemplate
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
@@ -433,3 +436,271 @@ def add_tag_to_samples(dataset: "DatasetDatabase", tag, samples: list[Sample]) -
     for sample in samples:
         sample.add_tag(dataset, tag)
     dataset.commit()
+
+
+def create_test_completion_pair(temp_dataset: "DatasetDatabase", prompt_revision: PromptRevision, sha256_1: str = "a" * 64,
+                                sha256_2: str = "b" * 64, completion_text_1: str = "Test completion 1",
+                                completion_text_2: str = "Test completion 2", **kwargs) -> tuple[PromptCompletion, PromptCompletion]:
+    """
+    Create a pair of test completions with common defaults.
+
+    This helper eliminates the duplicate code pattern of creating two similar completions
+    that appears frequently in tests.
+
+    Args:
+        temp_dataset: Dataset to add completions to
+        prompt_revision: PromptRevision to associate completions with
+        sha256_1: SHA256 for first completion
+        sha256_2: SHA256 for second completion
+        completion_text_1: Text for first completion
+        completion_text_2: Text for second completion
+        **kwargs: Additional parameters to override defaults (applied to both completions)
+
+    Returns:
+        Tuple of (completion1, completion2)
+    """
+    defaults = {"model_id": "test-model", "temperature": 0.7, "top_k": 50, "context_length": 2048, "max_tokens": 512, "is_truncated": False}
+    defaults.update(kwargs)
+
+    completion1 = PromptCompletion(prompt_revision_id=prompt_revision.id, sha256=sha256_1, completion_text=completion_text_1, **defaults)
+    completion2 = PromptCompletion(prompt_revision_id=prompt_revision.id, sha256=sha256_2, completion_text=completion_text_2, **defaults)
+
+    temp_dataset.session.add(completion1)
+    temp_dataset.session.add(completion2)
+    temp_dataset.commit()
+
+    return completion1, completion2
+
+
+def create_export_template_and_setup(temp_dataset: "DatasetDatabase", facet: Facet, training_type: str, output_format: str,
+                                     model_families: list[str], limit_type: str = "percentage", limit_value: int = 100,
+                                     order: str = "random", facet_overrides: dict | None = None) -> tuple[ExportTemplate, pathlib.Path]:
+    """
+    Create an export template with standard configuration.
+
+    This helper eliminates duplicate export template creation code across test files.
+
+    Args:
+        temp_dataset: Dataset to create template in
+        facet: Facet to use in template
+        training_type: Training type (e.g., "DPO", "KTO")
+        output_format: Output format (e.g., "JSONL (Anthropic)", "JSONL (TRL)")
+        model_families: List of model families
+        limit_type: Limit type for facet ("percentage" or "count")
+        limit_value: Limit value for facet
+        order: Order for facet ("random", "created", etc.)
+        facet_overrides: Optional dict of additional facet-specific overrides (e.g., {"max_rating": 6})
+
+    Returns:
+        Tuple of (ExportTemplate, pathlib.Path)
+    """
+    # Build facet configuration
+    facet_config = {"facet_id": facet.id, "limit_type": limit_type, "limit_value": limit_value, "order": order}
+    if facet_overrides:
+        facet_config.update(facet_overrides)
+
+    # Create export template
+    template = ExportTemplate.create(temp_dataset, name=f"Test {training_type} Template", description=f"Test {training_type} export",
+                                     training_type=training_type, output_format=output_format, model_families=model_families,
+                                     facets=[facet_config])
+    temp_dataset.commit()
+
+    # Create temporary output file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        temp_path = pathlib.Path(f.name)
+
+    return template, temp_path
+
+
+def create_sample_with_truncated_completion(temp_dataset: "DatasetDatabase", prompt_text: str = "Test prompt",
+                                            sample_title: str = "Test sample", completion_text: str = "Truncated completion",
+                                            context_length: int = 2048, max_tokens: int = 128) -> tuple[Sample, PromptCompletion]:
+    """
+    Create a sample with a truncated completion for beam mode testing.
+
+    This helper eliminates duplicate sample and truncated completion creation code
+    that appears in beam mode tests.
+
+    Args:
+        temp_dataset: Dataset to create sample in
+        prompt_text: Prompt text
+        sample_title: Sample title
+        completion_text: Completion text
+        context_length: Context length
+        max_tokens: Max tokens
+
+    Returns:
+        Tuple of (sample, completion)
+    """
+    session = temp_dataset.session
+    assert session is not None
+
+    # Create a sample and truncated completion
+    prompt_revision = PromptRevision.get_or_create(temp_dataset, prompt_text, context_length, max_tokens)
+    sample = Sample.create_if_unique(temp_dataset, sample_title, prompt_revision, None)
+    if sample is None:
+        sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
+        session.add(sample)
+        session.commit()
+
+    completion = create_test_completion(session, prompt_revision, {"is_truncated": True, "completion_text": completion_text})
+    session.refresh(completion)
+
+    return sample, completion
+
+
+def create_sample_with_archived_truncated_completion(temp_dataset: "DatasetDatabase", prompt_text: str = "Test prompt",
+                                                     sample_title: str = "Test sample", completion_text: str = "Archived truncated",
+                                                     context_length: int = 2048, max_tokens: int = 128) -> tuple[Sample, PromptCompletion]:
+    """
+    Create a sample with an archived truncated completion for testing.
+
+    This helper eliminates duplicate sample and archived completion creation code.
+
+    Args:
+        temp_dataset: Dataset to create sample in
+        prompt_text: Prompt text
+        sample_title: Sample title
+        completion_text: Completion text
+        context_length: Context length
+        max_tokens: Max tokens
+
+    Returns:
+        Tuple of (sample, completion)
+    """
+    session = temp_dataset.session
+    assert session is not None
+
+    # Create a sample and truncated + archived completion
+    prompt_revision = PromptRevision.get_or_create(temp_dataset, prompt_text, context_length, max_tokens)
+    sample = Sample.create_if_unique(temp_dataset, sample_title, prompt_revision, None)
+    if sample is None:
+        sample = Sample.from_prompt_revision(temp_dataset, prompt_revision)
+        session.add(sample)
+        session.commit()
+
+    completion = create_test_completion(session, prompt_revision, {
+        "is_truncated": True,
+        "is_archived": True,
+        "completion_text": completion_text
+    })
+    session.refresh(completion)
+
+    return sample, completion
+
+
+def create_facet_pair_and_sample(temp_dataset: "DatasetDatabase", facet1_name: str = "Quality", facet1_desc: str = "Quality facet",
+                                 facet2_name: str = "Accuracy", facet2_desc: str = "Accuracy facet", sample_title: str = "Test Sample",
+                                 prompt_text: str = "Test prompt", context_length: int = 2048,
+                                 max_tokens: int = 512) -> tuple[Facet, Facet, Sample]:
+    """
+    Create two facets and a sample for facet switch testing.
+
+    This helper eliminates duplicate facet and sample creation code that appears
+    in facet switch tests.
+
+    Args:
+        temp_dataset: Dataset to create entities in
+        facet1_name: Name for first facet
+        facet1_desc: Description for first facet
+        facet2_name: Name for second facet
+        facet2_desc: Description for second facet
+        sample_title: Sample title
+        prompt_text: Prompt text
+        context_length: Context length
+        max_tokens: Max tokens
+
+    Returns:
+        Tuple of (facet1, facet2, sample)
+    """
+    facet1 = Facet.create(temp_dataset, facet1_name, facet1_desc)
+    facet2 = Facet.create(temp_dataset, facet2_name, facet2_desc)
+    temp_dataset.commit()
+
+    # Create sample
+    prompt_revision = PromptRevision.get_or_create(temp_dataset, prompt_text, context_length, max_tokens)
+    sample = Sample.create_if_unique(temp_dataset, sample_title, prompt_revision)
+    temp_dataset.commit()
+
+    return facet1, facet2, sample
+
+
+def setup_export_test_with_facet_and_model(app, temp_dataset: "DatasetDatabase", min_rating: int = 7, max_rating: int | None = None):
+    """
+    Set up a facet and mock model for export testing.
+
+    This helper reduces duplicate setup code in DPO and KTO export tests.
+
+    Args:
+        app: The pyFadeApp instance
+        temp_dataset: Dataset to create facet in
+        min_rating: Minimum rating threshold for facet
+        max_rating: Maximum rating threshold for facet (optional, used for KTO)
+
+    Returns:
+        tuple: (facet, mapped_model) - The created facet and mock model
+    """
+    # Create facet
+    kwargs = {"min_rating": min_rating, "min_logprob_threshold": -0.5, "avg_logprob_threshold": -0.3}
+    if max_rating is not None:
+        kwargs["max_rating"] = max_rating
+
+    facet = Facet.create(temp_dataset, "Test Facet", "Test description", **kwargs)
+    temp_dataset.commit()
+
+    # Get mock model
+    mapped_model = app.providers_manager.get_mock_model()
+
+    return facet, mapped_model
+
+
+def create_sample_with_good_completion(temp_dataset: "DatasetDatabase", facet: "Facet", model_id: str, title: str = "Sample 1",
+                                       completion_text: str = "Good answer"):
+    """
+    Create a sample with a high-rated completion for export testing.
+
+    This helper reduces duplicate sample creation code in DPO and KTO export tests.
+
+    Args:
+        temp_dataset: Dataset to create sample in
+        facet: Facet to rate completion against
+        model_id: Model ID for completion
+        title: Sample title
+        completion_text: Completion text
+
+    Returns:
+        tuple: (sample, completion) - The created sample and completion
+    """
+    sample, completion = create_test_sample_with_completion(temp_dataset, facet, rating=9, min_logprob=-0.4, avg_logprob=-0.2, title=title,
+                                                            completion_text=completion_text, model_id=model_id)
+    return sample, completion
+
+
+def run_export_expecting_error(app, temp_dataset: "DatasetDatabase", template, temp_path, expected_error_msg: str, model_id: str):
+    """
+    Run export controller expecting a ValueError with specific message.
+
+    This helper reduces duplicate error handling test code in export tests.
+
+    Args:
+        app: The pyFadeApp instance
+        temp_dataset: Dataset to export from
+        template: Export template to use
+        temp_path: Output path for export
+        expected_error_msg: Expected error message substring
+        model_id: Target model ID for export
+
+    Raises:
+        AssertionError: If expected error was not raised
+    """
+    from py_fade.controllers.export_controller import ExportController  # pylint: disable=import-outside-toplevel
+
+    export_controller = ExportController(app, temp_dataset, template, target_model_id=model_id)
+    export_controller.set_output_path(temp_path)
+
+    # Should raise error with expected message
+    try:
+        export_controller.run_export()
+        assert False, "Expected ValueError to be raised"
+    except ValueError as e:
+        assert expected_error_msg in str(e)

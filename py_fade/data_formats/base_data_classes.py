@@ -519,6 +519,12 @@ class CommonCompletionLogprobs:
         return self.min_logprob + self.avg_logprob * 2
 
     def is_valid(self) -> bool:
+        """
+        Check if the logprobs are valid.
+
+        Returns:
+            True if min_logprob is not None, False otherwise
+        """
         return self.min_logprob is not None
 
 

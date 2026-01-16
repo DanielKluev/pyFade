@@ -6,33 +6,27 @@ label assignment, and JSONL output.
 """
 from __future__ import annotations
 
-import pathlib
-import tempfile
 import json
 
 from py_fade.controllers.export_controller import ExportController
 from py_fade.controllers.kto_controller import KTOController
-from py_fade.dataset.export_template import ExportTemplate
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.completion_rating import PromptCompletionRating
-from tests.helpers.data_helpers import create_test_sample_with_completion, create_test_completion_with_params, create_test_logprobs
+from tests.helpers.data_helpers import (create_test_sample_with_completion, create_test_completion_with_params, create_test_logprobs,
+                                        create_export_template_and_setup, setup_export_test_with_facet_and_model,
+                                        create_sample_with_good_completion, run_export_expecting_error)
 
 
 def test_kto_controller_basic(app_with_dataset, temp_dataset):
     """
     Test KTO controller generates correct good and bad samples.
     """
-    # Create facet with min_rating=7, max_rating=5
-    facet = Facet.create(temp_dataset, "Test Facet", "Test description", min_rating=7, max_rating=5, min_logprob_threshold=-0.5,
-                         avg_logprob_threshold=-0.3)
-    temp_dataset.commit()
-
-    # Get mock model
-    mapped_model = app_with_dataset.providers_manager.get_mock_model()
+    # Create facet with min_rating=7, max_rating=5 and get mock model
+    facet, mapped_model = setup_export_test_with_facet_and_model(app_with_dataset, temp_dataset, min_rating=7, max_rating=5)
 
     # Create sample with three completions: good (rating=9), bad (rating=3), neutral (rating=6)
-    sample1, _ = create_test_sample_with_completion(temp_dataset, facet, rating=9, min_logprob=-0.4, avg_logprob=-0.2, title="Sample 1",
-                                                    completion_text="Good answer", model_id=mapped_model.model_id)
+    sample1, _ = create_sample_with_good_completion(temp_dataset, facet, mapped_model.model_id, title="Sample 1",
+                                                    completion_text="Good answer")
 
     # Add bad completion
     comp_bad = create_test_completion_with_params(temp_dataset, sample1.prompt_revision, sha256="b" * 64, model_id=mapped_model.model_id,
@@ -90,25 +84,7 @@ def test_kto_export_basic(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Create KTO export template
-    template = ExportTemplate.create(
-        temp_dataset,
-        name="Test KTO Template",
-        description="Test KTO export",
-        training_type="KTO",
-        output_format="JSONL (TRL)",
-        model_families=["Llama3"],
-        facets=[{
-            "facet_id": facet.id,
-            "limit_type": "percentage",
-            "limit_value": 100,
-            "order": "random"
-        }],
-    )
-    temp_dataset.commit()
-
-    # Export
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
-        temp_path = pathlib.Path(f.name)
+    template, temp_path = create_export_template_and_setup(temp_dataset, facet, "KTO", "JSONL (TRL)", ["Llama3"])
 
     try:
         export_controller = ExportController(app_with_dataset, temp_dataset, template, target_model_id=mapped_model.model_id)
@@ -175,26 +151,8 @@ def test_kto_export_threshold_override(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Create KTO export template with overridden max_rating=6 (making rating=6 "bad")
-    template = ExportTemplate.create(
-        temp_dataset,
-        name="Test KTO Template",
-        description="Test KTO export with threshold override",
-        training_type="KTO",
-        output_format="JSONL (TRL)",
-        model_families=["Llama3"],
-        facets=[{
-            "facet_id": facet.id,
-            "limit_type": "percentage",
-            "limit_value": 100,
-            "order": "random",
-            "max_rating": 6  # Override to make rating=6 "bad"
-        }],
-    )
-    temp_dataset.commit()
-
-    # Export
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
-        temp_path = pathlib.Path(f.name)
+    template, temp_path = create_export_template_and_setup(temp_dataset, facet, "KTO", "JSONL (TRL)", ["Llama3"],
+                                                           facet_overrides={"max_rating": 6})
 
     try:
         export_controller = ExportController(app_with_dataset, temp_dataset, template, target_model_id=mapped_model.model_id)
@@ -221,13 +179,8 @@ def test_kto_export_no_eligible_samples(app_with_dataset, temp_dataset):
     """
     Test KTO export raises error when no eligible samples found.
     """
-    # Create facet
-    facet = Facet.create(temp_dataset, "Test Facet", "Test description", min_rating=7, max_rating=5, min_logprob_threshold=-0.5,
-                         avg_logprob_threshold=-0.3)
-    temp_dataset.commit()
-
-    # Get mock model
-    mapped_model = app_with_dataset.providers_manager.get_mock_model()
+    # Create facet and get mock model
+    facet, mapped_model = setup_export_test_with_facet_and_model(app_with_dataset, temp_dataset, min_rating=7, max_rating=5)
 
     # Create sample with only neutral rating (rating=6)
     _ = create_test_sample_with_completion(temp_dataset, facet, rating=6, min_logprob=-0.4, avg_logprob=-0.2, title="Sample 1",
@@ -235,36 +188,11 @@ def test_kto_export_no_eligible_samples(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Create KTO export template
-    template = ExportTemplate.create(
-        temp_dataset,
-        name="Test KTO Template",
-        description="Test KTO export",
-        training_type="KTO",
-        output_format="JSONL (TRL)",
-        model_families=["Llama3"],
-        facets=[{
-            "facet_id": facet.id,
-            "limit_type": "percentage",
-            "limit_value": 100,
-            "order": "random"
-        }],
-    )
-    temp_dataset.commit()
-
-    # Export should raise ValueError
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
-        temp_path = pathlib.Path(f.name)
+    template, temp_path = create_export_template_and_setup(temp_dataset, facet, "KTO", "JSONL (TRL)", ["Llama3"])
 
     try:
-        export_controller = ExportController(app_with_dataset, temp_dataset, template, target_model_id=mapped_model.model_id)
-        export_controller.set_output_path(temp_path)
-
-        # Should raise ValueError due to no eligible samples
-        try:
-            export_controller.run_export()
-            assert False, "Expected ValueError for no eligible samples"
-        except ValueError as e:
-            assert "No eligible KTO samples found" in str(e)
+        run_export_expecting_error(app_with_dataset, temp_dataset, template, temp_path, "No eligible KTO samples found",
+                                   mapped_model.model_id)
 
     finally:
         temp_path.unlink(missing_ok=True)
@@ -290,25 +218,8 @@ def test_kto_export_with_sample_limit(app_with_dataset, temp_dataset):
     temp_dataset.commit()
 
     # Create KTO export template with limit of 2 samples
-    template = ExportTemplate.create(
-        temp_dataset,
-        name="Test KTO Template",
-        description="Test KTO export with limit",
-        training_type="KTO",
-        output_format="JSONL (TRL)",
-        model_families=["Llama3"],
-        facets=[{
-            "facet_id": facet.id,
-            "limit_type": "count",
-            "limit_value": 2,  # Only export 2 samples
-            "order": "random"
-        }],
-    )
-    temp_dataset.commit()
-
-    # Export
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
-        temp_path = pathlib.Path(f.name)
+    template, temp_path = create_export_template_and_setup(temp_dataset, facet, "KTO", "JSONL (TRL)", ["Llama3"], limit_type="count",
+                                                           limit_value=2)
 
     try:
         export_controller = ExportController(app_with_dataset, temp_dataset, template, target_model_id=mapped_model.model_id)

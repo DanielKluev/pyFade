@@ -8,6 +8,9 @@ for a sample's completions, handling both ratings and pairwise rankings.
 import logging
 from typing import TYPE_CHECKING
 
+from py_fade.dataset.completion_rating import PromptCompletionRating
+from py_fade.dataset.completion_pairwise_ranks import PromptCompletionPairwiseRanking
+
 if TYPE_CHECKING:
     from py_fade.dataset.completion import PromptCompletion
     from py_fade.dataset.dataset import DatasetDatabase
@@ -47,9 +50,6 @@ class FacetSwitchController:
         Returns:
             Number of ratings and rankings removed
         """
-        from py_fade.dataset.completion_rating import PromptCompletionRating
-        from py_fade.dataset.completion_pairwise_ranks import PromptCompletionPairwiseRanking
-
         count = 0
         session = self.dataset.get_session()
 
@@ -140,9 +140,6 @@ class FacetSwitchController:
         Returns:
             Tuple of (copied_count, skipped_count)
         """
-        from py_fade.dataset.completion_rating import PromptCompletionRating
-        from py_fade.dataset.completion_pairwise_ranks import PromptCompletionPairwiseRanking
-
         copied = 0
         skipped = 0
         session = self.dataset.get_session()
