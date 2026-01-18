@@ -1,8 +1,6 @@
 """
 Tests for get_min_logprob_token() method in CommonCompletionLogprobs.
 """
-import pytest
-
 from py_fade.data_formats.base_data_classes import CommonCompletionLogprobs, CompletionTokenLogprobs, CompletionTopLogprobs
 from tests.helpers.data_helpers import create_test_single_position_token
 
