@@ -1152,3 +1152,214 @@ class TestCompletionFrameBeamSaveUpdate:
         assert not frame.pin_button.isVisible(), "Pin button should be hidden after frame update"
         assert frame.archive_button.isVisible(), "Archive button should be visible after frame update"
         assert frame.model_label.isVisible(), "Model label should be visible after frame update"
+
+
+class TestCompletionFrameLogprobsTooltip:
+    """Test logprobs tooltip with lowest token information."""
+
+    def test_tooltip_includes_lowest_token(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """
+        Test that logprobs tooltip includes the lowest logprob token.
+
+        The tooltip should display:
+        - min logprob value
+        - avg logprob value
+        - lowest logprob token string and value
+        """
+        _ = ensure_google_icon_font
+
+        # Create LLMResponse with logprobs
+        beam = _create_test_llm_response(completion_text="Test token", logprobs=[
+            create_test_single_position_token("Test", -0.5),
+            create_test_single_position_token(" token", -2.5)
+        ])  # This has lowest logprob
+        beam.is_full_response_logprobs = True
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+
+        # Set target model to enable logprobs display
+        mock_provider = MockLLMProvider()
+        test_model = MappedModel("test-beam-model", mock_provider)
+        frame.set_target_model(test_model)
+
+        frame.show()
+        qt_app.processEvents()
+
+        # Find the metrics icon in the status layout
+        metrics_icon = None
+        for i in range(frame.status_layout.count()):
+            item = frame.status_layout.itemAt(i)
+            if item and item.widget():
+                widget = item.widget()
+                # Check if it's a QLabelWithIcon with "metrics" icon
+                if hasattr(widget, 'toolTip'):
+                    tooltip = widget.toolTip()
+                    if 'Logprobs min:' in tooltip:
+                        metrics_icon = widget
+                        break
+
+        # Verify the tooltip exists and contains expected information
+        assert metrics_icon is not None, "Metrics icon should be present"
+        tooltip = metrics_icon.toolTip()
+
+        # Check that tooltip contains min and avg logprobs
+        assert "Logprobs min:" in tooltip, "Tooltip should contain min logprob"
+        assert "avg:" in tooltip, "Tooltip should contain avg logprob"
+
+        # Check that tooltip contains lowest token information
+        assert "Lowest token:" in tooltip, "Tooltip should contain lowest token label"
+        assert " token" in tooltip, "Tooltip should contain the token string"
+        assert "-2.5" in tooltip or "-2.500" in tooltip, "Tooltip should contain the lowest logprob value"
+
+    def test_tooltip_without_logprobs(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """
+        Test that tooltip without logprobs shows appropriate message.
+
+        When no logprobs are available, should show "No logprobs available."
+        """
+        _ = ensure_google_icon_font
+
+        # Create LLMResponse without logprobs
+        beam = _create_test_llm_response(completion_text="Test content", logprobs=None)
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+        frame.show()
+        qt_app.processEvents()
+
+        # Find the metrics icon in the status layout
+        metrics_icon = None
+        for i in range(frame.status_layout.count()):
+            item = frame.status_layout.itemAt(i)
+            if item and item.widget():
+                widget = item.widget()
+                if hasattr(widget, 'toolTip'):
+                    tooltip = widget.toolTip()
+                    if 'logprobs' in tooltip.lower():
+                        metrics_icon = widget
+                        break
+
+        assert metrics_icon is not None, "Metrics icon should be present"
+        tooltip = metrics_icon.toolTip()
+        assert "No logprobs available" in tooltip, "Tooltip should show no logprobs message"
+
+    def test_tooltip_with_special_character_token(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """
+        Test that tooltip correctly displays tokens with special characters.
+
+        Should handle emoji, punctuation, and other special characters in token strings.
+        """
+        _ = ensure_google_icon_font
+
+        # Create LLMResponse with special character token having lowest logprob
+        beam = _create_test_llm_response(completion_text="Hello!", logprobs=[
+            create_test_single_position_token("Hello", -0.3),
+            create_test_single_position_token("!", -4.5)
+        ])  # Special character with lowest logprob
+        beam.is_full_response_logprobs = True
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+
+        # Set target model to enable logprobs display
+        mock_provider = MockLLMProvider()
+        test_model = MappedModel("test-beam-model", mock_provider)
+        frame.set_target_model(test_model)
+
+        frame.show()
+        qt_app.processEvents()
+
+        # Find the metrics icon in the status layout
+        metrics_icon = None
+        for i in range(frame.status_layout.count()):
+            item = frame.status_layout.itemAt(i)
+            if item and item.widget():
+                widget = item.widget()
+                if hasattr(widget, 'toolTip'):
+                    tooltip = widget.toolTip()
+                    if 'Lowest token:' in tooltip:
+                        metrics_icon = widget
+                        break
+
+        assert metrics_icon is not None, "Metrics icon should be present"
+        tooltip = metrics_icon.toolTip()
+
+        # Check that special character is in the tooltip
+        assert "!" in tooltip, "Tooltip should contain the special character token"
+        assert "-4.5" in tooltip or "-4.500" in tooltip, "Tooltip should contain the correct logprob value"
+
+    def test_tooltip_updates_on_target_model_change(
+        self,
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,
+    ) -> None:
+        """
+        Test that tooltip updates when target model changes.
+
+        When target model is set, logprobs should be displayed if available.
+        """
+        _ = ensure_google_icon_font
+
+        # Create LLMResponse with logprobs
+        beam = _create_test_llm_response(
+            completion_text="Test content",
+            logprobs=[create_test_single_position_token("Test", -1.0),
+                      create_test_single_position_token(" content", -1.5)])
+        beam.is_full_response_logprobs = True
+
+        frame = CompletionFrame(temp_dataset, beam, display_mode="beam")
+        frame.show()
+        qt_app.processEvents()
+
+        # Initially, without target model, should show "No logprobs available"
+        metrics_icon = None
+        for i in range(frame.status_layout.count()):
+            item = frame.status_layout.itemAt(i)
+            if item and item.widget():
+                widget = item.widget()
+                if hasattr(widget, 'toolTip'):
+                    tooltip = widget.toolTip()
+                    if 'logprobs' in tooltip.lower():
+                        metrics_icon = widget
+                        break
+
+        assert metrics_icon is not None
+        initial_tooltip = metrics_icon.toolTip()
+        assert "No logprobs available" in initial_tooltip
+
+        # Set target model
+        mock_provider = MockLLMProvider()
+        test_model = MappedModel("test-beam-model", mock_provider)
+        frame.set_target_model(test_model)
+        qt_app.processEvents()
+
+        # Now should show logprobs with lowest token
+        metrics_icon = None
+        for i in range(frame.status_layout.count()):
+            item = frame.status_layout.itemAt(i)
+            if item and item.widget():
+                widget = item.widget()
+                if hasattr(widget, 'toolTip'):
+                    tooltip = widget.toolTip()
+                    if 'Lowest token:' in tooltip:
+                        metrics_icon = widget
+                        break
+
+        assert metrics_icon is not None, "Metrics icon should be present after setting target model"
+        updated_tooltip = metrics_icon.toolTip()
+        assert "Lowest token:" in updated_tooltip
+        assert " content" in updated_tooltip  # The token with lowest logprob

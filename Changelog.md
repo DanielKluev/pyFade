@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### Added
+- **Display Lowest Logprob Token**: Enhanced logprobs tooltip to show the token with the lowest logprob value
+  - New `CommonCompletionLogprobs.get_min_logprob_token()` method finds and returns the token with minimum logprob
+  - Tooltip in completion widget now displays min, avg, and lowest token with its value
+  - Format: "Lowest token: 'token_str' (logprob_value)" shown on new line in tooltip
+  - Comprehensive test coverage with 12 new unit tests (8 for get_min_logprob_token, 4 for tooltip display)
+  - All tests passing (907 total, 4 skipped)
+  - Pylint score: 10.00/10 for both py_fade and tests
 - **Beam Search Window Prefill Improvements**: Enhanced prefill management in beam search window for easier workflow
   - Prefill history tracking: Maintains up to 50 unique prefill texts used in generation or token selection
   - History combobox: Easy selection and reuse of previous prefill texts with automatic deduplication

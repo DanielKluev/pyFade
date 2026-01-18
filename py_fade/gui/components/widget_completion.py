@@ -602,6 +602,12 @@ class CompletionFrame(QFrame):
             if logprobs_for_model.min_logprob is not None:
                 tooltip = (f"Logprobs min: {logprobs_for_model.min_logprob:.3f}, "
                            f"avg: {logprobs_for_model.avg_logprob:.3f}")
+
+                # Add lowest logprob token to tooltip
+                min_token = logprobs_for_model.get_min_logprob_token()
+                if min_token:
+                    tooltip += f"\nLowest token: '{min_token.token_str}' ({min_token.logprob:.3f})"
+
                 color = logprob_to_qcolor(logprobs_for_model.min_logprob).name()
 
         # Always add metrics icon with appropriate color/tooltip
