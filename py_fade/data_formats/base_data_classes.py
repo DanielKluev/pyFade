@@ -527,6 +527,24 @@ class CommonCompletionLogprobs:
         """
         return self.min_logprob is not None
 
+    def get_min_logprob_token(self) -> SinglePositionToken | None:
+        """
+        Find and return the token with the minimum logprob value.
+
+        Returns:
+            The SinglePositionToken with the lowest logprob, or None if no valid logprobs exist
+        """
+        if not self.sampled_logprobs or self.min_logprob is None:
+            return None
+
+        min_token = None
+        for token in self.sampled_logprobs:
+            if token.logprob is not None:
+                if min_token is None or token.logprob < min_token.logprob:
+                    min_token = token
+
+        return min_token
+
 
 @dataclass(frozen=True, slots=True)
 class CompletionPrefill:
