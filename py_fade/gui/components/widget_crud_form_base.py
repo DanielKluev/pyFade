@@ -1,4 +1,9 @@
-"""Reusable base form widget that wires up standard CRUD UI patterns."""
+"""Reusable base form widget that wires up standard CRUD UI patterns.
+
+This base widget provides a standardized layout for CRUD (Create, Read, Update, Delete)
+operations with a header, scrollable form content area, validation feedback, and button controls.
+The scrollable area ensures forms with extensive content remain accessible and usable.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +13,7 @@ from typing import Iterable
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
+    QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -49,7 +55,17 @@ class CrudButtonStyles:
 
 
 class CrudFormWidget(QWidget):
-    """Shared helper that assembles a header, validation label, and CRUD buttons."""
+    """
+    Shared helper that assembles a header, scrollable form content, validation label, and CRUD buttons.
+
+    This base class provides a standardized layout for CRUD forms with:
+    - Header with icon and title
+    - Scrollable form content area (wraps form_container in QScrollArea)
+    - Validation feedback label
+    - Standard CRUD button layout (Save, Cancel, Delete, plus optional custom buttons)
+
+    Subclasses should implement the abstract methods to define specific form behavior.
+    """
     description_constraints: TextConstraints = TextConstraints(
         min_length=5,
         max_length=2000,
@@ -98,18 +114,23 @@ class CrudFormWidget(QWidget):
         self.header_layout.addStretch()
         self.main_layout.addLayout(self.header_layout)
 
+        # Create scroll area for form content
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+
         self.form_container = QWidget(self)
         self.form_layout = QVBoxLayout(self.form_container)
         self.form_layout.setSpacing(12)
-        self.main_layout.addWidget(self.form_container)
+
+        self.scroll_area.setWidget(self.form_container)
+        self.main_layout.addWidget(self.scroll_area)
 
         self.validation_label = QLabel()
         self.validation_label.setStyleSheet("color: #d32f2f; font-size: 12px;")
         self.validation_label.setWordWrap(True)
         self.validation_label.hide()
         self.main_layout.addWidget(self.validation_label)
-
-        self.main_layout.addStretch(1)
 
         self.button_layout = QHBoxLayout()
         self.button_layout.setSpacing(8)

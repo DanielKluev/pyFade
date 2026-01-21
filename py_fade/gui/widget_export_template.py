@@ -5,6 +5,10 @@ create, update, duplicate, and delete :class:`py_fade.dataset.export_template.Ex
 objects. It mirrors the UX vocabulary used by other editors in pyFADE while
 adding a facet configuration table that lets authors scope exports by limit
 type, ordering strategy, and optional logprob thresholds.
+
+The widget features a scrollable area to comfortably accommodate templates with
+10+ facets, ensuring the facet configuration table and other controls remain
+accessible regardless of content volume.
 """
 
 from __future__ import annotations
@@ -231,6 +235,8 @@ class WidgetExportTemplate(CrudFormWidget):
             vertical_header.setVisible(False)
         self.facets_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.facets_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        # Set minimum height to comfortably display 10+ facets (each row ~50px + header ~30px)
+        self.facets_table.setMinimumHeight(530)
         facets_layout.addWidget(self.facets_table)
 
         form_layout.addWidget(facets_group)
