@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, List
 
 import pytest
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QComboBox, QDoubleSpinBox
+from PyQt6.QtWidgets import QComboBox, QDoubleSpinBox, QScrollArea
 
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.export_template import ExportTemplate
@@ -301,6 +301,127 @@ def test_widget_export_template_kto_support(
     assert len(template.facets_json) == 1, "Template should have 1 facet"
     facet_config = template.facets_json[0]
     assert "max_rating" in facet_config, "Facet config should include max_rating"
+
+    widget.deleteLater()
+    qt_app.processEvents()
+
+
+def test_widget_export_template_scrollable_with_many_facets(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+    ensure_google_icon_font: None,  # Used for side effect of loading icon font
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """
+    Test that the export template widget has scrollable area for handling 10+ facets.
+
+    Verifies that the widget can comfortably display and interact with many facets
+    using the scrollable interface, ensuring proper layout and accessibility.
+    """
+    caplog.set_level(logging.DEBUG, logger="WidgetExportTemplate")
+    test_logger = logging.getLogger("test_widget_export_template.scrollable")
+    test_logger.setLevel(logging.DEBUG)
+    patch_message_boxes(monkeypatch, test_logger)
+
+    # Create 15 facets to test scrollable behavior
+    session = temp_dataset.session
+    if session is None:
+        raise RuntimeError("Dataset session must be initialized for tests.")
+
+    facets: List[Facet] = []
+    for i in range(15):
+        facet = Facet.create(temp_dataset, f"Facet{i:02d}", f"Test facet {i} for scrolling")
+        facets.append(facet)
+    session.flush()
+    session.commit()
+
+    widget = WidgetExportTemplate(None, app_with_dataset, temp_dataset, None)
+    qt_app.processEvents()
+
+    # Verify scroll area exists and is configured correctly
+    assert hasattr(widget, 'scroll_area'), "Widget should have scroll_area attribute"
+    assert widget.scroll_area.widgetResizable(), "Scroll area should be widget resizable"
+
+    # Verify facets table has minimum height for 10+ facets
+    assert widget.facets_table.minimumHeight() >= 500, "Facets table should have minimum height for 10+ facets"
+
+    # Add 12 facets to the template to test scrolling
+    widget.name_input.setText("Scrollable Template Test")
+    widget.description_input.setText("Template with many facets to test scrolling")
+    widget.model_list.item(0).setCheckState(Qt.CheckState.Checked)
+    qt_app.processEvents()
+
+    for i in range(12):
+        widget.facet_selector.setCurrentIndex(widget.facet_selector.findData(facets[i].id))
+        widget.add_facet_button.click()
+        qt_app.processEvents()
+
+    # Verify all 12 facets were added
+    assert widget.facets_table.rowCount() == 12, "Should have 12 facets in the table"
+
+    # Verify each facet has all expected widgets
+    for row in range(12):
+        facet_item = widget.facets_table.item(row, 0)
+        assert facet_item is not None, f"Row {row} should have facet name item"
+        assert f"Facet{row:02d}" in facet_item.text(), f"Row {row} should display correct facet name"
+
+        # Verify widgets in each column
+        limit_combo = widget.facets_table.cellWidget(row, 1)
+        assert isinstance(limit_combo, QComboBox), f"Row {row} should have limit type combo"
+
+        limit_spin = widget.facets_table.cellWidget(row, 2)
+        assert isinstance(limit_spin, QDoubleSpinBox), f"Row {row} should have limit value spin"
+
+        order_combo = widget.facets_table.cellWidget(row, 3)
+        assert isinstance(order_combo, QComboBox), f"Row {row} should have order combo"
+
+    # Save the template
+    widget.save_template()
+    qt_app.processEvents()
+
+    # Verify template was created with all 12 facets
+    template = ExportTemplate.get_by_name(temp_dataset, "Scrollable Template Test")
+    assert template is not None, "Template should be created"
+    assert len(template.facets_json) == 12, "Template should have 12 facets"
+
+    # Verify facet IDs match
+    template_facet_ids = {facet_config["facet_id"] for facet_config in template.facets_json}
+    expected_facet_ids = {facets[i].id for i in range(12)}
+    assert template_facet_ids == expected_facet_ids, "Template should have correct facet IDs"
+
+    widget.deleteLater()
+    qt_app.processEvents()
+
+
+def test_widget_export_template_scroll_area_properties(
+        app_with_dataset: "pyFadeApp",
+        temp_dataset: "DatasetDatabase",
+        qt_app: "QApplication",
+        ensure_google_icon_font: None,  # Used for side effect of loading icon font
+) -> None:
+    """
+    Test that the scroll area is properly configured in the export template widget.
+
+    Verifies scroll area properties such as widget resizable, frame shape,
+    and that the form content is inside the scrollable area.
+    """
+    widget = WidgetExportTemplate(None, app_with_dataset, temp_dataset, None)
+    qt_app.processEvents()
+
+    # Verify scroll area exists
+    assert hasattr(widget, 'scroll_area'), "Widget should have scroll_area attribute"
+    assert isinstance(widget.scroll_area, QScrollArea), "scroll_area should be a QScrollArea instance"
+
+    # Verify scroll area is widget resizable (allows content to resize with scroll area)
+    assert widget.scroll_area.widgetResizable(), "Scroll area should be widget resizable"
+
+    # Verify form container is inside scroll area
+    assert widget.scroll_area.widget() == widget.form_container, "Form container should be inside scroll area"
+
+    # Verify form layout is the layout of form container
+    assert widget.form_container.layout() == widget.form_layout, "Form layout should be container's layout"
 
     widget.deleteLater()
     qt_app.processEvents()

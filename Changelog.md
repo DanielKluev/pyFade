@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Added
+- **Improved Export Template Edit**: Enhanced export template widget with scrollable area for better usability with many facets
+  - Added QScrollArea to CrudFormWidget base class to wrap form content
+  - Export template form now scrollable to accommodate extensive content
+  - Facets table minimum height increased to 530px to comfortably display 10+ facets
+  - Removed layout stretch that caused layout issues with many facets
+  - Updated docstrings to reflect scrollable functionality
+  - Comprehensive test coverage with 2 new unit tests (scrollable behavior, scroll area properties)
+  - All tests passing (909 total, 4 skipped)
+  - Pylint score: 10.00/10 for both py_fade and tests
 - **Display Lowest Logprob Token**: Enhanced logprobs tooltip to show the token with the lowest logprob value
   - New `CommonCompletionLogprobs.get_min_logprob_token()` method finds and returns the token with minimum logprob
   - Tooltip in completion widget now displays min, avg, and lowest token with its value
