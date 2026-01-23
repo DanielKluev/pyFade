@@ -216,6 +216,68 @@ class TestBeamPrefillHistoryCombobox:
         # Verify prefill text was set
         assert widget.prefill_edit.toPlainText() == "Second prefill"
 
+    def test_selecting_history_item_saves_current_prefill(self, app_with_dataset, qtbot):
+        """
+        Test that selecting an item from history saves the current prefill before replacing.
+
+        This is the bug fix test: when user edits prefill and then selects from history,
+        the edited prefill should be saved to history before being replaced.
+        """
+        mapped_model = create_mock_mapped_model()
+        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
+        qtbot.addWidget(widget)
+
+        # Add some items to history
+        widget._add_to_prefill_history("History item 1")  # pylint: disable=protected-access
+        widget._add_to_prefill_history("History item 2")  # pylint: disable=protected-access
+
+        # Verify initial state: 2 items in history
+        assert len(widget.prefill_history) == 2
+        assert widget.prefill_history[0] == "History item 2"
+        assert widget.prefill_history[1] == "History item 1"
+
+        # User manually edits the prefill field
+        widget.prefill_edit.setPlainText("Current edited prefill")
+
+        # User selects an item from history (index 1 is "History item 1")
+        widget.prefill_history_combo.setCurrentIndex(1)
+        qtbot.wait(50)  # Wait for signal processing
+
+        # Verify prefill was replaced with selected item
+        assert widget.prefill_edit.toPlainText() == "History item 1"
+
+        # BUG FIX: Verify the edited prefill was saved to history before being replaced
+        assert len(widget.prefill_history) == 3
+        assert "Current edited prefill" in widget.prefill_history
+        # Most recent should be the saved prefill
+        assert widget.prefill_history[0] == "Current edited prefill"
+
+    def test_selecting_history_item_with_empty_current_prefill(self, app_with_dataset, qtbot):
+        """
+        Test that selecting from history with empty current prefill doesn't add empty to history.
+        """
+        mapped_model = create_mock_mapped_model()
+        widget = WidgetCompletionBeams(None, app_with_dataset, "Test prompt", None, mapped_model)
+        qtbot.addWidget(widget)
+
+        # Add items to history
+        widget._add_to_prefill_history("History item 1")  # pylint: disable=protected-access
+        widget._add_to_prefill_history("History item 2")  # pylint: disable=protected-access
+
+        # Leave prefill empty (default state)
+        assert widget.prefill_edit.toPlainText() == ""
+
+        # Select from history
+        widget.prefill_history_combo.setCurrentIndex(0)
+        qtbot.wait(50)
+
+        # Verify prefill was set
+        assert widget.prefill_edit.toPlainText() == "History item 2"
+
+        # Verify empty prefill was NOT added to history
+        assert len(widget.prefill_history) == 2
+        assert "" not in widget.prefill_history
+
     def test_long_prefill_truncated_in_combo(self, app_with_dataset):
         """
         Test that long prefill items are truncated in combobox display.
