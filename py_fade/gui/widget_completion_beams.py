@@ -282,11 +282,21 @@ class WidgetCompletionBeams(QWidget):
         self.setLayout(layout)
 
     def _on_history_selected(self, index: int):
-        """Handle selection from prefill history combobox."""
+        """
+        Handle selection from prefill history combobox.
+
+        Saves the current prefill to history before replacing it with the selected item.
+        """
         # Get the actual text from userData (full text, not truncated display text)
         if index >= 0:
             user_data = self.prefill_history_combo.itemData(index)
             if user_data and user_data != "(No history)":
+                # Save current prefill to history before replacing
+                current_prefill = self.prefill_edit.toPlainText()
+                if current_prefill and current_prefill.strip():
+                    self._add_to_prefill_history(current_prefill)
+
+                # Set the selected prefill text
                 self.prefill_edit.setPlainText(user_data)
                 self.log.debug("Selected prefill from history: %s", user_data[:50])
 
