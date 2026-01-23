@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### Added
+- **Alphabetical Sorting for Samples by Group**: Navigation panel now displays samples sorted lexicographically within groups
+  - Samples in "Samples by Group" mode are now sorted case-insensitively by title
+  - Aligns sorting behavior with other grouping modes (by Facet, by Tag, etc.)
+  - Added `sorted_samples` sorting before tree population in `_populate_samples()` method
+  - Comprehensive test coverage with 2 new unit tests (alphabetical sorting, case-insensitive sorting)
+  - All tests passing (913 total, 4 skipped)
+  - Pylint score: 10.00/10 for both py_fade and tests
 - **Improved Export Template Edit**: Enhanced export template widget with scrollable area for better usability with many facets
   - Added QScrollArea to CrudFormWidget base class to wrap form content
   - Export template form now scrollable to accommodate extensive content
