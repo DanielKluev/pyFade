@@ -729,3 +729,129 @@ def test_navigation_tree_samples_sorted_by_title(temp_dataset, ensure_google_ico
     assert rating_item.child(0).text(0) == "Apple Sample"
     assert rating_item.child(1).text(0) == "Mango Sample"
     assert rating_item.child(2).text(0) == "Zebra Sample"
+
+
+def test_navigation_tree_samples_by_group_sorted_alphabetically(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that samples are sorted alphabetically within groups in "Samples by Group" mode.
+
+    Samples should be sorted case-insensitively by title within each group node.
+    Group nodes themselves should also be sorted lexicographically.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create samples with different group paths and titles that would be out of order if not sorted
+    prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt 1", 2048, 512)
+    prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt 2", 2048, 512)
+    prompt_rev3 = PromptRevision.get_or_create(temp_dataset, "prompt 3", 2048, 512)
+    prompt_rev4 = PromptRevision.get_or_create(temp_dataset, "prompt 4", 2048, 512)
+    prompt_rev5 = PromptRevision.get_or_create(temp_dataset, "prompt 5", 2048, 512)
+    prompt_rev6 = PromptRevision.get_or_create(temp_dataset, "prompt 6", 2048, 512)
+    temp_dataset.commit()
+
+    # Group A with samples in non-alphabetical creation order
+    Sample.create_if_unique(temp_dataset, "Zebra", prompt_rev1, "Group_A")
+    Sample.create_if_unique(temp_dataset, "Apple", prompt_rev2, "Group_A")
+    Sample.create_if_unique(temp_dataset, "Mango", prompt_rev3, "Group_A")
+
+    # Group B/SubGroup with samples
+    Sample.create_if_unique(temp_dataset, "Yellow", prompt_rev4, "Group_B/SubGroup")
+    Sample.create_if_unique(temp_dataset, "Alpha", prompt_rev5, "Group_B/SubGroup")
+
+    # Ungrouped sample
+    Sample.create_if_unique(temp_dataset, "Ungrouped Item", prompt_rev6, None)
+    temp_dataset.commit()
+
+    tree = WidgetNavigationTree()
+
+    # Test Samples by Group mode
+    criteria = {"show": "Samples by Group", "data_filter": DataFilter([])}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    # Should have 2 top-level groups (Group_A, Group_B) plus Ungrouped
+    assert tree.tree.topLevelItemCount() == 3
+
+    # Find Group_A item
+    group_a_item = None
+    group_b_item = None
+    ungrouped_item = None
+    for i in range(tree.tree.topLevelItemCount()):
+        item = tree.tree.topLevelItem(i)
+        if item.text(0) == "Group_A":
+            group_a_item = item
+        elif item.text(0) == "Group_B":
+            group_b_item = item
+        elif item.text(0) == "Ungrouped":
+            ungrouped_item = item
+
+    assert group_a_item is not None, "Group_A should exist"
+    assert group_b_item is not None, "Group_B should exist"
+    assert ungrouped_item is not None, "Ungrouped should exist"
+
+    # Verify samples in Group_A are sorted alphabetically
+    assert group_a_item.childCount() == 3
+    assert group_a_item.child(0).text(0) == "Apple"
+    assert group_a_item.child(1).text(0) == "Mango"
+    assert group_a_item.child(2).text(0) == "Zebra"
+
+    # Verify Group_B has SubGroup as child
+    assert group_b_item.childCount() == 1
+    subgroup_item = group_b_item.child(0)
+    assert subgroup_item.text(0) == "SubGroup"
+
+    # Verify samples in SubGroup are sorted alphabetically
+    assert subgroup_item.childCount() == 2
+    assert subgroup_item.child(0).text(0) == "Alpha"
+    assert subgroup_item.child(1).text(0) == "Yellow"
+
+    # Verify ungrouped sample
+    assert ungrouped_item.childCount() == 1
+    assert ungrouped_item.child(0).text(0) == "Ungrouped Item"
+
+
+def test_navigation_tree_samples_by_group_case_insensitive_sort(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that samples are sorted case-insensitively in "Samples by Group" mode.
+
+    Samples with different cases should be sorted ignoring case.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create samples with mixed case titles
+    prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt 1", 2048, 512)
+    prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt 2", 2048, 512)
+    prompt_rev3 = PromptRevision.get_or_create(temp_dataset, "prompt 3", 2048, 512)
+    prompt_rev4 = PromptRevision.get_or_create(temp_dataset, "prompt 4", 2048, 512)
+    temp_dataset.commit()
+
+    # Create samples with titles that differ only in case
+    Sample.create_if_unique(temp_dataset, "zebra", prompt_rev1, "TestGroup")
+    Sample.create_if_unique(temp_dataset, "APPLE", prompt_rev2, "TestGroup")
+    Sample.create_if_unique(temp_dataset, "Banana", prompt_rev3, "TestGroup")
+    Sample.create_if_unique(temp_dataset, "cherry", prompt_rev4, "TestGroup")
+    temp_dataset.commit()
+
+    tree = WidgetNavigationTree()
+
+    # Test Samples by Group mode
+    criteria = {"show": "Samples by Group", "data_filter": DataFilter([])}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    # Find TestGroup item
+    test_group_item = None
+    for i in range(tree.tree.topLevelItemCount()):
+        item = tree.tree.topLevelItem(i)
+        if item.text(0) == "TestGroup":
+            test_group_item = item
+            break
+
+    assert test_group_item is not None, "TestGroup should exist"
+
+    # Verify samples are sorted case-insensitively (APPLE, Banana, cherry, zebra)
+    assert test_group_item.childCount() == 4
+    assert test_group_item.child(0).text(0) == "APPLE"
+    assert test_group_item.child(1).text(0) == "Banana"
+    assert test_group_item.child(2).text(0) == "cherry"
+    assert test_group_item.child(3).text(0) == "zebra"

@@ -302,8 +302,11 @@ class WidgetNavigationTree(QWidget):
         # Each node of `group_path` (split by '/') is a tree item, samples are nodes of the last group component.
         # For samples without group_path, put them under "Ungrouped" root.
 
+        # Sort samples alphabetically by title (case-insensitive)
+        sorted_samples = sorted(samples, key=lambda s: s.title.lower())
+
         group_roots = {}
-        for sample in samples:
+        for sample in sorted_samples:
             group_path = sample.group_path or "Ungrouped"
             group_parts = group_path.split("/")
             current_parent = self.tree
