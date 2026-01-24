@@ -3,12 +3,13 @@
 ## [Unreleased]
 
 ### Added
-- **Alphabetical Sorting for Samples by Group**: Navigation panel now displays samples sorted lexicographically within groups
+- **Alphabetical Sorting for Samples by Group**: Navigation panel now displays both samples and subgroups sorted lexicographically together
   - Samples in "Samples by Group" mode are now sorted case-insensitively by title
-  - Aligns sorting behavior with other grouping modes (by Facet, by Tag, etc.)
-  - Added `sorted_samples` sorting before tree population in `_populate_samples()` method
-  - Comprehensive test coverage with 2 new unit tests (alphabetical sorting, case-insensitive sorting)
-  - All tests passing (913 total, 4 skipped)
+  - Subgroup nodes are also sorted alphabetically together with samples at each level
+  - Added `_sort_tree_children_recursively()` method to recursively sort all children (samples + subgroups)
+  - Optimized for performance by removing redundant sorting and using reverse-order removal
+  - Comprehensive test coverage with 3 new unit tests (alphabetical sorting, case-insensitive sorting, mixed nodes sorting)
+  - All tests passing (914 total, 4 skipped)
   - Pylint score: 10.00/10 for both py_fade and tests
 - **Improved Export Template Edit**: Enhanced export template widget with scrollable area for better usability with many facets
   - Added QScrollArea to CrudFormWidget base class to wrap form content
