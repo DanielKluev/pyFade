@@ -855,3 +855,74 @@ def test_navigation_tree_samples_by_group_case_insensitive_sort(temp_dataset, en
     assert test_group_item.child(1).text(0) == "Banana"
     assert test_group_item.child(2).text(0) == "cherry"
     assert test_group_item.child(3).text(0) == "zebra"
+
+
+def test_navigation_tree_samples_by_group_mixed_nodes_sorted(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that both samples and subgroups are sorted together at each level.
+
+    When a group contains both direct samples and subgroups, they should all be
+    sorted alphabetically together (case-insensitive).
+
+    Example: Chemistry group with "Sample B" and subgroup "Organic" should show:
+    - Organic (subgroup)
+    - Sample B (sample)
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create samples that will result in mixed children (samples + subgroups) at same level
+    prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt 1", 2048, 512)
+    prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt 2", 2048, 512)
+    prompt_rev3 = PromptRevision.get_or_create(temp_dataset, "prompt 3", 2048, 512)
+    prompt_rev4 = PromptRevision.get_or_create(temp_dataset, "prompt 4", 2048, 512)
+    prompt_rev5 = PromptRevision.get_or_create(temp_dataset, "prompt 5", 2048, 512)
+    temp_dataset.commit()
+
+    # Chemistry group will have: "Zebra Sample" (sample), "Organic" (subgroup), "Apple Sample" (sample)
+    Sample.create_if_unique(temp_dataset, "Zebra Sample", prompt_rev1, "Chemistry")
+    Sample.create_if_unique(temp_dataset, "Benzene", prompt_rev2, "Chemistry/Organic")
+    Sample.create_if_unique(temp_dataset, "Apple Sample", prompt_rev3, "Chemistry")
+    Sample.create_if_unique(temp_dataset, "NaCl", prompt_rev4, "Chemistry/Inorganic")
+    Sample.create_if_unique(temp_dataset, "Mango Sample", prompt_rev5, "Chemistry")
+    temp_dataset.commit()
+
+    tree = WidgetNavigationTree()
+
+    # Test Samples by Group mode
+    criteria = {"show": "Samples by Group", "data_filter": DataFilter([])}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    # Find Chemistry item
+    chemistry_item = None
+    for i in range(tree.tree.topLevelItemCount()):
+        item = tree.tree.topLevelItem(i)
+        if item.text(0) == "Chemistry":
+            chemistry_item = item
+            break
+
+    assert chemistry_item is not None, "Chemistry group should exist"
+
+    # Chemistry should have 5 children: 3 samples + 2 subgroups
+    assert chemistry_item.childCount() == 5
+
+    # Children should be sorted alphabetically (case-insensitive):
+    # 1. Apple Sample (sample)
+    # 2. Inorganic (subgroup)
+    # 3. Mango Sample (sample)
+    # 4. Organic (subgroup)
+    # 5. Zebra Sample (sample)
+    assert chemistry_item.child(0).text(0) == "Apple Sample"
+    assert chemistry_item.child(1).text(0) == "Inorganic"
+    assert chemistry_item.child(2).text(0) == "Mango Sample"
+    assert chemistry_item.child(3).text(0) == "Organic"
+    assert chemistry_item.child(4).text(0) == "Zebra Sample"
+
+    # Verify that subgroups have their samples
+    inorganic_item = chemistry_item.child(1)
+    assert inorganic_item.childCount() == 1
+    assert inorganic_item.child(0).text(0) == "NaCl"
+
+    organic_item = chemistry_item.child(3)
+    assert organic_item.childCount() == 1
+    assert organic_item.child(0).text(0) == "Benzene"

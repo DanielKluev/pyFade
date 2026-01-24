@@ -322,6 +322,56 @@ class WidgetNavigationTree(QWidget):
             item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
             self._set_sample_icon_if_has_images(item, sample)
 
+        # Sort all children at each level (both samples and subgroups) alphabetically
+        self._sort_tree_children_recursively(self.tree)
+
+    def _sort_tree_children_recursively(self, parent_item):
+        """
+        Recursively sort children of a tree item alphabetically (case-insensitive).
+
+        This sorts both sample items and subgroup items together at each level.
+
+        Args:
+            parent_item: The parent QTreeWidget or QTreeWidgetItem whose children should be sorted
+        """
+        # Get child count
+        if isinstance(parent_item, QTreeWidget):
+            child_count = parent_item.topLevelItemCount()
+        else:
+            child_count = parent_item.childCount()
+
+        if child_count == 0:
+            return
+
+        # Collect all children with their text (for sorting)
+        children_with_text = []
+        for i in range(child_count):
+            if isinstance(parent_item, QTreeWidget):
+                child = parent_item.topLevelItem(i)
+            else:
+                child = parent_item.child(i)
+            children_with_text.append((child.text(0).lower(), child))
+
+        # Sort by text (case-insensitive)
+        children_with_text.sort(key=lambda x: x[0])
+
+        # Remove all children from parent
+        if isinstance(parent_item, QTreeWidget):
+            while parent_item.topLevelItemCount() > 0:
+                parent_item.takeTopLevelItem(0)
+        else:
+            while parent_item.childCount() > 0:
+                parent_item.takeChild(0)
+
+        # Add children back in sorted order
+        for _, child in children_with_text:
+            if isinstance(parent_item, QTreeWidget):
+                parent_item.addTopLevelItem(child)
+            else:
+                parent_item.addChild(child)
+            # Recursively sort this child's children
+            self._sort_tree_children_recursively(child)
+
     def _populate_samples_by_facet(self, data_filter: DataFilter, dataset: "DatasetDatabase", flat_list_mode: bool = False,
                                    group_by_rating_mode: bool = False):
         """
