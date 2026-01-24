@@ -302,11 +302,8 @@ class WidgetNavigationTree(QWidget):
         # Each node of `group_path` (split by '/') is a tree item, samples are nodes of the last group component.
         # For samples without group_path, put them under "Ungrouped" root.
 
-        # Sort samples alphabetically by title (case-insensitive)
-        sorted_samples = sorted(samples, key=lambda s: s.title.lower())
-
         group_roots = {}
-        for sample in sorted_samples:
+        for sample in samples:
             group_path = sample.group_path or "Ungrouped"
             group_parts = group_path.split("/")
             current_parent = self.tree
@@ -355,13 +352,13 @@ class WidgetNavigationTree(QWidget):
         # Sort by text (case-insensitive)
         children_with_text.sort(key=lambda x: x[0])
 
-        # Remove all children from parent
+        # Remove all children from parent in reverse order to avoid array shifting overhead
         if isinstance(parent_item, QTreeWidget):
-            while parent_item.topLevelItemCount() > 0:
-                parent_item.takeTopLevelItem(0)
+            for i in range(child_count - 1, -1, -1):
+                parent_item.takeTopLevelItem(i)
         else:
-            while parent_item.childCount() > 0:
-                parent_item.takeChild(0)
+            for i in range(child_count - 1, -1, -1):
+                parent_item.takeChild(i)
 
         # Add children back in sorted order
         for _, child in children_with_text:
