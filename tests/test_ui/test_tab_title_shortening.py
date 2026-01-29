@@ -4,7 +4,6 @@ Test tab title shortening functionality.
 This module tests the tab title shortening logic that is applied when tab titles
 are too long (more than 8 words).
 """
-import pytest
 
 from py_fade.gui.gui_helpers import shorten_tab_title
 
