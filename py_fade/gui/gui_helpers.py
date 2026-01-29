@@ -22,19 +22,19 @@ def shorten_tab_title(title: str) -> str:
     """
     if not title:
         return title
-    
+
     # Split by whitespace and filter out empty strings
     words = title.split()
-    
+
     # If 8 words or fewer, return unchanged
     if len(words) <= 8:
         return title
-    
+
     # Keep first 6 and last 2 words, add "..." in between
     first_six = words[:6]
     last_two = words[-2:]
     shortened_words = first_six + ["..."] + last_two
-    
+
     return " ".join(shortened_words)
 
 

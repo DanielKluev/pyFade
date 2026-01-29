@@ -19,7 +19,7 @@ def test_short_title_unchanged():
     assert shorten_tab_title("S: Simple title") == "S: Simple title"
     assert shorten_tab_title("F: One two three") == "F: One two three"
     assert shorten_tab_title("T: One two three four five six") == "T: One two three four five six"
-    
+
     # Test title with exactly 8 words
     assert shorten_tab_title("S: One two three four five six seven") == "S: One two three four five six seven"
 
@@ -35,12 +35,12 @@ def test_long_title_shortened():
     title = "S: One two three four five six seven eight"
     expected = "S: One two three four five ... seven eight"
     assert shorten_tab_title(title) == expected
-    
+
     # Test title with 10 words
     title = "S: One two three four five six seven eight nine"
     expected = "S: One two three four five ... eight nine"
     assert shorten_tab_title(title) == expected
-    
+
     # Test title with many words
     title = "S: This is a very very very long sample title that needs shortening"
     expected = "S: This is a very very ... needs shortening"
@@ -58,22 +58,22 @@ def test_different_prefixes():
     title = "S: Word one two three four five six seven eight"
     expected = "S: Word one two three four ... seven eight"
     assert shorten_tab_title(title) == expected
-    
+
     # Facet prefix
     title = "F: Word one two three four five six seven eight"
     expected = "F: Word one two three four ... seven eight"
     assert shorten_tab_title(title) == expected
-    
+
     # Tag prefix
     title = "T: Word one two three four five six seven eight"
     expected = "T: Word one two three four ... seven eight"
     assert shorten_tab_title(title) == expected
-    
+
     # Sample Filter prefix
     title = "SF: Word one two three four five six seven eight"
     expected = "SF: Word one two three four ... seven eight"
     assert shorten_tab_title(title) == expected
-    
+
     # Export Template prefix
     title = "X: Word one two three four five six seven eight"
     expected = "X: Word one two three four ... seven eight"
@@ -89,11 +89,11 @@ def test_no_prefix():
     """
     # Overview tab (no prefix)
     assert shorten_tab_title("Overview") == "Overview"
-    
+
     # New item tabs (no prefix, short)
     assert shorten_tab_title("New Sample") == "New Sample"
     assert shorten_tab_title("New Facet") == "New Facet"
-    
+
     # Long title without prefix (11 words)
     title = "This is a very long title without any prefix at all"
     expected = "This is a very long title ... at all"
@@ -109,10 +109,10 @@ def test_edge_cases():
     """
     # Empty string
     assert shorten_tab_title("") == ""
-    
+
     # Single word
     assert shorten_tab_title("SingleWord") == "SingleWord"
-    
+
     # Multiple spaces between words (should treat as single separator)
     title = "S:  Word  one  two  three  four  five  six  seven  eight  nine"
     # Split by whitespace and filter empty strings
@@ -134,7 +134,7 @@ def test_special_characters():
     title = "S: Sample-1 with_underscore and (parentheses) plus #hashtag and @mention more words here"
     expected = "S: Sample-1 with_underscore and (parentheses) plus ... words here"
     assert shorten_tab_title(title) == expected
-    
+
     # Title with unicode characters
     title = "S: Über façade naïve résumé café one two three four"
     expected = "S: Über façade naïve résumé café ... three four"
@@ -152,12 +152,12 @@ def test_realistic_sample_titles():
     title = "S: Explain the concept of quantum entanglement in simple terms for a beginner"
     expected = "S: Explain the concept of quantum ... a beginner"
     assert shorten_tab_title(title) == expected
-    
+
     # Another realistic example (11 words)
     title = "F: System prompt for creative writing assistant with detailed personality traits"
     expected = "F: System prompt for creative writing ... personality traits"
     assert shorten_tab_title(title) == expected
-    
+
     # Short realistic title (unchanged)
     title = "T: Technical Documentation"
     assert shorten_tab_title(title) == "T: Technical Documentation"

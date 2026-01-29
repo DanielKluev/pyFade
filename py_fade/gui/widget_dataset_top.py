@@ -42,7 +42,7 @@ from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
 from py_fade.dataset.sample_filter import SampleFilter
 from py_fade.dataset.tag import Tag
-from py_fade.gui.gui_helpers import get_dataset_preferences, update_dataset_preferences
+from py_fade.gui.gui_helpers import get_dataset_preferences, shorten_tab_title, update_dataset_preferences
 from py_fade.gui.widget_export_template import WidgetExportTemplate
 from py_fade.gui.widget_facet import WidgetFacet
 
@@ -813,7 +813,10 @@ class WidgetDatasetTop(QMainWindow):
             "widget": widget,
             "closable": closable,
         }
-        index = self.tab_widget.addTab(widget, title)
+        # Shorten title if needed and set tooltip with full title
+        shortened_title = shorten_tab_title(title)
+        index = self.tab_widget.addTab(widget, shortened_title)
+        self.tab_widget.setTabToolTip(index, title)
         if focus:
             self.tab_widget.setCurrentIndex(index)
         return widget_id
@@ -825,7 +828,10 @@ class WidgetDatasetTop(QMainWindow):
         tab_info["title"] = title
         index = self._tab_index(widget_id)
         if index >= 0:
-            self.tab_widget.setTabText(index, title)
+            # Shorten title if needed and set tooltip with full title
+            shortened_title = shorten_tab_title(title)
+            self.tab_widget.setTabText(index, shortened_title)
+            self.tab_widget.setTabToolTip(index, title)
 
     def create_sample_tab(self, sample: Sample | None, *, focus: bool = True) -> int:
         """Create a new tab for editing/viewing a sample."""
