@@ -3,8 +3,9 @@ name: Quality Assurance
 on: [push]
 
 jobs:
-  build:
+  quality_assurance:
     runs-on: ubuntu-latest
+    name: Quality Assurance
     strategy:
       matrix:
         python-version: ["3.11"]
@@ -30,7 +31,7 @@ jobs:
       run: xvfb-run -a pytest
 
     - name: Analyzing the main package with pylint
-      run: pylint py_fade
+      run: pylint --fail-under=9 py_fade
       
     - name: Analyzing the tests with pylint
-      run: pylint tests
+      run: pylint --fail-under=9 tests
