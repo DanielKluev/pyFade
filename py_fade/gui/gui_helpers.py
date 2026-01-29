@@ -23,7 +23,7 @@ def shorten_tab_title(title: str) -> str:
     if not title:
         return title
 
-    # Split by whitespace and filter out empty strings
+    # Split by whitespace
     words = title.split()
 
     # If 8 words or fewer, return unchanged

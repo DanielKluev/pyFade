@@ -112,13 +112,15 @@ def test_edge_cases():
     # Single word
     assert shorten_tab_title("SingleWord") == "SingleWord"
 
-    # Multiple spaces between words (should treat as single separator)
+    # Multiple spaces between words (should normalize to single spaces)
     title = "S:  Word  one  two  three  four  five  six  seven  eight  nine"
-    # Split by whitespace and filter empty strings
+    # Split by whitespace results in list without empty strings
     words = title.split()
     assert len(words) == 11  # S:, Word, one, ..., nine (11 words total)
     result = shorten_tab_title(title)
-    # Should still be shortened
+    # Should be shortened and spaces normalized
+    expected = "S: Word one two three four ... eight nine"
+    assert result == expected
     assert "..." in result
 
 
