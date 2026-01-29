@@ -6,6 +6,38 @@ if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
 
 
+def shorten_tab_title(title: str) -> str:
+    """
+    Shorten a tab title if it's longer than 8 words.
+    
+    If the title has more than 8 words (counting by spaces), keeps the first 6 words
+    and the last 2 words, replacing everything in between with "...".
+    Titles with 8 or fewer words are returned unchanged.
+    
+    Args:
+        title: The original tab title
+        
+    Returns:
+        The shortened title if it had more than 8 words, otherwise the original title
+    """
+    if not title:
+        return title
+
+    # Split by whitespace
+    words = title.split()
+
+    # If 8 words or fewer, return unchanged
+    if len(words) <= 8:
+        return title
+
+    # Keep first 6 and last 2 words, add "..." in between
+    first_six = words[:6]
+    last_two = words[-2:]
+    shortened_words = first_six + ["..."] + last_two
+
+    return " ".join(shortened_words)
+
+
 def get_dataset_preferences(app: "pyFadeApp", dataset_key: str) -> dict:
     """
     Get preferences for a specific dataset.
