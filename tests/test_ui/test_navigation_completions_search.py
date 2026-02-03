@@ -91,9 +91,9 @@ def test_completions_search_shows_placeholder_when_no_query(temp_dataset, ensure
     # Create sample with completion
     prompt_rev = PromptRevision.get_or_create(temp_dataset, "test prompt", 2048, 512)
     temp_dataset.commit()
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
+    _ = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
     temp_dataset.commit()
-    completion = create_test_completion(temp_dataset, prompt_rev, "test completion text", "test-model")
+    _ = create_test_completion(temp_dataset, prompt_rev, "test completion text", "test-model")
 
     # Create tree and populate with empty search
     tree = WidgetNavigationTree()
@@ -116,16 +116,16 @@ def test_completions_search_finds_samples_with_matching_completions(temp_dataset
     # Create sample with completion containing "important"
     prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt 1", 2048, 512)
     temp_dataset.commit()
-    sample1 = Sample.create_if_unique(temp_dataset, "Sample One", prompt_rev1, "group_1")
+    _ = Sample.create_if_unique(temp_dataset, "Sample One", prompt_rev1, "group_1")
     temp_dataset.commit()
-    completion1 = create_test_completion(temp_dataset, prompt_rev1, "This is an important completion", "test-model")
+    _ = create_test_completion(temp_dataset, prompt_rev1, "This is an important completion", "test-model")
 
     # Create sample with completion NOT containing "important"
     prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt 2", 2048, 512)
     temp_dataset.commit()
-    sample2 = Sample.create_if_unique(temp_dataset, "Sample Two", prompt_rev2, "group_1")
+    _ = Sample.create_if_unique(temp_dataset, "Sample Two", prompt_rev2, "group_1")
     temp_dataset.commit()
-    completion2 = create_test_completion(temp_dataset, prompt_rev2, "This is a regular completion", "test-model")
+    _ = create_test_completion(temp_dataset, prompt_rev2, "This is a regular completion", "test-model")
 
     # Search for "important"
     tree = WidgetNavigationTree()
@@ -162,9 +162,9 @@ def test_completions_search_is_case_insensitive(temp_dataset, ensure_google_icon
     # Create sample with completion in mixed case
     prompt_rev = PromptRevision.get_or_create(temp_dataset, "test prompt", 2048, 512)
     temp_dataset.commit()
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
+    _ = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
     temp_dataset.commit()
-    completion = create_test_completion(temp_dataset, prompt_rev, "This is IMPORTANT text", "test-model")
+    _ = create_test_completion(temp_dataset, prompt_rev, "This is IMPORTANT text", "test-model")
 
     # Search with lowercase
     tree = WidgetNavigationTree()
@@ -201,11 +201,11 @@ def test_completions_search_searches_all_completions(temp_dataset, ensure_google
     # Create sample with multiple completions, only one containing "special"
     prompt_rev = PromptRevision.get_or_create(temp_dataset, "test prompt", 2048, 512)
     temp_dataset.commit()
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
+    _ = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
     temp_dataset.commit()
-    completion1 = create_test_completion(temp_dataset, prompt_rev, "First completion text", "test-model")
-    completion2 = create_test_completion(temp_dataset, prompt_rev, "Second completion with special word", "test-model")
-    completion3 = create_test_completion(temp_dataset, prompt_rev, "Third completion text", "test-model")
+    _ = create_test_completion(temp_dataset, prompt_rev, "First completion text", "test-model")
+    _ = create_test_completion(temp_dataset, prompt_rev, "Second completion with special word", "test-model")
+    _ = create_test_completion(temp_dataset, prompt_rev, "Third completion text", "test-model")
 
     # Search for "special"
     tree = WidgetNavigationTree()
@@ -246,7 +246,7 @@ def test_completions_search_top_rated_only_searches_highest_rated(temp_dataset, 
     # Create sample with multiple completions
     prompt_rev = PromptRevision.get_or_create(temp_dataset, "test prompt", 2048, 512)
     temp_dataset.commit()
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
+    _ = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
     temp_dataset.commit()
 
     # Low-rated completion with "important"
@@ -295,7 +295,7 @@ def test_completions_search_top_rated_only_finds_match_in_top_rated(temp_dataset
     # Create sample with multiple completions
     prompt_rev = PromptRevision.get_or_create(temp_dataset, "test prompt", 2048, 512)
     temp_dataset.commit()
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
+    _ = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
     temp_dataset.commit()
 
     # Low-rated completion without "important"
@@ -341,15 +341,15 @@ def test_completions_search_skips_samples_without_completions(temp_dataset, ensu
     # Create sample without completions
     prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt 1", 2048, 512)
     temp_dataset.commit()
-    sample1 = Sample.create_if_unique(temp_dataset, "Sample Without Completions", prompt_rev1, "group_1")
+    _ = Sample.create_if_unique(temp_dataset, "Sample Without Completions", prompt_rev1, "group_1")
     temp_dataset.commit()
 
     # Create sample with completion
     prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt 2", 2048, 512)
     temp_dataset.commit()
-    sample2 = Sample.create_if_unique(temp_dataset, "Sample With Completion", prompt_rev2, "group_1")
+    _ = Sample.create_if_unique(temp_dataset, "Sample With Completion", prompt_rev2, "group_1")
     temp_dataset.commit()
-    completion = create_test_completion(temp_dataset, prompt_rev2, "test completion", "test-model")
+    _ = create_test_completion(temp_dataset, prompt_rev2, "test completion", "test-model")
 
     # Search for "test"
     tree = WidgetNavigationTree()
@@ -386,9 +386,9 @@ def test_completions_search_shows_no_results_message(temp_dataset, ensure_google
     # Create sample with completion
     prompt_rev = PromptRevision.get_or_create(temp_dataset, "test prompt", 2048, 512)
     temp_dataset.commit()
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
+    _ = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
     temp_dataset.commit()
-    completion = create_test_completion(temp_dataset, prompt_rev, "This is a test completion", "test-model")
+    _ = create_test_completion(temp_dataset, prompt_rev, "This is a test completion", "test-model")
 
     # Search for non-existent text
     tree = WidgetNavigationTree()
@@ -418,15 +418,15 @@ def test_completions_search_groups_samples_by_group_path(temp_dataset, ensure_go
     # Create samples in different groups with matching completions
     prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt 1", 2048, 512)
     temp_dataset.commit()
-    sample1 = Sample.create_if_unique(temp_dataset, "Sample in Group A", prompt_rev1, "GroupA")
+    _ = Sample.create_if_unique(temp_dataset, "Sample in Group A", prompt_rev1, "GroupA")
     temp_dataset.commit()
-    completion1 = create_test_completion(temp_dataset, prompt_rev1, "match text", "test-model")
+    _ = create_test_completion(temp_dataset, prompt_rev1, "match text", "test-model")
 
     prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt 2", 2048, 512)
     temp_dataset.commit()
-    sample2 = Sample.create_if_unique(temp_dataset, "Sample in Group B", prompt_rev2, "GroupB")
+    _ = Sample.create_if_unique(temp_dataset, "Sample in Group B", prompt_rev2, "GroupB")
     temp_dataset.commit()
-    completion2 = create_test_completion(temp_dataset, prompt_rev2, "match text", "test-model")
+    _ = create_test_completion(temp_dataset, prompt_rev2, "match text", "test-model")
 
     # Search for "match"
     tree = WidgetNavigationTree()
@@ -459,9 +459,9 @@ def test_completions_search_top_rated_only_with_no_ratings(temp_dataset, ensure_
     # Create sample with completion but no ratings
     prompt_rev = PromptRevision.get_or_create(temp_dataset, "test prompt", 2048, 512)
     temp_dataset.commit()
-    sample = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
+    _ = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
     temp_dataset.commit()
-    completion = create_test_completion(temp_dataset, prompt_rev, "important completion", "test-model")
+    _ = create_test_completion(temp_dataset, prompt_rev, "important completion", "test-model")
 
     # Search for "important" with top_rated_only enabled
     tree = WidgetNavigationTree()
