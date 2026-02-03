@@ -164,7 +164,7 @@ class WidgetNavigationFilterPanel(QWidget):
             self.flat_list_toggle.set_toggled(False)
         self.filter_changed.emit()
 
-    def _on_top_rated_only_toggled(self, toggled: bool):
+    def _on_top_rated_only_toggled(self, toggled: bool):  # pylint: disable=unused-argument
         """Handle top rated only toggle changes."""
         self.filter_changed.emit()
 
@@ -906,34 +906,7 @@ class WidgetNavigationTree(QWidget):
         all_samples = Sample.fetch_with_filter(dataset, None)
 
         # Find samples with matching completions
-        matching_samples = []
-        for sample in all_samples:
-            if not sample.prompt_revision or not sample.prompt_revision.completions:
-                continue  # Skip samples without completions
-
-            if top_rated_only:
-                # Get the highest-rated completion across all facets
-                highest_rated_completion = None
-                max_rating = -1
-                for completion in sample.prompt_revision.completions:
-                    if completion.ratings:
-                        for rating in completion.ratings:
-                            if rating.rating > max_rating:
-                                max_rating = rating.rating
-                                highest_rated_completion = completion
-
-                # Search only in the top-rated completion
-                if highest_rated_completion and search_value in highest_rated_completion.completion_text.lower():
-                    matching_samples.append(sample)
-            else:
-                # Search in all completions
-                found_match = False
-                for completion in sample.prompt_revision.completions:
-                    if search_value in completion.completion_text.lower():
-                        found_match = True
-                        break
-                if found_match:
-                    matching_samples.append(sample)
+        matching_samples = self._find_samples_with_matching_completions(all_samples, search_value, top_rated_only)
 
         # If no matching samples found, show placeholder
         if not matching_samples:
@@ -942,8 +915,86 @@ class WidgetNavigationTree(QWidget):
             return
 
         # Group samples by group_path for display
+        self._add_samples_to_tree_by_group(matching_samples)
+
+        # Sort all children at each level alphabetically
+        self._sort_tree_children_recursively(self.tree)
+
+    def _find_samples_with_matching_completions(self, samples: list[Sample], search_value: str, top_rated_only: bool) -> list[Sample]:
+        """
+        Find samples that have completions matching the search query.
+
+        Args:
+            samples: List of samples to search
+            search_value: Search query text (lowercase)
+            top_rated_only: If True, search only in the top-rated completion of each sample
+
+        Returns:
+            List of samples with matching completions
+        """
+        matching_samples = []
+        for sample in samples:
+            if not sample.prompt_revision or not sample.prompt_revision.completions:
+                continue  # Skip samples without completions
+
+            if top_rated_only:
+                if self._top_rated_completion_matches(sample, search_value):
+                    matching_samples.append(sample)
+            else:
+                if self._any_completion_matches(sample, search_value):
+                    matching_samples.append(sample)
+
+        return matching_samples
+
+    def _top_rated_completion_matches(self, sample: Sample, search_value: str) -> bool:
+        """
+        Check if the top-rated completion of the sample matches the search query.
+
+        Args:
+            sample: Sample to check
+            search_value: Search query text (lowercase)
+
+        Returns:
+            True if top-rated completion matches, False otherwise
+        """
+        # Get the highest-rated completion across all facets
+        highest_rated_completion = None
+        max_rating = -1
+        for completion in sample.prompt_revision.completions:
+            if completion.ratings:
+                for rating in completion.ratings:
+                    if rating.rating > max_rating:
+                        max_rating = rating.rating
+                        highest_rated_completion = completion
+
+        # Search only in the top-rated completion
+        return highest_rated_completion is not None and search_value in highest_rated_completion.completion_text.lower()
+
+    def _any_completion_matches(self, sample: Sample, search_value: str) -> bool:
+        """
+        Check if any completion of the sample matches the search query.
+
+        Args:
+            sample: Sample to check
+            search_value: Search query text (lowercase)
+
+        Returns:
+            True if any completion matches, False otherwise
+        """
+        for completion in sample.prompt_revision.completions:
+            if search_value in completion.completion_text.lower():
+                return True
+        return False
+
+    def _add_samples_to_tree_by_group(self, samples: list[Sample]) -> None:
+        """
+        Add samples to the tree, grouped by their group_path.
+
+        Args:
+            samples: List of samples to add
+        """
         group_roots = {}
-        for sample in matching_samples:
+        for sample in samples:
             group_path = sample.group_path or "Ungrouped"
             group_parts = group_path.split("/")
             current_parent = self.tree
@@ -959,9 +1010,6 @@ class WidgetNavigationTree(QWidget):
             item.setData(0, Qt.ItemDataRole.UserRole, "sample")
             item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
             self._set_sample_icon_if_has_images(item, sample)
-
-        # Sort all children at each level alphabetically
-        self._sort_tree_children_recursively(self.tree)
 
     def _populate_export_templates(self, data_filter: DataFilter, dataset: "DatasetDatabase") -> None:
         """Populate tree with export templates stored in the dataset."""
