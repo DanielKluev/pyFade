@@ -12,8 +12,15 @@
   - Groups matching samples by their group_path in hierarchical tree structure
   - Case-insensitive search matching
   - Top-rated mode considers highest rating across all facets for each sample
-  - Comprehensive test coverage with 13 new unit tests covering all scenarios
-  - All tests passing (938 total, 4 skipped)
+  - **Performance Optimization**: Search button and Enter-key trigger instead of keystroke-by-keystroke
+    - Search button visible only in Completions Search mode
+    - Search triggers on button click or Enter key press (not on every character typed)
+    - Other navigation modes still use instant search on keystroke
+    - Optimized database query using SQL JOINs for regular search mode
+    - Python filtering for top-rated mode ensures accurate rating comparison
+    - Prevents UI freezing on large datasets (1500 samples × 10 completions)
+  - Comprehensive test coverage with 16 unit tests covering all scenarios
+  - All tests passing (564 UI tests, 80 navigation tests)
   - Pylint score: 10.00/10 for py_fade, 9.99/10 for tests
 - **Alphabetical Sorting for Samples by Group**: Navigation panel now displays both samples and subgroups sorted lexicographically together
   - Samples in "Samples by Group" mode are now sorted case-insensitively by title
