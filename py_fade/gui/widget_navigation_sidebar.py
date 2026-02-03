@@ -891,9 +891,9 @@ class WidgetNavigationTree(QWidget):
         search_value: str | None = None
         for criteria in getattr(data_filter, "filters", []):
             if criteria.get("type") == "text_search":
-                probe = str(criteria.get("value", "")).strip().lower()
-                if probe:
-                    search_value = probe
+                normalized_search_value = str(criteria.get("value", "")).strip().lower()
+                if normalized_search_value:
+                    search_value = normalized_search_value
                     break
 
         # If no search query, display placeholder message
@@ -950,6 +950,9 @@ class WidgetNavigationTree(QWidget):
         """
         Check if the top-rated completion of the sample matches the search query.
 
+        Finds the single completion with the highest rating across all facets
+        (not the average rating per completion).
+
         Args:
             sample: Sample to check
             search_value: Search query text (lowercase)
@@ -958,6 +961,7 @@ class WidgetNavigationTree(QWidget):
             True if top-rated completion matches, False otherwise
         """
         # Get the highest-rated completion across all facets
+        # Using nested loops to find the single completion with max rating
         highest_rated_completion = None
         max_rating = -1
         for completion in sample.prompt_revision.completions:
