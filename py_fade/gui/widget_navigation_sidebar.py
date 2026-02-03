@@ -65,6 +65,7 @@ class WidgetNavigationFilterPanel(QWidget):
             "Samples by Facet",
             "Samples by Tag",
             "Samples by Filter",
+            "Completions Search",
             "Sample Filters",
             "Facets",
             "Tags",
@@ -91,6 +92,11 @@ class WidgetNavigationFilterPanel(QWidget):
         self.group_by_rating_toggle.toggled_state_changed.connect(self._on_group_by_rating_toggled)
         self.group_by_rating_toggle.setVisible(False)  # Hidden by default
 
+        # Top rated only toggle button (shown only for completions search)
+        self.top_rated_only_toggle = QPushButtonToggle("workspace_premium", "Search only in top-rated completions", button_size=28)
+        self.top_rated_only_toggle.toggled_state_changed.connect(self._on_top_rated_only_toggled)
+        self.top_rated_only_toggle.setVisible(False)  # Hidden by default
+
         # Text search
         search_label = QLabel("Search:")
 
@@ -105,6 +111,7 @@ class WidgetNavigationFilterPanel(QWidget):
         layout.addWidget(self.filter_selector)
         layout.addWidget(self.flat_list_toggle)
         layout.addWidget(self.group_by_rating_toggle)
+        layout.addWidget(self.top_rated_only_toggle)
         layout.addWidget(search_label)
         layout.addWidget(self.search_input)
         # Do not add a stretch here so the panel only takes the space it needs.
@@ -126,6 +133,12 @@ class WidgetNavigationFilterPanel(QWidget):
             self.group_by_rating_toggle.setVisible(True)
         else:
             self.group_by_rating_toggle.setVisible(False)
+
+        # Show top rated only toggle for "Completions Search"
+        if show == "Completions Search":
+            self.top_rated_only_toggle.setVisible(True)
+        else:
+            self.top_rated_only_toggle.setVisible(False)
 
         # Show filter selector only for "Samples by Filter"
         if show == "Samples by Filter":
@@ -151,6 +164,10 @@ class WidgetNavigationFilterPanel(QWidget):
             self.flat_list_toggle.set_toggled(False)
         self.filter_changed.emit()
 
+    def _on_top_rated_only_toggled(self, toggled: bool):
+        """Handle top rated only toggle changes."""
+        self.filter_changed.emit()
+
     def _build_data_filter(self) -> DataFilter:
         """Build a DataFilter based on current filter criteria."""
         filters = []
@@ -167,6 +184,7 @@ class WidgetNavigationFilterPanel(QWidget):
             "data_filter": self._build_data_filter(),
             "flat_list_mode": self.flat_list_toggle.is_toggled() if self.flat_list_toggle else False,
             "group_by_rating_mode": self.group_by_rating_toggle.is_toggled() if self.group_by_rating_toggle else False,
+            "top_rated_only": self.top_rated_only_toggle.is_toggled() if self.top_rated_only_toggle else False,
             "selected_filter_id": self.filter_selector.currentData() if self.filter_selector and show == "Samples by Filter" else None,
         }
 
@@ -243,6 +261,7 @@ class WidgetNavigationTree(QWidget):
         data_filter: DataFilter = filter_criteria.get("data_filter")  # type: ignore
         flat_list_mode = filter_criteria.get("flat_list_mode", False)
         group_by_rating_mode = filter_criteria.get("group_by_rating_mode", False)
+        top_rated_only = filter_criteria.get("top_rated_only", False)
         selected_filter_id = filter_criteria.get("selected_filter_id")
 
         self.current_item_type = None
@@ -258,6 +277,9 @@ class WidgetNavigationTree(QWidget):
         elif show == "Samples by Filter":
             self.current_item_type = "Sample"
             self._populate_samples_by_filter(selected_filter_id, dataset, flat_list_mode)
+        elif show == "Completions Search":
+            self.current_item_type = "Sample"
+            self._populate_completions_search(data_filter, dataset, top_rated_only)
         elif show == "Sample Filters":
             self.current_item_type = "Sample Filter"
             self._populate_sample_filters(data_filter, dataset)
@@ -850,6 +872,96 @@ class WidgetNavigationTree(QWidget):
 
         root_used.setExpanded(False)
         root_orphaned.setExpanded(True)
+
+    def _populate_completions_search(self, data_filter: DataFilter, dataset: "DatasetDatabase", top_rated_only: bool = False):
+        """
+        Populate tree with samples that have completions matching the search query.
+
+        Only displays samples when a search query is present. For each sample,
+        searches through completion text and shows samples that have matching completions.
+        If top_rated_only is True, only searches within the highest-rated completion per sample.
+
+        Args:
+            data_filter: Filter containing the search query
+            dataset: Dataset database
+            top_rated_only: If True, search only in the top-rated completion of each sample
+        """
+
+        # Extract search value from filter
+        search_value: str | None = None
+        for criteria in getattr(data_filter, "filters", []):
+            if criteria.get("type") == "text_search":
+                probe = str(criteria.get("value", "")).strip().lower()
+                if probe:
+                    search_value = probe
+                    break
+
+        # If no search query, display placeholder message
+        if not search_value:
+            placeholder = QTreeWidgetItem(self.tree, ["Enter search query to find completions..."])
+            placeholder.setFlags(placeholder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            return
+
+        # Get all samples
+        all_samples = Sample.fetch_with_filter(dataset, None)
+
+        # Find samples with matching completions
+        matching_samples = []
+        for sample in all_samples:
+            if not sample.prompt_revision or not sample.prompt_revision.completions:
+                continue  # Skip samples without completions
+
+            if top_rated_only:
+                # Get the highest-rated completion across all facets
+                highest_rated_completion = None
+                max_rating = -1
+                for completion in sample.prompt_revision.completions:
+                    if completion.ratings:
+                        for rating in completion.ratings:
+                            if rating.rating > max_rating:
+                                max_rating = rating.rating
+                                highest_rated_completion = completion
+
+                # Search only in the top-rated completion
+                if highest_rated_completion and search_value in highest_rated_completion.completion_text.lower():
+                    matching_samples.append(sample)
+            else:
+                # Search in all completions
+                found_match = False
+                for completion in sample.prompt_revision.completions:
+                    if search_value in completion.completion_text.lower():
+                        found_match = True
+                        break
+                if found_match:
+                    matching_samples.append(sample)
+
+        # If no matching samples found, show placeholder
+        if not matching_samples:
+            placeholder = QTreeWidgetItem(self.tree, ["No completions found matching your search"])
+            placeholder.setFlags(placeholder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            return
+
+        # Group samples by group_path for display
+        group_roots = {}
+        for sample in matching_samples:
+            group_path = sample.group_path or "Ungrouped"
+            group_parts = group_path.split("/")
+            current_parent = self.tree
+            current_path = ""
+            for part in group_parts:
+                current_path = f"{current_path}/{part}" if current_path else part
+                if current_path not in group_roots:
+                    group_roots[current_path] = QTreeWidgetItem(current_parent, [part])
+                current_parent = group_roots[current_path]
+
+            # Add sample under the group
+            item = QTreeWidgetItem(current_parent, [sample.title])
+            item.setData(0, Qt.ItemDataRole.UserRole, "sample")
+            item.setData(1, Qt.ItemDataRole.UserRole, sample.id)
+            self._set_sample_icon_if_has_images(item, sample)
+
+        # Sort all children at each level alphabetically
+        self._sort_tree_children_recursively(self.tree)
 
     def _populate_export_templates(self, data_filter: DataFilter, dataset: "DatasetDatabase") -> None:
         """Populate tree with export templates stored in the dataset."""
