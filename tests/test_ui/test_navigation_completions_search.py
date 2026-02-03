@@ -583,3 +583,103 @@ def test_other_modes_still_auto_trigger_on_text_change(ensure_google_icon_font, 
     qt_app.processEvents()
     # Signal should have been emitted for text change
     assert signal_count > 0
+
+
+def test_completions_search_button_executes_search_correctly(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that search button click executes the search and returns correct results.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create samples with different completions
+    prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt 1", 2048, 512)
+    temp_dataset.commit()
+    _ = Sample.create_if_unique(temp_dataset, "Sample One", prompt_rev1, "group_1")
+    temp_dataset.commit()
+    _ = create_test_completion(temp_dataset, prompt_rev1, "This has special keyword", "test-model")
+
+    prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt 2", 2048, 512)
+    temp_dataset.commit()
+    _ = Sample.create_if_unique(temp_dataset, "Sample Two", prompt_rev2, "group_1")
+    temp_dataset.commit()
+    _ = create_test_completion(temp_dataset, prompt_rev2, "This does not have it", "test-model")
+
+    # Create navigation widgets
+    panel = WidgetNavigationFilterPanel()
+    tree = WidgetNavigationTree()
+
+    panel.show_combo.setCurrentText("Completions Search")
+    panel._on_show_changed()
+    panel.search_input.setText("special")
+    qt_app.processEvents()
+
+    # Click the search button to trigger search
+    panel.search_button.click()
+    qt_app.processEvents()
+
+    # Update tree with current filter criteria
+    criteria = panel.get_filter_criteria()
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    # Should find Sample One
+    found_samples = []
+    for i in range(tree.tree.topLevelItemCount()):
+        top_item = tree.tree.topLevelItem(i)
+        for j in range(top_item.childCount()):
+            child = top_item.child(j)
+            if child.data(0, Qt.ItemDataRole.UserRole) == "sample":
+                found_samples.append(child.text(0))
+
+    assert len(found_samples) == 1
+    assert "Sample One" in found_samples
+
+
+def test_completions_search_enter_key_executes_search_correctly(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that pressing Enter key executes the search and returns correct results.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create samples with different completions
+    prompt_rev1 = PromptRevision.get_or_create(temp_dataset, "prompt 1", 2048, 512)
+    temp_dataset.commit()
+    _ = Sample.create_if_unique(temp_dataset, "Sample Alpha", prompt_rev1, "group_1")
+    temp_dataset.commit()
+    _ = create_test_completion(temp_dataset, prompt_rev1, "Contains the word unique", "test-model")
+
+    prompt_rev2 = PromptRevision.get_or_create(temp_dataset, "prompt 2", 2048, 512)
+    temp_dataset.commit()
+    _ = Sample.create_if_unique(temp_dataset, "Sample Beta", prompt_rev2, "group_1")
+    temp_dataset.commit()
+    _ = create_test_completion(temp_dataset, prompt_rev2, "Does not contain it", "test-model")
+
+    # Create navigation widgets
+    panel = WidgetNavigationFilterPanel()
+    tree = WidgetNavigationTree()
+
+    panel.show_combo.setCurrentText("Completions Search")
+    panel._on_show_changed()
+    panel.search_input.setText("unique")
+    qt_app.processEvents()
+
+    # Press Enter to trigger search
+    panel.search_input.returnPressed.emit()
+    qt_app.processEvents()
+
+    # Update tree with current filter criteria
+    criteria = panel.get_filter_criteria()
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    # Should find Sample Alpha
+    found_samples = []
+    for i in range(tree.tree.topLevelItemCount()):
+        top_item = tree.tree.topLevelItem(i)
+        for j in range(top_item.childCount()):
+            child = top_item.child(j)
+            if child.data(0, Qt.ItemDataRole.UserRole) == "sample":
+                found_samples.append(child.text(0))
+
+    assert len(found_samples) == 1
+    assert "Sample Alpha" in found_samples
