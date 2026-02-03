@@ -3,6 +3,18 @@
 ## [Unreleased]
 
 ### Added
+- **Completions Search Feature**: Implemented new navigation type for searching samples by completion content
+  - Added "Completions Search" option to navigation sidebar combobox
+  - Search through all completion texts across all samples in the dataset
+  - Option to search only in top-rated completions via "Top Rated Only" toggle button
+  - Shows placeholder message when no search query is entered
+  - Displays "No completions found" message when search yields no results
+  - Groups matching samples by their group_path in hierarchical tree structure
+  - Case-insensitive search matching
+  - Top-rated mode considers highest rating across all facets for each sample
+  - Comprehensive test coverage with 13 new unit tests covering all scenarios
+  - All tests passing (938 total, 4 skipped)
+  - Pylint score: 10.00/10 for py_fade, 9.99/10 for tests
 - **Alphabetical Sorting for Samples by Group**: Navigation panel now displays both samples and subgroups sorted lexicographically together
   - Samples in "Samples by Group" mode are now sorted case-insensitively by title
   - Subgroup nodes are also sorted alphabetically together with samples at each level
