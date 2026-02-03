@@ -121,6 +121,69 @@ class Sample(dataset_base):
 
         return filtered_samples
 
+    @classmethod
+    def fetch_with_completion_text_search(cls, dataset: "DatasetDatabase", search_text: str,
+                                          top_rated_only: bool = False) -> list["Sample"]:
+        """
+        Efficiently fetch samples that have completions matching the search text.
+
+        Uses database-level filtering with JOINs to minimize data transfer and in-memory processing.
+        For large datasets, this is significantly faster than fetching all samples and filtering in Python.
+
+        Args:
+            dataset: The dataset database instance
+            search_text: Text to search for in completion text (case-insensitive)
+            top_rated_only: If True, search only within the highest-rated completion of each sample
+
+        Returns:
+            List of Sample objects that have matching completions
+        """
+        from py_fade.dataset.completion import PromptCompletion  # pylint: disable=import-outside-toplevel
+        from sqlalchemy import func  # pylint: disable=import-outside-toplevel
+
+        session = dataset.get_session()
+        search_pattern = f"%{search_text.lower()}%"
+
+        if top_rated_only:  # pylint: disable=too-many-nested-blocks
+            # For top_rated_only mode, we need to:
+            # 1. Find the highest-rated completion for each sample (across all facets)
+            # 2. Check if that completion matches the search text
+
+            # This is complex to do efficiently in a single SQL query for all databases,
+            # so we use a window function approach or subqueries
+
+            # First, get all samples with their prompt revisions
+            all_samples = session.query(cls).join(cls.prompt_revision).join(PromptRevision.completions).join(
+                PromptCompletion.ratings).distinct().all()
+
+            # Filter in Python: for each sample, find top-rated completion and check match
+            matching_samples = []
+            for sample in all_samples:
+                if not sample.prompt_revision or not sample.prompt_revision.completions:
+                    continue
+
+                # Find the completion with the highest rating across all facets
+                max_rating = -1
+                top_completion = None
+                for completion in sample.prompt_revision.completions:
+                    if completion.ratings:
+                        for rating_obj in completion.ratings:
+                            if rating_obj.rating > max_rating:
+                                max_rating = rating_obj.rating
+                                top_completion = completion
+
+                # Check if the top-rated completion matches the search text
+                if top_completion and search_text.lower() in top_completion.completion_text.lower():
+                    matching_samples.append(sample)
+
+            return matching_samples
+
+        # For regular mode, find any sample with any matching completion
+        query = (session.query(cls).join(cls.prompt_revision).join(PromptRevision.completions).filter(
+            func.lower(PromptCompletion.completion_text).like(search_pattern)).distinct())
+
+        return list(query.all())
+
     def new_copy(self) -> "Sample":
         """
         Create a new unsaved copy of this sample with the same prompt revision

@@ -486,3 +486,100 @@ def test_completions_search_top_rated_only_with_no_ratings(temp_dataset, ensure_
                 found_samples.append(child.text(0))
 
     assert len(found_samples) == 0
+
+
+def test_completions_search_button_visibility(ensure_google_icon_font, qt_app):
+    """
+    Test that search button is visible only for Completions Search mode.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    panel = WidgetNavigationFilterPanel()
+    panel.show()
+    qt_app.processEvents()
+
+    # Initially hidden for "Samples by Group"
+    assert not panel.search_button.isVisible()
+
+    # Visible for "Completions Search"
+    panel.show_combo.setCurrentText("Completions Search")
+    panel._on_show_changed()
+    qt_app.processEvents()
+    assert panel.search_button.isVisible()
+
+    # Hidden for other modes
+    panel.show_combo.setCurrentText("Samples by Facet")
+    panel._on_show_changed()
+    qt_app.processEvents()
+    assert not panel.search_button.isVisible()
+
+
+def test_completions_search_no_auto_trigger_on_text_change(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that Completions Search does not trigger automatically on text change, only on button/Enter.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    # Create sample with completion
+    prompt_rev = PromptRevision.get_or_create(temp_dataset, "test prompt", 2048, 512)
+    temp_dataset.commit()
+    _ = Sample.create_if_unique(temp_dataset, "Test Sample", prompt_rev, "group_1")
+    temp_dataset.commit()
+    _ = create_test_completion(temp_dataset, prompt_rev, "important completion", "test-model")
+
+    panel = WidgetNavigationFilterPanel()
+    panel.show_combo.setCurrentText("Completions Search")
+    panel._on_show_changed()
+    qt_app.processEvents()
+
+    # Track filter_changed signal emissions
+    signal_count = 0
+
+    def on_filter_changed():
+        nonlocal signal_count
+        signal_count += 1
+
+    panel.filter_changed.connect(on_filter_changed)
+
+    # Type text in search field (should NOT trigger filter_changed for Completions Search)
+    panel.search_input.setText("imp")
+    qt_app.processEvents()
+    # Signal count should be 0 because textChanged should not trigger filter for Completions Search
+    assert signal_count == 0
+
+    # Press Enter (should trigger filter_changed)
+    panel.search_input.returnPressed.emit()
+    qt_app.processEvents()
+    assert signal_count == 1
+
+    # Click search button (should trigger filter_changed again)
+    panel.search_button.click()
+    qt_app.processEvents()
+    assert signal_count == 2
+
+
+def test_other_modes_still_auto_trigger_on_text_change(ensure_google_icon_font, qt_app):
+    """
+    Test that other navigation modes still trigger search automatically on text change.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    panel = WidgetNavigationFilterPanel()
+    panel.show_combo.setCurrentText("Samples by Group")
+    panel._on_show_changed()
+    qt_app.processEvents()
+
+    # Track filter_changed signal emissions
+    signal_count = 0
+
+    def on_filter_changed():
+        nonlocal signal_count
+        signal_count += 1
+
+    panel.filter_changed.connect(on_filter_changed)
+
+    # Type text in search field (should trigger filter_changed for non-Completions modes)
+    panel.search_input.setText("test")
+    qt_app.processEvents()
+    # Signal should have been emitted for text change
+    assert signal_count > 0
