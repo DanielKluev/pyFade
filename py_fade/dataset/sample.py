@@ -121,6 +121,71 @@ class Sample(dataset_base):
 
         return filtered_samples
 
+    @classmethod
+    def fetch_with_completion_text_search(cls, dataset: "DatasetDatabase", search_text: str,
+                                          top_rated_only: bool = False) -> list["Sample"]:
+        """
+        Efficiently fetch samples that have completions matching the search text.
+
+        Uses database-level filtering with JOINs to minimize data transfer and in-memory processing.
+        For large datasets, this is significantly faster than fetching all samples and filtering in Python.
+
+        Args:
+            dataset: The dataset database instance
+            search_text: Text to search for in completion text (case-insensitive)
+            top_rated_only: If True, search only within the highest-rated completion of each sample
+
+        Returns:
+            List of Sample objects that have matching completions
+        """
+        from py_fade.dataset.completion import PromptCompletion  # pylint: disable=import-outside-toplevel
+        from sqlalchemy import func  # pylint: disable=import-outside-toplevel
+
+        session = dataset.get_session()
+        search_pattern = f"%{search_text.lower()}%"
+
+        if top_rated_only:
+            # For top_rated_only mode, we need to:
+            # 1. Find the completion with the highest rating for each sample (across all facets)
+            # 2. Check if THAT specific completion matches the search text
+            # This is done efficiently at the SQL level using subqueries
+
+            from py_fade.dataset.completion_rating import PromptCompletionRating  # pylint: disable=import-outside-toplevel
+            from sqlalchemy import and_  # pylint: disable=import-outside-toplevel
+
+            # Subquery 1: Get the maximum rating for each completion (across all facets)
+            max_rating_per_completion = (session.query(PromptCompletionRating.prompt_completion_id,
+                                                       func.max(PromptCompletionRating.rating).label('max_rating')).group_by(
+                                                           PromptCompletionRating.prompt_completion_id).subquery())
+
+            # Subquery 2: For each prompt_revision, find the highest rating
+            highest_rating_per_revision = (session.query(
+                PromptCompletion.prompt_revision_id,
+                func.max(max_rating_per_completion.c.max_rating).label('highest_rating')).join(
+                    max_rating_per_completion, PromptCompletion.id == max_rating_per_completion.c.prompt_completion_id).group_by(
+                        PromptCompletion.prompt_revision_id).subquery())
+
+            # Subquery 3: Get the completion IDs that have the highest rating for their prompt_revision
+            # AND match the search text
+            top_rated_completions_with_text = (session.query(PromptCompletion.prompt_revision_id).join(
+                max_rating_per_completion, PromptCompletion.id == max_rating_per_completion.c.prompt_completion_id).join(
+                    highest_rating_per_revision,
+                    and_(PromptCompletion.prompt_revision_id == highest_rating_per_revision.c.prompt_revision_id,
+                         max_rating_per_completion.c.max_rating == highest_rating_per_revision.c.highest_rating)).filter(
+                             func.lower(PromptCompletion.completion_text).like(search_pattern)).subquery())
+
+            # Main query: Get samples that have a prompt_revision with a top-rated matching completion
+            query = (session.query(cls).join(cls.prompt_revision).join(
+                top_rated_completions_with_text, PromptRevision.id == top_rated_completions_with_text.c.prompt_revision_id).distinct())
+
+            return list(query.all())
+
+        # For regular mode, find any sample with any matching completion
+        query = (session.query(cls).join(cls.prompt_revision).join(PromptRevision.completions).filter(
+            func.lower(PromptCompletion.completion_text).like(search_pattern)).distinct())
+
+        return list(query.all())
+
     def new_copy(self) -> "Sample":
         """
         Create a new unsaved copy of this sample with the same prompt revision

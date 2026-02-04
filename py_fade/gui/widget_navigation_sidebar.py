@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QFrame,
+    QHBoxLayout,
     QLineEdit,
     QLabel,
     QSizePolicy,
@@ -49,6 +50,8 @@ class WidgetNavigationFilterPanel(QWidget):
         self.flat_list_toggle = None  # Will be initialized in setup_ui
         self.group_by_rating_toggle = None  # Will be initialized in setup_ui
         self.filter_selector = None  # Will be initialized in setup_ui
+        self.search_button = None  # Will be initialized in setup_ui
+        self._search_on_text_changed = True  # Track whether to search on text change
         self.setup_ui()
 
     def setup_ui(self):
@@ -100,9 +103,24 @@ class WidgetNavigationFilterPanel(QWidget):
         # Text search
         search_label = QLabel("Search:")
 
+        # Search input and button in horizontal layout
+        search_layout = QHBoxLayout()
+        search_layout.setContentsMargins(0, 0, 0, 0)
+        search_layout.setSpacing(5)
+
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search text...")
-        self.search_input.textChanged.connect(self.filter_changed.emit)
+        self.search_input.textChanged.connect(self._on_search_text_changed)
+        self.search_input.returnPressed.connect(self._on_search_triggered)
+
+        # Search button (shown only for Completions Search)
+        self.search_button = QPushButtonWithIcon("search", "", icon_size=16, button_size=28)
+        self.search_button.setToolTip("Search completions (or press Enter)")
+        self.search_button.clicked.connect(self._on_search_triggered)
+        self.search_button.setVisible(False)  # Hidden by default
+
+        search_layout.addWidget(self.search_input)
+        search_layout.addWidget(self.search_button)
 
         # Add widgets to layout
         layout.addWidget(show_label)
@@ -113,7 +131,7 @@ class WidgetNavigationFilterPanel(QWidget):
         layout.addWidget(self.group_by_rating_toggle)
         layout.addWidget(self.top_rated_only_toggle)
         layout.addWidget(search_label)
-        layout.addWidget(self.search_input)
+        layout.addLayout(search_layout)
         # Do not add a stretch here so the panel only takes the space it needs.
         # Ensure the panel does not expand vertically.
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
@@ -134,11 +152,15 @@ class WidgetNavigationFilterPanel(QWidget):
         else:
             self.group_by_rating_toggle.setVisible(False)
 
-        # Show top rated only toggle for "Completions Search"
+        # Show top rated only toggle and search button for "Completions Search"
         if show == "Completions Search":
             self.top_rated_only_toggle.setVisible(True)
+            self.search_button.setVisible(True)
+            self._search_on_text_changed = False  # For Completions Search, only search on button/Enter
         else:
             self.top_rated_only_toggle.setVisible(False)
+            self.search_button.setVisible(False)
+            self._search_on_text_changed = True  # For other modes, search on text change
 
         # Show filter selector only for "Samples by Filter"
         if show == "Samples by Filter":
@@ -165,7 +187,22 @@ class WidgetNavigationFilterPanel(QWidget):
         self.filter_changed.emit()
 
     def _on_top_rated_only_toggled(self, toggled: bool):  # pylint: disable=unused-argument
-        """Handle top rated only toggle changes."""
+        """
+        Handle top rated only toggle changes.
+
+        Always auto-trigger a filter refresh so that toggling this option immediately updates results,
+        including in Completions Search mode where text-change-based auto search may be disabled.
+        """
+        self.filter_changed.emit()
+
+    def _on_search_text_changed(self):
+        """Handle search text changes. Only trigger filter for non-Completions Search modes."""
+        if self._search_on_text_changed:
+            self.filter_changed.emit()
+
+    def _on_search_triggered(self):
+        """Handle explicit search trigger (button click or Enter key)."""
+        # Always emit filter change when explicitly triggered
         self.filter_changed.emit()
 
     def _build_data_filter(self) -> DataFilter:
@@ -881,6 +918,9 @@ class WidgetNavigationTree(QWidget):
         searches through completion text and shows samples that have matching completions.
         If top_rated_only is True, only searches within the highest-rated completion per sample.
 
+        Uses optimized database queries to minimize data transfer and improve performance
+        on large datasets.
+
         Args:
             data_filter: Filter containing the search query
             dataset: Dataset database
@@ -902,11 +942,8 @@ class WidgetNavigationTree(QWidget):
             placeholder.setFlags(placeholder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
             return
 
-        # Get all samples
-        all_samples = Sample.fetch_with_filter(dataset, None)
-
-        # Find samples with matching completions
-        matching_samples = self._find_samples_with_matching_completions(all_samples, search_value, top_rated_only)
+        # Use optimized database query to find matching samples
+        matching_samples = Sample.fetch_with_completion_text_search(dataset, search_value, top_rated_only)
 
         # If no matching samples found, show placeholder
         if not matching_samples:
@@ -919,76 +956,6 @@ class WidgetNavigationTree(QWidget):
 
         # Sort all children at each level alphabetically
         self._sort_tree_children_recursively(self.tree)
-
-    def _find_samples_with_matching_completions(self, samples: list[Sample], search_value: str, top_rated_only: bool) -> list[Sample]:
-        """
-        Find samples that have completions matching the search query.
-
-        Args:
-            samples: List of samples to search
-            search_value: Search query text (lowercase)
-            top_rated_only: If True, search only in the top-rated completion of each sample
-
-        Returns:
-            List of samples with matching completions
-        """
-        matching_samples = []
-        for sample in samples:
-            if not sample.prompt_revision or not sample.prompt_revision.completions:
-                continue  # Skip samples without completions
-
-            if top_rated_only:
-                if self._top_rated_completion_matches(sample, search_value):
-                    matching_samples.append(sample)
-            else:
-                if self._any_completion_matches(sample, search_value):
-                    matching_samples.append(sample)
-
-        return matching_samples
-
-    def _top_rated_completion_matches(self, sample: Sample, search_value: str) -> bool:
-        """
-        Check if the top-rated completion of the sample matches the search query.
-
-        Finds the single completion with the highest rating across all facets
-        (not the average rating per completion).
-
-        Args:
-            sample: Sample to check
-            search_value: Search query text (lowercase)
-
-        Returns:
-            True if top-rated completion matches, False otherwise
-        """
-        # Get the highest-rated completion across all facets
-        # Using nested loops to find the single completion with max rating
-        highest_rated_completion = None
-        max_rating = -1
-        for completion in sample.prompt_revision.completions:
-            if completion.ratings:
-                for rating in completion.ratings:
-                    if rating.rating > max_rating:
-                        max_rating = rating.rating
-                        highest_rated_completion = completion
-
-        # Search only in the top-rated completion
-        return highest_rated_completion is not None and search_value in highest_rated_completion.completion_text.lower()
-
-    def _any_completion_matches(self, sample: Sample, search_value: str) -> bool:
-        """
-        Check if any completion of the sample matches the search query.
-
-        Args:
-            sample: Sample to check
-            search_value: Search query text (lowercase)
-
-        Returns:
-            True if any completion matches, False otherwise
-        """
-        for completion in sample.prompt_revision.completions:
-            if search_value in completion.completion_text.lower():
-                return True
-        return False
 
     def _add_samples_to_tree_by_group(self, samples: list[Sample]) -> None:
         """
