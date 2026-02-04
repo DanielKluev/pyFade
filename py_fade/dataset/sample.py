@@ -144,39 +144,41 @@ class Sample(dataset_base):
         session = dataset.get_session()
         search_pattern = f"%{search_text.lower()}%"
 
-        if top_rated_only:  # pylint: disable=too-many-nested-blocks
+        if top_rated_only:
             # For top_rated_only mode, we need to:
-            # 1. Find the highest-rated completion for each sample (across all facets)
-            # 2. Check if that completion matches the search text
+            # 1. Find the completion with the highest rating for each sample (across all facets)
+            # 2. Check if THAT specific completion matches the search text
+            # This is done efficiently at the SQL level using subqueries
 
-            # This is complex to do efficiently in a single SQL query for all databases,
-            # so we use a window function approach or subqueries
+            from py_fade.dataset.completion_rating import PromptCompletionRating  # pylint: disable=import-outside-toplevel
+            from sqlalchemy import and_  # pylint: disable=import-outside-toplevel
 
-            # First, get all samples with their prompt revisions
-            all_samples = session.query(cls).join(cls.prompt_revision).join(PromptRevision.completions).join(
-                PromptCompletion.ratings).distinct().all()
+            # Subquery 1: Get the maximum rating for each completion (across all facets)
+            max_rating_per_completion = (session.query(PromptCompletionRating.prompt_completion_id,
+                                                       func.max(PromptCompletionRating.rating).label('max_rating')).group_by(
+                                                           PromptCompletionRating.prompt_completion_id).subquery())
 
-            # Filter in Python: for each sample, find top-rated completion and check match
-            matching_samples = []
-            for sample in all_samples:
-                if not sample.prompt_revision or not sample.prompt_revision.completions:
-                    continue
+            # Subquery 2: For each prompt_revision, find the highest rating
+            highest_rating_per_revision = (session.query(
+                PromptCompletion.prompt_revision_id,
+                func.max(max_rating_per_completion.c.max_rating).label('highest_rating')).join(
+                    max_rating_per_completion, PromptCompletion.id == max_rating_per_completion.c.prompt_completion_id).group_by(
+                        PromptCompletion.prompt_revision_id).subquery())
 
-                # Find the completion with the highest rating across all facets
-                max_rating = -1
-                top_completion = None
-                for completion in sample.prompt_revision.completions:
-                    if completion.ratings:
-                        for rating_obj in completion.ratings:
-                            if rating_obj.rating > max_rating:
-                                max_rating = rating_obj.rating
-                                top_completion = completion
+            # Subquery 3: Get the completion IDs that have the highest rating for their prompt_revision
+            # AND match the search text
+            top_rated_completions_with_text = (session.query(PromptCompletion.prompt_revision_id).join(
+                max_rating_per_completion, PromptCompletion.id == max_rating_per_completion.c.prompt_completion_id).join(
+                    highest_rating_per_revision,
+                    and_(PromptCompletion.prompt_revision_id == highest_rating_per_revision.c.prompt_revision_id,
+                         max_rating_per_completion.c.max_rating == highest_rating_per_revision.c.highest_rating)).filter(
+                             func.lower(PromptCompletion.completion_text).like(search_pattern)).subquery())
 
-                # Check if the top-rated completion matches the search text
-                if top_completion and search_text.lower() in top_completion.completion_text.lower():
-                    matching_samples.append(sample)
+            # Main query: Get samples that have a prompt_revision with a top-rated matching completion
+            query = (session.query(cls).join(cls.prompt_revision).join(
+                top_rated_completions_with_text, PromptRevision.id == top_rated_completions_with_text.c.prompt_revision_id).distinct())
 
-            return matching_samples
+            return list(query.all())
 
         # For regular mode, find any sample with any matching completion
         query = (session.query(cls).join(cls.prompt_revision).join(PromptRevision.completions).filter(

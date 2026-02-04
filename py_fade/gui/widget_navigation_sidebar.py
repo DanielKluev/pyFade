@@ -187,10 +187,13 @@ class WidgetNavigationFilterPanel(QWidget):
         self.filter_changed.emit()
 
     def _on_top_rated_only_toggled(self, toggled: bool):  # pylint: disable=unused-argument
-        """Handle top rated only toggle changes. Only auto-trigger for non-Completions Search modes."""
-        # Don't auto-trigger search for Completions Search mode
-        if self._search_on_text_changed:
-            self.filter_changed.emit()
+        """
+        Handle top rated only toggle changes.
+
+        Always auto-trigger a filter refresh so that toggling this option immediately updates results,
+        including in Completions Search mode where text-change-based auto search may be disabled.
+        """
+        self.filter_changed.emit()
 
     def _on_search_text_changed(self):
         """Handle search text changes. Only trigger filter for non-Completions Search modes."""
