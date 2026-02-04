@@ -65,7 +65,7 @@ class SummaryWorkerThread(QThread):
             self.report_completed.emit(report)
 
         except Exception as e:  # pylint: disable=broad-exception-caught
-            self.log.error("Report generation failed: %s", e, exc_info=True)
+            self.log.error("Report generation failed with %s: %s", type(e).__name__, e, exc_info=True)
             self.report_failed.emit(str(e))
 
 

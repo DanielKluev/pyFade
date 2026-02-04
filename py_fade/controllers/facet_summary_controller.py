@@ -105,7 +105,7 @@ class FacetSummaryController:
         Generate a comprehensive summary report for the facet.
 
         Args:
-            progress_callback: Optional callback function(current, total, message) for progress updates
+            progress_callback: Optional callback function(current_sample, total_samples, status_message) for progress updates
 
         Returns:
             FacetSummaryReport with statistics and details
