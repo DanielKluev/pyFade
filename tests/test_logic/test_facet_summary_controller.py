@@ -245,3 +245,72 @@ def test_sample_ready_for_sft_not_dpo(app_with_dataset, temp_dataset):
     assert report.dpo_finished_samples == 0
     assert report.dpo_unfinished_samples == 1
     assert "rating < 9" in report.dpo_unfinished_details[0].reasons[0]
+
+
+def test_sft_token_counting(app_with_dataset, temp_dataset):
+    """
+    Test that SFT completion tokens are counted correctly.
+    """
+    facet = Facet.create(temp_dataset, "Test Facet", "Test description", min_rating=7, min_logprob_threshold=-1.0,
+                         avg_logprob_threshold=-0.4)
+    temp_dataset.commit()
+
+    # Create sample with high-rated completion and good logprobs
+    _, prompt = create_test_sample(temp_dataset)
+    completion = create_test_completion_with_params(temp_dataset, prompt, sha256="token1" * 10)
+    temp_dataset.commit()
+
+    # Add high rating
+    PromptCompletionRating.set_rating(temp_dataset, completion, facet, 8)
+
+    mapped_model = app_with_dataset.providers_manager.get_mock_model()
+    # Add good logprobs with known token count
+    logprobs = create_test_logprobs(temp_dataset, completion.id, mapped_model.model_id, min_logprob=-0.2, avg_logprob=-0.15)
+    temp_dataset.commit()
+
+    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, mapped_model)
+    report = controller.generate_report()
+
+    assert report.sft_finished_samples == 1
+    assert report.sft_total_tokens > 0
+    # Check that token count matches logprobs length
+    assert report.sft_total_tokens == len(logprobs.sampled_logprobs)
+
+
+def test_dpo_token_counting(app_with_dataset, temp_dataset):
+    """
+    Test that DPO completion tokens are counted correctly.
+    """
+    facet = Facet.create(temp_dataset, "Test Facet", "Test description", min_rating=7, min_logprob_threshold=-1.0,
+                         avg_logprob_threshold=-0.4)
+    temp_dataset.commit()
+
+    # Create sample with two completions: one high-rated, one low-rated
+    _, prompt = create_test_sample(temp_dataset)
+
+    # High-rated completion
+    completion1 = create_test_completion_with_params(temp_dataset, prompt, sha256="f" * 64, completion_text="Good completion")
+    temp_dataset.commit()
+
+    PromptCompletionRating.set_rating(temp_dataset, completion1, facet, 9)
+
+    mapped_model = app_with_dataset.providers_manager.get_mock_model()
+    logprobs1 = create_test_logprobs(temp_dataset, completion1.id, mapped_model.model_id, min_logprob=-0.2, avg_logprob=-0.15)
+    temp_dataset.commit()
+
+    # Low-rated completion (for rejected in DPO)
+    completion2 = create_test_completion_with_params(temp_dataset, prompt, sha256="g" * 64, completion_text="Bad completion")
+    temp_dataset.commit()
+
+    PromptCompletionRating.set_rating(temp_dataset, completion2, facet, 4)
+    # Add logprobs for rejected completion (required by DPO spec)
+    create_test_logprobs(temp_dataset, completion2.id, mapped_model.model_id, min_logprob=-0.3, avg_logprob=-0.2)
+    temp_dataset.commit()
+
+    controller = FacetSummaryController(app_with_dataset, temp_dataset, facet, mapped_model)
+    report = controller.generate_report()
+
+    assert report.dpo_finished_samples == 1
+    assert report.dpo_total_tokens > 0
+    # DPO counts chosen completion tokens
+    assert report.dpo_total_tokens == len(logprobs1.sampled_logprobs)
