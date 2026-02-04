@@ -188,3 +188,40 @@ def test_facet_summary_window_displays_token_counts(app_with_dataset: "pyFadeApp
     assert window.report.sft_total_tokens > 0  # Should have counted tokens
 
     window.close()
+
+
+@pytest.mark.usefixtures("ensure_google_icon_font")
+def test_facet_summary_window_progress_elements(app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase",
+                                                qt_app: "QApplication") -> None:
+    """
+    Test that the window has progress UI elements and they work correctly.
+    """
+    facet = Facet.create(temp_dataset, "Test Facet", "Test description")
+    temp_dataset.commit()
+    mapped_model = app_with_dataset.providers_manager.get_mock_model()
+    window = FacetSummaryWindow(app_with_dataset, temp_dataset, facet, mapped_model)
+
+    # Verify progress widgets exist
+    assert window.progress_widget is not None
+    assert window.progress_bar is not None
+    assert window.progress_label is not None
+    assert window.scroll_area is not None
+    assert window.close_button is not None
+
+    # Before showing, progress widget should be visible and scroll area hidden
+    window.show()
+
+    # Initially, close button should be disabled
+    assert window.close_button.isEnabled() is False
+
+    # Wait for completion
+    wait_for_report(window, qt_app)
+
+    # After completion, close button should be enabled
+    assert window.close_button.isEnabled() is True
+
+    # Progress widget should be hidden and scroll area visible
+    assert window.progress_widget.isVisible() is False
+    assert window.scroll_area.isVisible() is True
+
+    window.close()
