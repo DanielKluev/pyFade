@@ -6,6 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QShowEvent
 from PyQt6.QtWidgets import (
     QDialog,
     QGroupBox,
@@ -154,9 +155,12 @@ class FacetSummaryWindow(QDialog):
         button_layout.addWidget(self.close_button)
         layout.addLayout(button_layout)
 
-    def showEvent(self, event) -> None:  # pylint: disable=invalid-name
+    def showEvent(self, event: QShowEvent) -> None:  # pylint: disable=invalid-name
         """
         Called when the window is shown. Start report generation.
+
+        Args:
+            event: The show event
         """
         super().showEvent(event)
         # Start generation only once
@@ -232,9 +236,6 @@ class FacetSummaryWindow(QDialog):
         # Show content and enable close button
         self.scroll_area.setVisible(True)
         self.close_button.setEnabled(True)
-
-        # Display report
-        self.display_report()
 
     def display_report(self) -> None:
         """Display the generated report in the UI."""

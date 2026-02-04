@@ -23,10 +23,15 @@ def wait_for_report(window: FacetSummaryWindow, qt_app: "QApplication", timeout:
     """
     Wait for the summary report to be generated.
 
+    Waits for the worker thread to emit the report_completed signal. If the window already
+    has a report, returns immediately. If the worker thread doesn't exist or the timeout
+    expires before the signal is emitted, the function returns without raising an error
+    (the test should then check if window.report is not None).
+
     Args:
         window: The FacetSummaryWindow instance
-        qt_app: QApplication instance
-        timeout: Maximum time to wait in milliseconds
+        qt_app: QApplication instance for processing events
+        timeout: Maximum time to wait in milliseconds (default: 5000)
     """
     if window.report is not None:
         return
