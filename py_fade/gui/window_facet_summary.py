@@ -154,7 +154,7 @@ class FacetSummaryWindow(QDialog):
         button_layout.addWidget(self.close_button)
         layout.addLayout(button_layout)
 
-    def showEvent(self, event) -> None:
+    def showEvent(self, event) -> None:  # pylint: disable=invalid-name
         """
         Called when the window is shown. Start report generation.
         """
