@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from PyQt6.QtTest import QSignalSpy
 
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.facet import Facet
@@ -18,6 +19,30 @@ if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
 
 
+def wait_for_report(window: FacetSummaryWindow, qt_app: "QApplication", timeout: int = 5000) -> None:
+    """
+    Wait for the summary report to be generated.
+
+    Waits for the worker thread to emit the report_completed signal. If the window already
+    has a report, returns immediately. If the worker thread doesn't exist or the timeout
+    expires before the signal is emitted, the function returns without raising an error
+    (the test should then check if window.report is not None).
+
+    Args:
+        window: The FacetSummaryWindow instance
+        qt_app: QApplication instance for processing events
+        timeout: Maximum time to wait in milliseconds (default: 5000)
+    """
+    if window.report is not None:
+        return
+
+    # Wait for the worker thread to finish
+    if window.worker_thread:
+        spy = QSignalSpy(window.worker_thread.report_completed)
+        spy.wait(timeout)
+        qt_app.processEvents()
+
+
 @pytest.mark.usefixtures("ensure_google_icon_font")
 def test_facet_summary_window_initialization(app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase",
                                              qt_app: "QApplication") -> None:
@@ -28,7 +53,8 @@ def test_facet_summary_window_initialization(app_with_dataset: "pyFadeApp", temp
     temp_dataset.commit()
     mapped_model = app_with_dataset.providers_manager.get_mock_model()
     window = FacetSummaryWindow(app_with_dataset, temp_dataset, facet, mapped_model)
-    qt_app.processEvents()
+    window.show()  # Trigger showEvent which starts report generation
+    wait_for_report(window, qt_app)
 
     assert window.windowTitle() == "Facet Summary: Test Facet"
     assert window.report is not None
@@ -48,7 +74,8 @@ def test_facet_summary_window_displays_empty_facet(app_with_dataset: "pyFadeApp"
     temp_dataset.commit()
     mapped_model = app_with_dataset.providers_manager.get_mock_model()
     window = FacetSummaryWindow(app_with_dataset, temp_dataset, facet, mapped_model)
-    qt_app.processEvents()
+    window.show()
+    wait_for_report(window, qt_app)
     assert window.report is not None
     assert window.report.sft_total_samples == 0
     assert window.report.dpo_total_samples == 0
@@ -72,7 +99,8 @@ def test_facet_summary_window_displays_sft_ready_sample(app_with_dataset: "pyFad
     create_test_sample_with_completion(temp_dataset, facet, rating=8, min_logprob=-0.2, avg_logprob=-0.15)
     temp_dataset.commit()
     window = FacetSummaryWindow(app_with_dataset, temp_dataset, facet, mapped_model)
-    qt_app.processEvents()
+    window.show()
+    wait_for_report(window, qt_app)
     assert window.report is not None
     assert window.report.sft_total_samples == 1
     assert window.report.sft_finished_samples == 1
@@ -104,7 +132,8 @@ def test_facet_summary_window_displays_dpo_ready_sample(app_with_dataset: "pyFad
     temp_dataset.commit()
 
     window = FacetSummaryWindow(app_with_dataset, temp_dataset, facet, mapped_model)
-    qt_app.processEvents()
+    window.show()
+    wait_for_report(window, qt_app)
     assert window.report is not None
     assert window.report.dpo_total_samples == 1
     assert window.report.dpo_finished_samples == 1
@@ -128,12 +157,76 @@ def test_facet_summary_window_displays_unfinished_samples(app_with_dataset: "pyF
     temp_dataset.commit()
 
     window = FacetSummaryWindow(app_with_dataset, temp_dataset, facet, mapped_model)
-    qt_app.processEvents()
+    window.show()
+    wait_for_report(window, qt_app)
     assert window.report is not None
     assert window.report.sft_total_samples == 1
     assert window.report.sft_finished_samples == 0
     assert window.report.sft_unfinished_samples == 1
     assert len(window.report.sft_unfinished_details) == 1
     assert "rating >= 7" in window.report.sft_unfinished_details[0].reasons[0]
+
+    window.close()
+
+
+@pytest.mark.usefixtures("ensure_google_icon_font")
+def test_facet_summary_window_displays_token_counts(app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase",
+                                                    qt_app: "QApplication") -> None:
+    """
+    Test that the window displays completion token counts correctly.
+    """
+    facet = Facet.create(temp_dataset, "Test Facet", "Test description", min_rating=7, min_logprob_threshold=-1.0,
+                         avg_logprob_threshold=-0.4)
+    temp_dataset.commit()
+
+    mapped_model = app_with_dataset.providers_manager.get_mock_model()
+
+    # Create a sample ready for SFT with known token count
+    create_test_sample_with_completion(temp_dataset, facet, rating=8, min_logprob=-0.2, avg_logprob=-0.15)
+    temp_dataset.commit()
+    window = FacetSummaryWindow(app_with_dataset, temp_dataset, facet, mapped_model)
+    window.show()
+    wait_for_report(window, qt_app)
+    assert window.report is not None
+    assert window.report.sft_total_samples == 1
+    assert window.report.sft_finished_samples == 1
+    assert window.report.sft_total_tokens > 0  # Should have counted tokens
+
+    window.close()
+
+
+@pytest.mark.usefixtures("ensure_google_icon_font")
+def test_facet_summary_window_progress_elements(app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase",
+                                                qt_app: "QApplication") -> None:
+    """
+    Test that the window has progress UI elements and they work correctly.
+    """
+    facet = Facet.create(temp_dataset, "Test Facet", "Test description")
+    temp_dataset.commit()
+    mapped_model = app_with_dataset.providers_manager.get_mock_model()
+    window = FacetSummaryWindow(app_with_dataset, temp_dataset, facet, mapped_model)
+
+    # Verify progress widgets exist
+    assert window.progress_widget is not None
+    assert window.progress_bar is not None
+    assert window.progress_label is not None
+    assert window.scroll_area is not None
+    assert window.close_button is not None
+
+    # Before showing, progress widget should be visible and scroll area hidden
+    window.show()
+
+    # Initially, close button should be disabled
+    assert window.close_button.isEnabled() is False
+
+    # Wait for completion
+    wait_for_report(window, qt_app)
+
+    # After completion, close button should be enabled
+    assert window.close_button.isEnabled() is True
+
+    # Progress widget should be hidden and scroll area visible
+    assert window.progress_widget.isVisible() is False
+    assert window.scroll_area.isVisible() is True
 
     window.close()

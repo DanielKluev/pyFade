@@ -7,6 +7,7 @@ and logprob thresholds.
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -52,6 +53,7 @@ class FacetSummaryReport:
     sft_finished_samples: int = 0
     sft_unfinished_samples: int = 0
     sft_total_loss: float = 0.0
+    sft_total_tokens: int = 0
     sft_unfinished_details: list[UnfinishedSampleInfo] = field(default_factory=list)
 
     # DPO statistics
@@ -59,6 +61,7 @@ class FacetSummaryReport:
     dpo_finished_samples: int = 0
     dpo_unfinished_samples: int = 0
     dpo_total_loss: float = 0.0
+    dpo_total_tokens: int = 0
     dpo_unfinished_details: list[UnfinishedSampleInfo] = field(default_factory=list)
 
     # KTO statistics
@@ -68,6 +71,7 @@ class FacetSummaryReport:
     kto_good_samples: int = 0
     kto_bad_samples: int = 0
     kto_total_loss: float = 0.0
+    kto_total_tokens: int = 0
     kto_unfinished_details: list[UnfinishedSampleInfo] = field(default_factory=list)
 
 
@@ -96,9 +100,12 @@ class FacetSummaryController:
         self.facet = facet
         self.target_model = target_model
 
-    def generate_report(self) -> FacetSummaryReport:
+    def generate_report(self, progress_callback: Callable[[int, int, str], None] | None = None) -> FacetSummaryReport:
         """
         Generate a comprehensive summary report for the facet.
+
+        Args:
+            progress_callback: Optional callback function(current_sample, total_samples, status_message) for progress updates
 
         Returns:
             FacetSummaryReport with statistics and details
@@ -116,15 +123,20 @@ class FacetSummaryController:
 
         # Get all samples for this facet
         samples = self.facet.get_samples(self.dataset)
+        total_samples = len(samples)
 
         # Analyze each sample for SFT, DPO, and KTO readiness
-        for sample in samples:
+        for idx, sample in enumerate(samples):
             if sample.is_unfinished(self.dataset):
                 self.log.info("Skipping unfinished sample %s [%s]", sample.id, sample.title)
                 continue  # Skip unfinished samples
             self._analyze_sample_for_sft(sample, report)
             self._analyze_sample_for_dpo(sample, report)
             self._analyze_sample_for_kto(sample, report)
+
+            # Update progress if callback provided
+            if progress_callback:
+                progress_callback(idx + 1, total_samples, f"Processed sample {idx + 1} of {total_samples}")
 
         # Log unfinished sample details
         for unfinished in report.sft_unfinished_details:
@@ -216,6 +228,7 @@ class FacetSummaryController:
 
         report.sft_finished_samples += 1
         report.sft_total_loss += abs(best_logprobs.avg_logprob)
+        report.sft_total_tokens += len(best_logprobs.sampled_logprobs)
 
     def _analyze_sample_for_dpo(self, sample: "Sample", report: FacetSummaryReport) -> None:
         """
@@ -248,14 +261,17 @@ class FacetSummaryController:
                         chosen_completions.add(comp)
                         break
 
-            # Calculate total loss from unique chosen completions
+            # Calculate total loss and tokens from unique chosen completions
             total_loss = 0.0
+            total_tokens = 0
             for comp in chosen_completions:
                 logprobs = comp.get_logprobs_for_model_id(self.target_model.model_id)
                 if logprobs and logprobs.avg_logprob is not None:
                     total_loss += abs(logprobs.avg_logprob)
+                    total_tokens += len(logprobs.sampled_logprobs)
 
             report.dpo_total_loss += total_loss
+            report.dpo_total_tokens += total_tokens
         else:
             # Sample is not ready for DPO
             report.dpo_unfinished_samples += 1
@@ -307,8 +323,9 @@ class FacetSummaryController:
                 else:
                     report.kto_bad_samples += 1
 
-            # Calculate average loss across all completions in generated samples
+            # Calculate average loss and tokens across all completions in generated samples
             total_loss = 0.0
+            total_tokens = 0
             for kto_sample in result.samples:
                 # Find the completion that matches this sample text
                 for comp in sample.completions:
@@ -316,9 +333,11 @@ class FacetSummaryController:
                         logprobs = comp.get_logprobs_for_model_id(self.target_model.model_id)
                         if logprobs and logprobs.avg_logprob is not None:
                             total_loss += abs(logprobs.avg_logprob)
+                            total_tokens += len(logprobs.sampled_logprobs)
                         break
 
             report.kto_total_loss += total_loss
+            report.kto_total_tokens += total_tokens
         else:
             # Sample is not ready for KTO
             report.kto_unfinished_samples += 1
