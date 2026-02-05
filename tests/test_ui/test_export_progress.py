@@ -69,7 +69,7 @@ def test_export_controller_progress_callback_invoked_sft(app_with_dataset, temp_
     assert controller.progress_callback is progress_callback
 
 
-def test_export_worker_thread_progress_callback(app_with_dataset, temp_dataset, qtbot):
+def test_export_worker_thread_progress_callback(qtbot):  # pylint: disable=unused-argument
     """
     Test that ExportWorkerThread's progress callback calculates progress correctly.
     """
