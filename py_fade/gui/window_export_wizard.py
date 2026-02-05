@@ -57,6 +57,9 @@ class ExportWorkerThread(QThread):
 
         Calculates overall progress percentage and emits progress updates with detailed status.
         """
+        # Ensure current_sample doesn't exceed total_samples (defensive programming)
+        current_sample = min(current_sample, total_samples)
+
         # Calculate progress within this facet (0-100)
         facet_progress = (current_sample / total_samples * 100) if total_samples > 0 else 0
 

@@ -202,9 +202,9 @@ class ExportController:
 
                 processed_count += 1
 
-                # Update progress every sample
+                # Update progress every sample (clamp to max_samples to avoid values like "Sample 11/10")
                 if self.progress_callback:
-                    self.progress_callback(current_facet_idx, total_facets, facet.name, processed_count, max_samples)
+                    self.progress_callback(current_facet_idx, total_facets, facet.name, min(processed_count, max_samples), max_samples)
 
                 if sample.is_unfinished(self.dataset):
                     # Skip unfinished samples
@@ -350,9 +350,9 @@ class ExportController:
 
                 processed_count += 1
 
-                # Update progress every sample
+                # Update progress every sample (clamp to max_samples to avoid values like "Sample 11/10")
                 if self.progress_callback:
-                    self.progress_callback(current_facet_idx, total_facets, facet.name, processed_count, max_samples)
+                    self.progress_callback(current_facet_idx, total_facets, facet.name, min(processed_count, max_samples), max_samples)
 
                 # Generate DPO pairs for this sample
                 result = dpo_controller.generate_pairs_for_sample(sample)
@@ -499,9 +499,9 @@ class ExportController:
 
                 processed_count += 1
 
-                # Update progress every sample
+                # Update progress every sample (clamp to max_samples to avoid values like "Sample 11/10")
                 if self.progress_callback:
-                    self.progress_callback(current_facet_idx, total_facets, facet.name, processed_count, max_samples)
+                    self.progress_callback(current_facet_idx, total_facets, facet.name, min(processed_count, max_samples), max_samples)
 
                 # Generate KTO samples for this sample
                 result = kto_controller.generate_samples_for_sample(sample)

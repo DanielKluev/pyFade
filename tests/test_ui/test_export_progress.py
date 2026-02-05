@@ -33,7 +33,7 @@ def test_export_controller_progress_callback_invoked_sft(app_with_dataset, temp_
     Test that progress callback is invoked during SFT export with correct parameters.
     """
     # Create test facet and template
-    facet, template = create_test_template(temp_dataset)
+    _facet, template = create_test_template(temp_dataset)
 
     # Create callback to track calls
     callback_calls = []
@@ -240,7 +240,7 @@ def test_export_wizard_displays_granular_progress(app_with_dataset, temp_dataset
     Test that ExportWizard displays granular progress information.
     """
     # Create test facet and template
-    _facet, _template = create_test_template(temp_dataset)
+    create_test_template(temp_dataset)
 
     wizard = ExportWizard(None, app_with_dataset, temp_dataset)
     qtbot.addWidget(wizard)
