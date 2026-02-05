@@ -8,7 +8,7 @@ import logging
 import pathlib
 import random
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import pyzipper
 from sqlalchemy import exists
@@ -74,7 +74,7 @@ class ExportController:
     """
 
     def __init__(self, app: "PyFadeApp", dataset: "DatasetDatabase", export_template: "ExportTemplate | None" = None,
-                 target_model_id: str | None = None) -> None:
+                 target_model_id: str | None = None, progress_callback: Callable[[int, int, str, int, int], None] | None = None) -> None:
         """
         Initialize the controller, binding to the app, dataset, and optionally export template.
         
@@ -83,6 +83,8 @@ class ExportController:
             dataset: Dataset database to export from
             export_template: Export template to use (required for template-based export, optional for facet backup)
             target_model_id: Model ID to use for logprobs validation (optional, falls back to first available model)
+            progress_callback: Optional callback for progress updates.
+                Signature: (current_facet_idx, total_facets, facet_name, current_sample, total_samples) -> None
         """
         self.log = logging.getLogger("ExportController")
         self.app = app
@@ -91,6 +93,7 @@ class ExportController:
         self.target_model_id = target_model_id
         self.output_path = None
         self.export_results: ExportResults | None = None
+        self.progress_callback = progress_callback
 
     def set_output_path(self, path: pathlib.Path) -> None:
         """
@@ -132,8 +135,12 @@ class ExportController:
         conversations = []
         exported_sample_ids = set()  # Track which samples have been exported
 
+        total_facets = len(self.export_template.facets_json)
+        current_facet_idx = 0
+
         for facet_config in self.export_template.facets_json:
             facet_id = facet_config["facet_id"]
+            current_facet_idx += 1
 
             # Get the facet object
             # Use Facet imported at module level
@@ -178,8 +185,13 @@ class ExportController:
             else:
                 max_samples = int(limit_value)
 
+            # Notify progress callback about starting this facet
+            if self.progress_callback:
+                self.progress_callback(current_facet_idx, total_facets, facet.name, 0, max_samples)
+
             # Process samples for this facet
             exported_count = 0
+            processed_count = 0
             for sample in samples:
                 if exported_count >= max_samples:
                     break
@@ -187,6 +199,12 @@ class ExportController:
                 # Skip if already exported by another facet
                 if sample.id in exported_sample_ids:
                     continue
+
+                processed_count += 1
+
+                # Update progress every sample (clamp to max_samples to avoid values like "Sample 11/10")
+                if self.progress_callback:
+                    self.progress_callback(current_facet_idx, total_facets, facet.name, min(processed_count, max_samples), max_samples)
 
                 if sample.is_unfinished(self.dataset):
                     # Skip unfinished samples
@@ -247,8 +265,12 @@ class ExportController:
         all_pairs: list[DPOPair] = []
         exported_sample_ids = set()  # Track which samples have been exported
 
+        total_facets = len(self.export_template.facets_json)
+        current_facet_idx = 0
+
         for facet_config in self.export_template.facets_json:
             facet_id = facet_config["facet_id"]
+            current_facet_idx += 1
 
             # Get the facet object
             # Use Facet imported at module level
@@ -311,8 +333,13 @@ class ExportController:
             else:
                 max_samples = int(limit_value)
 
+            # Notify progress callback about starting this facet
+            if self.progress_callback:
+                self.progress_callback(current_facet_idx, total_facets, facet.name, 0, max_samples)
+
             # Process samples for this facet
             exported_count = 0
+            processed_count = 0
             for sample in samples:
                 if exported_count >= max_samples:
                     break
@@ -320,6 +347,12 @@ class ExportController:
                 # Skip if already exported by another facet
                 if sample.id in exported_sample_ids:
                     continue
+
+                processed_count += 1
+
+                # Update progress every sample (clamp to max_samples to avoid values like "Sample 11/10")
+                if self.progress_callback:
+                    self.progress_callback(current_facet_idx, total_facets, facet.name, min(processed_count, max_samples), max_samples)
 
                 # Generate DPO pairs for this sample
                 result = dpo_controller.generate_pairs_for_sample(sample)
@@ -379,8 +412,12 @@ class ExportController:
         all_samples: list[KTOSample] = []
         exported_sample_ids = set()  # Track which samples have been exported
 
+        total_facets = len(self.export_template.facets_json)
+        current_facet_idx = 0
+
         for facet_config in self.export_template.facets_json:
             facet_id = facet_config["facet_id"]
+            current_facet_idx += 1
 
             # Get the facet object
             facet = Facet.get_by_id(self.dataset, facet_id)
@@ -445,8 +482,13 @@ class ExportController:
             else:
                 max_samples = int(limit_value)
 
+            # Notify progress callback about starting this facet
+            if self.progress_callback:
+                self.progress_callback(current_facet_idx, total_facets, facet.name, 0, max_samples)
+
             # Process samples for this facet
             exported_count = 0
+            processed_count = 0
             for sample in samples:
                 if exported_count >= max_samples:
                     break
@@ -454,6 +496,12 @@ class ExportController:
                 # Skip if already exported by another facet
                 if sample.id in exported_sample_ids:
                     continue
+
+                processed_count += 1
+
+                # Update progress every sample (clamp to max_samples to avoid values like "Sample 11/10")
+                if self.progress_callback:
+                    self.progress_callback(current_facet_idx, total_facets, facet.name, min(processed_count, max_samples), max_samples)
 
                 # Generate KTO samples for this sample
                 result = kto_controller.generate_samples_for_sample(sample)

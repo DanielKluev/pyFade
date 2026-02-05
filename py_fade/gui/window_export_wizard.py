@@ -51,6 +51,39 @@ class ExportWorkerThread(QThread):
         self.export_controller = export_controller
         self.log = logging.getLogger("ExportWorkerThread")
 
+    def _progress_callback(self, current_facet_idx: int, total_facets: int, facet_name: str, current_sample: int, total_samples: int):
+        """
+        Progress callback invoked by the export controller.
+
+        Calculates overall progress percentage and emits progress updates with detailed status.
+        """
+        # Ensure current_sample doesn't exceed total_samples (defensive programming)
+        current_sample = min(current_sample, total_samples)
+
+        # Calculate progress within this facet (0-100)
+        facet_progress = (current_sample / total_samples * 100) if total_samples > 0 else 0
+
+        # Calculate overall progress across all facets
+        # Each facet contributes (100 / total_facets)% to overall progress
+        facet_weight = 100 / total_facets if total_facets > 0 else 100
+        completed_facets_progress = (current_facet_idx - 1) * facet_weight
+        current_facet_contribution = facet_progress * facet_weight / 100
+        overall_progress = int(completed_facets_progress + current_facet_contribution)
+
+        # Ensure progress is within bounds
+        overall_progress = max(10, min(99, overall_progress))  # Keep between 10 and 99 during export
+
+        # Create detailed status message
+        remaining_facets = total_facets - current_facet_idx
+        status_parts = [f"Facet {current_facet_idx}/{total_facets}: {facet_name}"]
+        status_parts.append(f"Sample {current_sample}/{total_samples}")
+        if remaining_facets > 0:
+            status_parts.append(f"({remaining_facets} facet{'s' if remaining_facets > 1 else ''} remaining)")
+
+        status_message = " - ".join(status_parts)
+
+        self.progress_updated.emit(overall_progress, status_message)
+
     def run(self):
         """
         Execute the export operation in the background.
@@ -58,8 +91,10 @@ class ExportWorkerThread(QThread):
         try:
             self.progress_updated.emit(10, "Preparing export...")
 
+            # Set the progress callback on the controller
+            self.export_controller.progress_callback = self._progress_callback
+
             # Run export
-            self.progress_updated.emit(50, "Exporting samples...")
             exported_count = self.export_controller.run_export()
 
             self.progress_updated.emit(100, "Export completed successfully!")
