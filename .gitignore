@@ -216,6 +216,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# Claude settings file
+.claude/settings.local.json
+
 # Pylint output files
 pylint_output.txt
 pylint_final_output.txt
