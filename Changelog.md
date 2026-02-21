@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Added
+- **Beam Management Buttons**: Added bulk and per-beam controls for managing beams in the Beam Search Window
+  - **Remove from View button** (`remove_circle_outline` icon) on saved beam frames: removes the beam from the Beam Search Window without deleting it from the database, distinct from the delete button
+  - **Unpin button** visible on saved pinned beams: allows unpinning a beam that was saved while pinned
+  - **Unpin All** bulk button on top panel: unpins all currently pinned beams at once and re-sorts
+  - **Remove Unpinned** bulk button on top panel: removes all unpinned beams from view (no database deletion)
+  - **Remove All** bulk button on top panel: removes all beams from view including pinned ones (no database deletion)
+  - New `remove_requested` signal on `CompletionFrame` for remove-from-view semantics
+  - Added `remove_circle_outline` and `clear_all` icons to `common_icons_map`
+  - Comprehensive test coverage: 36 new unit tests in `test_beam_management_buttons.py`
 - **Completions Search Feature**: Implemented new navigation type for searching samples by completion content
   - Added "Completions Search" option to navigation sidebar combobox
   - Search through all completion texts across all samples in the dataset
