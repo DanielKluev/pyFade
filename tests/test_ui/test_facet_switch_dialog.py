@@ -365,6 +365,7 @@ def test_facet_switch_dialog_no_other_facets_disables_actions(
     Test that change/copy actions are disabled when no other facets exist.
 
     Edge case: when only one facet exists, change and copy should be disabled.
+    Switch should always remain enabled regardless of the number of facets.
     """
     caplog.set_level(logging.DEBUG, logger="FacetSwitchDialog")
     test_logger = logging.getLogger("test_facet_switch_dialog.no_other_facets")
@@ -389,6 +390,92 @@ def test_facet_switch_dialog_no_other_facets_disables_actions(
     assert not dialog.copy_radio.isEnabled()
     # Remove should still be enabled
     assert dialog.remove_radio.isEnabled()
+    # Switch should always be enabled (it doesn't need a target facet)
+    assert dialog.switch_radio.isEnabled()
+
+    dialog.deleteLater()
+    qt_app.processEvents()
+
+
+def test_facet_switch_dialog_switch_action_disables_combo(
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+    ensure_google_icon_font: None,  # Used for side effect of loading icon font
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """
+    Test that selecting the switch action disables the target facet combo.
+
+    Verifies that the target combo is disabled and the info label mentions no data changes.
+    """
+    caplog.set_level(logging.DEBUG, logger="FacetSwitchDialog")
+    test_logger = logging.getLogger("test_facet_switch_dialog.switch_action_ui")
+    test_logger.setLevel(logging.DEBUG)
+    patch_message_boxes(monkeypatch, test_logger)
+
+    # Create facets and sample
+    facet1, _, sample = create_facet_pair_and_sample(temp_dataset)
+
+    # Create dialog
+    dialog = FacetSwitchDialog(temp_dataset, sample, facet1)
+    qt_app.processEvents()
+
+    # Select switch action
+    dialog.switch_radio.setChecked(True)
+    qt_app.processEvents()
+
+    # Verify combo is disabled and info label reflects no-data-change semantics
+    assert not dialog.target_combo.isEnabled()
+    assert "no data will be modified" in dialog.info_label.text().lower()
+
+    dialog.deleteLater()
+    qt_app.processEvents()
+
+
+def test_facet_switch_dialog_switch_action_accepts_without_db_changes(
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+    ensure_google_icon_font: None,  # Used for side effect of loading icon font
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """
+    Test that accepting the switch action closes the dialog without modifying database.
+
+    Verifies that selected_action is set to ACTION_SWITCH and no ratings are changed.
+    """
+    caplog.set_level(logging.DEBUG, logger="FacetSwitchDialog")
+    test_logger = logging.getLogger("test_facet_switch_dialog.switch_action_accept")
+    test_logger.setLevel(logging.DEBUG)
+    patch_message_boxes(monkeypatch, test_logger)
+
+    # Create facets and sample with a rating
+    facet1, facet2, sample = create_facet_pair_and_sample(temp_dataset)
+
+    completion, _ = create_test_completion_pair(temp_dataset, sample.prompt_revision, completion_text_1="Test completion")
+    PromptCompletionRating.set_rating(temp_dataset, completion, facet1, 7)
+
+    # Create dialog
+    dialog = FacetSwitchDialog(temp_dataset, sample, facet1)
+    qt_app.processEvents()
+
+    # Select switch action
+    dialog.switch_radio.setChecked(True)
+    qt_app.processEvents()
+
+    # Accept dialog
+    dialog.accept()
+    qt_app.processEvents()
+
+    # Verify selected action is switch
+    assert dialog.selected_action == FacetSwitchDialog.ACTION_SWITCH
+
+    # Verify no ratings were modified
+    rating = PromptCompletionRating.get(temp_dataset, completion, facet1)
+    assert rating is not None
+    assert rating.rating == 7
+    assert PromptCompletionRating.get(temp_dataset, completion, facet2) is None
 
     dialog.deleteLater()
     qt_app.processEvents()
