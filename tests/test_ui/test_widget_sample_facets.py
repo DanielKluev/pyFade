@@ -356,3 +356,69 @@ def test_widget_sample_facets_display_single_facet(
 
     widget.deleteLater()
     qt_app.processEvents()
+
+
+def test_on_facet_clicked_switch_action_updates_active_facet(
+    app_with_dataset: "pyFadeApp",
+    qt_app: "QApplication",
+    ensure_google_icon_font: None,  # Used for side effect of loading icon font
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """
+    Test that the switch action from on_facet_clicked updates the active facet.
+
+    Verifies that when a user selects the 'Switch active facet to this one' option
+    in the facet dialogue, the active_facet on the sample widget is updated to the
+    clicked facet, without any database changes.
+    """
+    caplog.set_level(logging.DEBUG, logger="WidgetSample")
+    test_logger = logging.getLogger("test_widget_sample_facets.switch_via_dialog")
+    test_logger.setLevel(logging.DEBUG)
+    patch_message_boxes(monkeypatch, test_logger)
+
+    from unittest.mock import MagicMock  # pylint: disable=import-outside-toplevel
+    from PyQt6.QtWidgets import QDialog  # pylint: disable=import-outside-toplevel
+    from py_fade.gui.dialog_facet_switch import FacetSwitchDialog  # pylint: disable=import-outside-toplevel
+
+    # Create two facets and a sample
+    dataset = app_with_dataset.current_dataset
+    facet_quality = Facet.create(dataset, "Quality", "Quality facet")
+    facet_accuracy = Facet.create(dataset, "Accuracy", "Accuracy facet")
+    dataset.commit()
+
+    prompt_revision = PromptRevision.get_or_create(dataset, "Test prompt", 2048, 512)
+    sample = Sample.create_if_unique(dataset, "Test Sample", prompt_revision)
+
+    # Add ratings so facets appear in the display
+    completion, _ = create_test_completion_pair(dataset, prompt_revision, completion_text_1="Test completion")
+    PromptCompletionRating.set_rating(dataset, completion, facet_quality, 8)
+    PromptCompletionRating.set_rating(dataset, completion, facet_accuracy, 9)
+
+    # Create widget with Quality as the active facet
+    widget = WidgetSample(None, app_with_dataset, sample=sample, active_facet=facet_quality)
+    qt_app.processEvents()
+
+    # Simulate dialog returning ACTION_SWITCH for Accuracy via a mock that replaces FacetSwitchDialog.
+    # The mock class must expose ACTION_SWITCH so that on_facet_clicked can compare against it.
+    mock_dialog = MagicMock()
+    mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
+    mock_dialog.selected_action = FacetSwitchDialog.ACTION_SWITCH
+
+    mock_dialog_class = MagicMock(return_value=mock_dialog)
+    mock_dialog_class.ACTION_SWITCH = FacetSwitchDialog.ACTION_SWITCH
+    monkeypatch.setattr("py_fade.gui.widget_sample.FacetSwitchDialog", mock_dialog_class)
+
+    widget.on_facet_clicked(facet_accuracy)
+    qt_app.processEvents()
+
+    # Verify active facet was switched to Accuracy
+    assert widget.active_facet == facet_accuracy
+    test_logger.debug("Active facet after switch: %s", widget.active_facet.name)
+
+    # Verify database ratings are unchanged
+    assert PromptCompletionRating.get(dataset, completion, facet_quality) is not None
+    assert PromptCompletionRating.get(dataset, completion, facet_accuracy) is not None
+
+    widget.deleteLater()
+    qt_app.processEvents()

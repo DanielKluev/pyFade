@@ -5,6 +5,7 @@ This module provides a dialog that allows users to:
 - Remove a facet from a sample
 - Change ratings/rankings from one facet to another
 - Copy ratings/rankings from one facet to another
+- Switch the currently active facet to this one (view-only, no data changes)
 """
 
 from __future__ import annotations
@@ -43,6 +44,7 @@ class FacetSwitchDialog(QDialog):
     ACTION_REMOVE = "remove"
     ACTION_CHANGE = "change"
     ACTION_COPY = "copy"
+    ACTION_SWITCH = "switch"
 
     def __init__(self, dataset: "DatasetDatabase", sample: "Sample", facet: "Facet", *, parent: QWidget | None = None) -> None:
         """
@@ -53,6 +55,10 @@ class FacetSwitchDialog(QDialog):
             sample: Sample to manage facets for
             facet: The facet that was clicked (source facet)
             parent: Parent widget
+
+        Attributes:
+            selected_action: The action chosen by the user after the dialog is accepted.
+                Set to one of ACTION_REMOVE, ACTION_CHANGE, ACTION_COPY, or ACTION_SWITCH.
         """
         super().__init__(parent)
         self.log = logging.getLogger(self.__class__.__name__)
@@ -110,6 +116,11 @@ class FacetSwitchDialog(QDialog):
         self.action_group.addButton(self.copy_radio)
         layout.addWidget(self.copy_radio)
 
+        self.switch_radio = QRadioButton("Switch active facet to this one")
+        self.switch_radio.setToolTip("Change the currently active facet to this facet without modifying any stored data")
+        self.action_group.addButton(self.switch_radio)
+        layout.addWidget(self.switch_radio)
+
         # Target facet selection (for change/copy)
         target_label = QLabel("Target Facet (for Change/Copy):")
         layout.addWidget(target_label)
@@ -125,6 +136,7 @@ class FacetSwitchDialog(QDialog):
         self.remove_radio.toggled.connect(self._on_action_changed)
         self.change_radio.toggled.connect(self._on_action_changed)
         self.copy_radio.toggled.connect(self._on_action_changed)
+        self.switch_radio.toggled.connect(self._on_action_changed)
 
         # Info label for warnings
         self.info_label = QLabel("")
@@ -179,6 +191,9 @@ class FacetSwitchDialog(QDialog):
             self.target_combo.setEnabled(True)
             self.info_label.setText("Ratings and rankings will be copied to the target facet. "
                                     "Existing ratings in the target facet will NOT be overwritten.")
+        elif self.switch_radio.isChecked():
+            self.target_combo.setEnabled(False)
+            self.info_label.setText("The currently active facet will be changed to this facet. No data will be modified.")
 
     def accept(self) -> None:
         """
@@ -197,8 +212,16 @@ class FacetSwitchDialog(QDialog):
             self.selected_action = self.ACTION_CHANGE
         elif self.copy_radio.isChecked():
             self.selected_action = self.ACTION_COPY
+        elif self.switch_radio.isChecked():
+            self.selected_action = self.ACTION_SWITCH
         else:
             QMessageBox.warning(self, "No Action Selected", "Please select an action to perform.")
+            return
+
+        # Switch action does not modify any stored data; just accept immediately
+        if self.selected_action == self.ACTION_SWITCH:
+            self.log.info("Switching active facet to '%s' for sample %d", self.source_facet.name, self.sample.id)
+            super().accept()
             return
 
         # Get target facet if needed

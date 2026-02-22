@@ -1129,8 +1129,9 @@ class WidgetSample(QWidget):
         """
         Handle facet click event to show facet switching dialog.
 
-        Opens a dialog that allows the user to remove, change, or copy the facet.
-        Updates the facets display and completion ratings after the dialog is closed.
+        Opens a dialog that allows the user to remove, change, copy, or switch to the facet.
+        For switch action, updates the active facet without modifying any stored data.
+        For other actions, updates the facets display and completion ratings.
 
         Args:
             facet: The facet that was clicked
@@ -1145,11 +1146,17 @@ class WidgetSample(QWidget):
         result = dialog.exec()
 
         if result == QMessageBox.DialogCode.Accepted:
-            # Refresh facets display
-            self.update_facets_display()
-            # Refresh all completion frames to show updated ratings
-            self.refresh_completion_ratings()
-            self.log.debug("Facet action completed for sample %s, facet %s", self.sample.id, facet.name)
+            if dialog.selected_action == FacetSwitchDialog.ACTION_SWITCH:
+                # Switch active facet without modifying stored data; preserve current model
+                current_model_path = self.active_model.path if self.active_model else None
+                self.set_active_context(facet, current_model_path)
+                self.log.debug("Switched active facet to '%s' for sample %s", facet.name, self.sample.id)
+            else:
+                # Refresh facets display
+                self.update_facets_display()
+                # Refresh all completion frames to show updated ratings
+                self.refresh_completion_ratings()
+                self.log.debug("Facet action completed for sample %s, facet %s", self.sample.id, facet.name)
 
     def refresh_completion_ratings(self) -> None:
         """
