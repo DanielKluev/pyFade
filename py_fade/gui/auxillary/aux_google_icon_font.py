@@ -28,6 +28,8 @@ common_icons_map = {
     "transition_push": "\uf50b",
     "device_thermostat": "\ue1ff",  # temperature / thermostat icon
     "add": "\ue145",  # plus / add icon
+    "remove_circle_outline": "\ue15d",  # remove from view / remove circle outline icon
+    "clear_all": "\ue0b8",  # clear all / remove all icon
     "no_encryption": "\ue641",  # no encryption / lock open icon
     "shield_locked": "\uf592",  # shield with lock icon, encrypted
     "mode_cool": "\uf166",  # snow flake icon, low temperature

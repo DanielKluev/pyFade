@@ -50,6 +50,7 @@ class CompletionFrame(QFrame):
     # New signals for multi-mode support
     edit_requested = pyqtSignal(object)  # PromptCompletion
     discard_requested = pyqtSignal(object)  # PromptCompletion or LLMResponse
+    remove_requested = pyqtSignal(object)  # PromptCompletion - remove saved beam from view without deleting from DB
     save_requested = pyqtSignal(object)  # LLMResponse for beam mode
     pin_toggled = pyqtSignal(object, bool)  # LLMResponse, is_pinned
     beam_out_requested = pyqtSignal(int)  # token_index - clicked token in heatmap mode
@@ -92,6 +93,7 @@ class CompletionFrame(QFrame):
         self.pin_button: QPushButtonWithIcon | None = None
         self.heatmap_button: QPushButtonWithIcon | None = None
         self.use_as_prefill_button: QPushButtonWithIcon | None = None
+        self.remove_button: QPushButtonWithIcon | None = None
 
         self.setup_ui()
         self.connect_signals()
@@ -226,6 +228,14 @@ class CompletionFrame(QFrame):
             self.archive_button.hide()  # Only shown after beam is saved
             self.actions_layout.addWidget(self.archive_button)
 
+            # Remove from view button for saved beam completions (distinct from delete)
+            self.remove_button = QPushButtonWithIcon("remove_circle_outline", parent=self, icon_size=self.actions_icon_size, button_size=40)
+            self.remove_button.setFlat(True)
+            self.remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.remove_button.setToolTip("Remove this beam from the view (does not delete from database)")
+            self.remove_button.hide()  # Only shown for saved beams
+            self.actions_layout.addWidget(self.remove_button)
+
             # Use as Prefill button for beam completions
             self.use_as_prefill_button = QPushButtonWithIcon("input", parent=self, icon_size=self.actions_icon_size, button_size=40)
             self.use_as_prefill_button.setFlat(True)
@@ -268,6 +278,8 @@ class CompletionFrame(QFrame):
                 self.limited_continuation_button.clicked.connect(self._on_limited_continuation_clicked)
             if self.use_as_prefill_button:
                 self.use_as_prefill_button.clicked.connect(self._on_use_as_prefill_clicked)
+            if self.remove_button:
+                self.remove_button.clicked.connect(self._on_remove_clicked)
 
     def _log_rating_saved(self, rating: int) -> None:
         """Log rating persistence for debugging purposes."""
@@ -380,8 +392,9 @@ class CompletionFrame(QFrame):
 
         if self.save_button:
             self.save_button.setVisible(not is_saved)
+        # Pin button: visible for unsaved beams, or for saved beams that are currently pinned
         if self.pin_button:
-            self.pin_button.setVisible(not is_saved)
+            self.pin_button.setVisible(not is_saved or self.is_pinned)
 
         # Resume button for truncated completions (both saved and unsaved)
         if self.resume_button:
@@ -403,6 +416,10 @@ class CompletionFrame(QFrame):
             self.archive_button.setVisible(is_saved)
             if is_saved:
                 self._update_archive_button()
+
+        # Remove button: only visible for saved beams
+        if self.remove_button:
+            self.remove_button.setVisible(is_saved)
 
     def _update_archive_button(self) -> None:
         """Update archive button icon and tooltip based on completion state."""
@@ -511,6 +528,12 @@ class CompletionFrame(QFrame):
             return
         # Emit the completion text to be used as prefill
         self.use_as_prefill_requested.emit(self.completion.completion_text)
+
+    def _on_remove_clicked(self) -> None:
+        """Handle remove button click for beam mode - remove from view without deleting from database."""
+        if self.display_mode != "beam":
+            return
+        self.remove_requested.emit(self.completion)
 
     def _on_heatmap_toggled(self, enabled: bool) -> None:
         """Handle heatmap button toggle."""

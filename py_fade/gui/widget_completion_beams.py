@@ -258,6 +258,22 @@ class WidgetCompletionBeams(QWidget):
         button_layout.addWidget(self.progress_bar)
 
         button_layout.addStretch()
+
+        # Bulk management buttons
+        self.unpin_all_btn = QPushButtonWithIcon("keep_off", "Unpin All", icon_size=20)
+        self.unpin_all_btn.setToolTip("Unpin all pinned beams")
+        self.unpin_all_btn.clicked.connect(self.unpin_all_beams)
+        button_layout.addWidget(self.unpin_all_btn)
+
+        self.remove_unpinned_btn = QPushButtonWithIcon("remove_circle_outline", "Remove Unpinned", icon_size=20)
+        self.remove_unpinned_btn.setToolTip("Remove all unpinned beams from view (does not delete from database)")
+        self.remove_unpinned_btn.clicked.connect(self.remove_all_unpinned_beams)
+        button_layout.addWidget(self.remove_unpinned_btn)
+
+        self.remove_all_btn = QPushButtonWithIcon("clear_all", "Remove All", icon_size=20)
+        self.remove_all_btn.setToolTip("Remove all beams from view (does not delete from database)")
+        self.remove_all_btn.clicked.connect(self.remove_all_beams)
+        button_layout.addWidget(self.remove_all_btn)
         controls_layout.addLayout(button_layout)
 
         # Status label
@@ -594,6 +610,7 @@ class WidgetCompletionBeams(QWidget):
 
         # Connect beam frame signals
         frame.discard_requested.connect(self.on_beam_discarded)
+        frame.remove_requested.connect(self.on_beam_remove_requested)
         frame.save_requested.connect(self.on_beam_accepted)
         frame.pin_toggled.connect(self.on_beam_pinned)
         frame.resume_requested.connect(self.on_beam_resume_requested)
@@ -668,6 +685,55 @@ class WidgetCompletionBeams(QWidget):
 
         # Re-arrange remaining frames in grid
         self.rearrange_beam_grid()
+
+    @pyqtSlot(object)
+    def on_beam_remove_requested(self, completion):
+        """Handle remove request - remove beam from view without deleting from database."""
+        frame_to_remove = None
+        for index, (_beam, beam_frame) in enumerate(self.beam_frames):
+            if beam_frame.completion is completion:
+                frame_to_remove = beam_frame
+                self.beam_frames.pop(index)
+                break
+
+        if frame_to_remove:
+            frame_to_remove.setParent(None)
+            frame_to_remove.deleteLater()
+
+        self.rearrange_beam_grid()
+        self.log.debug("Removed beam from view (not deleted from database): %s", completion)
+
+    def unpin_all_beams(self):
+        """Unpin all currently pinned beam frames."""
+        for _beam, frame in self.beam_frames:
+            if frame.is_pinned:
+                frame.is_pinned = False
+                frame._update_action_buttons()  # pylint: disable=protected-access
+
+        self.sort_beam_frames()
+        self.log.debug("Unpinned all beams")
+
+    def remove_all_unpinned_beams(self):
+        """Remove all unpinned beam frames from view without deleting from database."""
+        frames_to_remove = [(beam, frame) for beam, frame in self.beam_frames if not frame.is_pinned]
+
+        for _beam, frame in frames_to_remove:
+            frame.setParent(None)
+            frame.deleteLater()
+
+        self.beam_frames = [(beam, frame) for beam, frame in self.beam_frames if frame.is_pinned]
+        self.rearrange_beam_grid()
+        self.log.debug("Removed %d unpinned beams from view", len(frames_to_remove))
+
+    def remove_all_beams(self):
+        """Remove all beam frames from view without deleting from database."""
+        for _beam, frame in self.beam_frames:
+            frame.setParent(None)
+            frame.deleteLater()
+
+        self.beam_frames = []
+        self.rearrange_beam_grid()
+        self.log.debug("Removed all beams from view")
 
     @pyqtSlot(object)
     def on_beam_accepted(self, completion):
