@@ -7,6 +7,7 @@ Tests the new export controller logic that applies facet thresholds during expor
 from __future__ import annotations
 
 import hashlib
+import json
 import pathlib
 import tempfile
 from typing import TYPE_CHECKING
@@ -21,6 +22,7 @@ from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.data_formats.base_data_classes import CompletionTopLogprobs
+from py_fade.providers.flat_prefix_template import FLAT_PREFIX_USER, FLAT_PREFIX_ASSISTANT, FLAT_PREFIX_SYSTEM
 from tests.helpers.data_helpers import create_completion_with_rating_and_logprobs
 from tests.helpers.export_wizard_helpers import setup_facet_sample_and_completion, create_and_run_export_test, create_simple_export_template
 
@@ -466,6 +468,228 @@ class TestExportWithThresholds:
             assert exported_count == 1
             # target_model_id should remain None (fallback is used internally)
             assert export_controller.target_model_id is None
+
+        finally:
+            temp_path.unlink(missing_ok=True)
+
+
+class TestMultiTurnExport:
+    """
+    Tests that multi-turn conversations stored using flat prefix markers are
+    correctly expanded into multiple turns when exported as SFT / ShareGPT JSONL.
+    """
+
+    def _create_sample_with_completion(self, dataset, facet, mapped_model, prompt_text: str, completion_text: str) -> PromptRevision:
+        """
+        Helper: create a sample with the given prompt_text, attach a rated completion, and commit to the database.
+        """
+        prompt_rev = PromptRevision.get_or_create(dataset, prompt_text, 2048, 512)
+        Sample.create_if_unique(dataset, "Multi-Turn Sample", prompt_rev, "test_group")
+        dataset.commit()
+
+        sha256 = hashlib.sha256(completion_text.encode("utf-8")).hexdigest()
+        completion = PromptCompletion(sha256=sha256, prompt_revision_id=prompt_rev.id, model_id=mapped_model.model_id, temperature=0.7,
+                                      top_k=40, completion_text=completion_text, tags={}, prefill=None, beam_token=None, is_truncated=False,
+                                      context_length=2048, max_tokens=512)
+        dataset.session.add(completion)
+        dataset.commit()
+
+        PromptCompletionRating.set_rating(dataset, completion, facet, 9)
+        dataset.commit()
+
+        alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs())
+        # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
+        # SQLAlchemy ORM constructor accepts mapped columns as keyword arguments
+        logprobs = PromptCompletionLogprobs(prompt_completion_id=completion.id, logprobs_model_id=mapped_model.model_id,
+                                            sampled_logprobs=None, sampled_logprobs_json=[], alternative_logprobs=None,
+                                            alternative_logprobs_bin=alternative_logprobs_bin, min_logprob=-0.3, avg_logprob=-0.2)
+        # pylint: enable=unexpected-keyword-arg,no-value-for-parameter
+        dataset.session.add(logprobs)
+        dataset.commit()
+
+        return prompt_rev
+
+    def test_multi_turn_prompt_exported_as_multiple_turns(self, temp_dataset: "DatasetDatabase", app_with_dataset: "pyFadeApp"):
+        """
+        Test that a multi-turn prompt (containing <|user|>/<|assistant|> markers) is
+        exported as multiple conversation turns, not as a single verbatim user message.
+        """
+        mapped_model = app_with_dataset.providers_manager.get_mock_model()
+        facet = Facet.create(temp_dataset, "Test Facet", "Test facet description", min_rating=7)
+        temp_dataset.commit()
+
+        # Build a two-turn prompt: first question + first answer + follow-up
+        multi_turn_prompt = (f"{FLAT_PREFIX_USER} First question\n"
+                             f"{FLAT_PREFIX_ASSISTANT} First answer\n"
+                             f"{FLAT_PREFIX_USER} Follow-up question")
+        completion_text = "Final answer"
+
+        self._create_sample_with_completion(temp_dataset, facet, mapped_model, multi_turn_prompt, completion_text)
+
+        template = create_simple_export_template(temp_dataset, facet)
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+            temp_path = pathlib.Path(f.name)
+
+        try:
+            export_controller = ExportController(app_with_dataset, temp_dataset, template)
+            export_controller.set_output_path(temp_path)
+            exported_count = export_controller.run_export()
+
+            assert exported_count == 1
+
+            # Parse the exported JSONL line
+            with open(temp_path, encoding="utf-8") as fh:
+                line = fh.readline()
+            record = json.loads(line)
+
+            # ShareGPT format stores conversations under "conversations" key
+            conversations = record.get("conversations", [])
+
+            # Expect four turns: user, assistant, user (from prompt) + assistant (completion)
+            assert len(conversations) == 4, f"Expected 4 turns, got {len(conversations)}: {conversations}"
+
+            assert conversations[0]["from"] == "human"
+            assert conversations[0]["value"] == "First question"
+
+            assert conversations[1]["from"] == "gpt"
+            assert conversations[1]["value"] == "First answer"
+
+            assert conversations[2]["from"] == "human"
+            assert conversations[2]["value"] == "Follow-up question"
+
+            assert conversations[3]["from"] == "gpt"
+            assert conversations[3]["value"] == completion_text
+
+        finally:
+            temp_path.unlink(missing_ok=True)
+
+    def test_single_turn_prompt_still_works(self, temp_dataset: "DatasetDatabase", app_with_dataset: "pyFadeApp"):
+        """
+        Test that a plain single-turn prompt (no markers) is still exported correctly
+        as a two-turn conversation (user prompt + assistant completion).
+        """
+        mapped_model = app_with_dataset.providers_manager.get_mock_model()
+        facet = Facet.create(temp_dataset, "Test Facet Single", "Single turn facet", min_rating=7)
+        temp_dataset.commit()
+
+        single_turn_prompt = "What is the capital of France?"
+        completion_text = "The capital of France is Paris."
+
+        self._create_sample_with_completion(temp_dataset, facet, mapped_model, single_turn_prompt, completion_text)
+
+        template = create_simple_export_template(temp_dataset, facet, name="Single Turn Template")
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+            temp_path = pathlib.Path(f.name)
+
+        try:
+            export_controller = ExportController(app_with_dataset, temp_dataset, template)
+            export_controller.set_output_path(temp_path)
+            exported_count = export_controller.run_export()
+
+            assert exported_count == 1
+
+            with open(temp_path, encoding="utf-8") as fh:
+                line = fh.readline()
+            record = json.loads(line)
+
+            conversations = record.get("conversations", [])
+
+            # Expect exactly two turns: user question + assistant answer
+            assert len(conversations) == 2, f"Expected 2 turns, got {len(conversations)}: {conversations}"
+
+            assert conversations[0]["from"] == "human"
+            assert conversations[0]["value"] == single_turn_prompt
+
+            assert conversations[1]["from"] == "gpt"
+            assert conversations[1]["value"] == completion_text
+
+        finally:
+            temp_path.unlink(missing_ok=True)
+
+    def test_prompt_with_system_turn_exported_correctly(self, temp_dataset: "DatasetDatabase", app_with_dataset: "pyFadeApp"):
+        """
+        Test that a prompt containing a system message plus user/assistant turns is
+        exported with all turns including the system message.
+        """
+        mapped_model = app_with_dataset.providers_manager.get_mock_model()
+        facet = Facet.create(temp_dataset, "Test Facet System", "System turn facet", min_rating=7)
+        temp_dataset.commit()
+
+        multi_turn_prompt = (f"{FLAT_PREFIX_SYSTEM} You are a helpful assistant.\n"
+                             f"{FLAT_PREFIX_USER} What is 2+2?")
+        completion_text = "4"
+
+        self._create_sample_with_completion(temp_dataset, facet, mapped_model, multi_turn_prompt, completion_text)
+
+        template = create_simple_export_template(temp_dataset, facet, name="System Turn Template")
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+            temp_path = pathlib.Path(f.name)
+
+        try:
+            export_controller = ExportController(app_with_dataset, temp_dataset, template)
+            export_controller.set_output_path(temp_path)
+            exported_count = export_controller.run_export()
+
+            assert exported_count == 1
+
+            with open(temp_path, encoding="utf-8") as fh:
+                line = fh.readline()
+            record = json.loads(line)
+
+            conversations = record.get("conversations", [])
+
+            # Expect three turns: system, user, assistant
+            assert len(conversations) == 3, f"Expected 3 turns, got {len(conversations)}: {conversations}"
+
+            assert conversations[0]["from"] == "system"
+            assert conversations[0]["value"] == "You are a helpful assistant."
+
+            assert conversations[1]["from"] == "human"
+            assert conversations[1]["value"] == "What is 2+2?"
+
+            assert conversations[2]["from"] == "gpt"
+            assert conversations[2]["value"] == completion_text
+
+        finally:
+            temp_path.unlink(missing_ok=True)
+
+    def test_empty_prompt_recorded_as_failure_not_exception(self, temp_dataset: "DatasetDatabase", app_with_dataset: "pyFadeApp"):
+        """
+        Test that a sample whose prompt text is empty or whitespace-only is recorded as
+        a per-sample failure reason and does not abort the entire export run.
+        """
+        mapped_model = app_with_dataset.providers_manager.get_mock_model()
+        facet = Facet.create(temp_dataset, "Test Facet Empty", "Empty prompt facet", min_rating=7)
+        temp_dataset.commit()
+
+        # Create a bad sample with an empty prompt (whitespace only)
+        self._create_sample_with_completion(temp_dataset, facet, mapped_model, "   ", "some completion")
+
+        # Create a valid sample so the export doesn't raise "no eligible samples"
+        self._create_sample_with_completion(temp_dataset, facet, mapped_model, "Valid prompt", "valid answer")
+
+        template = create_simple_export_template(temp_dataset, facet, name="Empty Prompt Template")
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+            temp_path = pathlib.Path(f.name)
+
+        try:
+            export_controller = ExportController(app_with_dataset, temp_dataset, template)
+            export_controller.set_output_path(temp_path)
+            exported_count = export_controller.run_export()
+
+            # Only the valid sample should be exported; the bad one is skipped with a failure reason
+            assert exported_count == 1
+
+            facet_summary = export_controller.export_results.facet_summaries[0]
+            assert len(facet_summary.exported_samples) == 1
+            assert len(facet_summary.failed_samples) == 1
+
+            _failed_info, reasons = facet_summary.failed_samples[0]
+            assert any("Failed to parse prompt text" in r for r in reasons)
 
         finally:
             temp_path.unlink(missing_ok=True)
