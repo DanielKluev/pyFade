@@ -22,7 +22,7 @@ from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.data_formats.base_data_classes import CompletionTopLogprobs
-from py_fade.providers.flat_prefix_template import FLAT_PREFIX_USER, FLAT_PREFIX_ASSISTANT
+from py_fade.providers.flat_prefix_template import FLAT_PREFIX_USER, FLAT_PREFIX_ASSISTANT, FLAT_PREFIX_SYSTEM
 from tests.helpers.data_helpers import create_completion_with_rating_and_logprobs
 from tests.helpers.export_wizard_helpers import setup_facet_sample_and_completion, create_and_run_export_test, create_simple_export_template
 
@@ -613,8 +613,6 @@ class TestMultiTurnExport:
         Test that a prompt containing a system message plus user/assistant turns is
         exported with all turns including the system message.
         """
-        from py_fade.providers.flat_prefix_template import FLAT_PREFIX_SYSTEM  # pylint: disable=import-outside-toplevel
-
         mapped_model = app_with_dataset.providers_manager.get_mock_model()
         facet = Facet.create(temp_dataset, "Test Facet System", "System turn facet", min_rating=7)
         temp_dataset.commit()
@@ -654,6 +652,44 @@ class TestMultiTurnExport:
 
             assert conversations[2]["from"] == "gpt"
             assert conversations[2]["value"] == completion_text
+
+        finally:
+            temp_path.unlink(missing_ok=True)
+
+    def test_empty_prompt_recorded_as_failure_not_exception(self, temp_dataset: "DatasetDatabase", app_with_dataset: "pyFadeApp"):
+        """
+        Test that a sample whose prompt text is empty or whitespace-only is recorded as
+        a per-sample failure reason and does not abort the entire export run.
+        """
+        mapped_model = app_with_dataset.providers_manager.get_mock_model()
+        facet = Facet.create(temp_dataset, "Test Facet Empty", "Empty prompt facet", min_rating=7)
+        temp_dataset.commit()
+
+        # Create a bad sample with an empty prompt (whitespace only)
+        self._create_sample_with_completion(temp_dataset, facet, mapped_model, "   ", "some completion")
+
+        # Create a valid sample so the export doesn't raise "no eligible samples"
+        self._create_sample_with_completion(temp_dataset, facet, mapped_model, "Valid prompt", "valid answer")
+
+        template = create_simple_export_template(temp_dataset, facet, name="Empty Prompt Template")
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+            temp_path = pathlib.Path(f.name)
+
+        try:
+            export_controller = ExportController(app_with_dataset, temp_dataset, template)
+            export_controller.set_output_path(temp_path)
+            exported_count = export_controller.run_export()
+
+            # Only the valid sample should be exported; the bad one is skipped with a failure reason
+            assert exported_count == 1
+
+            facet_summary = export_controller.export_results.facet_summaries[0]
+            assert len(facet_summary.exported_samples) == 1
+            assert len(facet_summary.failed_samples) == 1
+
+            _failed_info, reasons = facet_summary.failed_samples[0]
+            assert any("Failed to parse prompt text" in r for r in reasons)
 
         finally:
             temp_path.unlink(missing_ok=True)
