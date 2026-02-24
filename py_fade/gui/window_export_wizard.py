@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
 
 from py_fade.gui.components.wizard_base import BaseWizard
 from py_fade.dataset.export_template import ExportTemplate
+from py_fade.dataset.facet import Facet
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
@@ -363,7 +364,12 @@ class ExportWizard(BaseWizard):
                 limit_value = facet_config.get('limit_value', 100)
                 order = facet_config.get('order', 'random')
 
-                facet_desc = f"Facet ID {facet_id}: {limit_value}"
+                # facet_id may be 'Unknown' (str) if the key is missing; only query DB for int IDs
+                facet = Facet.get_by_id(self.dataset, facet_id) if isinstance(facet_id, int) else None
+                if facet is None and isinstance(facet_id, int):
+                    self.log.warning("Template references facet ID %d which was not found in database", facet_id)
+                facet_label = facet.name if facet else f"Facet ID {facet_id}"
+                facet_desc = f"{facet_label}: {limit_value}"
                 if limit_type == 'percentage':
                     facet_desc += "% of samples"
                 else:

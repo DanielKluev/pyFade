@@ -366,7 +366,86 @@ def test_export_wizard_update_template_details(app_with_dataset, temp_dataset, q
     assert "SFT" in details_html
     assert "JSONL (ShareGPT)" in details_html
     assert "Gemma3, Llama3" in details_html
-    assert f"Facet ID {facet.id}" in details_html
+    # Facet should be shown by name, not by raw ID
+    assert "Math Facet" in details_html
+    assert f"Facet ID {facet.id}" not in details_html
+
+
+def test_export_wizard_shows_facet_name_not_id(app_with_dataset, temp_dataset, qtbot):
+    """
+    Test that export wizard template summary shows facet name instead of facet ID.
+
+    Regression test for bug where the template summary displayed raw numeric facet IDs
+    instead of human-readable facet names.
+    """
+    facet = Facet.create(temp_dataset, "Human Readable Facet", "A facet with a clear name")
+    temp_dataset.commit()
+
+    template = ExportTemplate.create(dataset=temp_dataset, name="Regression Test Template", description="Regression test",
+                                     model_families=["Llama3"], training_type="SFT", output_format="JSONL (ShareGPT)", facets=[{
+                                         "facet_id": facet.id,
+                                         "limit_type": "count",
+                                         "limit_value": 10,
+                                         "order": "random"
+                                     }])
+    temp_dataset.commit()
+
+    wizard = ExportWizard(None, app_with_dataset, temp_dataset)
+    qtbot.addWidget(wizard)
+
+    wizard.selected_template = template
+    wizard.update_template_details()
+
+    details_html = wizard.template_details.toHtml()
+
+    # The facet name must appear in the summary
+    assert "Human Readable Facet" in details_html
+    # The raw numeric ID must NOT appear as the facet label
+    assert f"Facet ID {facet.id}" not in details_html
+
+
+def test_export_wizard_fallbacks_to_facet_id_when_facet_missing(app_with_dataset, temp_dataset, qtbot):
+    """
+    Test that export wizard template summary falls back to 'Facet ID {id}' when the
+    referenced facet has been deleted from the database.
+
+    This verifies behavior when Facet.get_by_id() returns None for a facet referenced
+    by the export template.
+    """
+    # Create a facet and a template that references it
+    facet = Facet.create(temp_dataset, "Transient Facet", "This facet will be deleted")
+    temp_dataset.commit()
+
+    template = ExportTemplate.create(dataset=temp_dataset, name="Missing Facet Template", description="Template with missing facet",
+                                     model_families=["Llama3"], training_type="SFT", output_format="JSONL (ShareGPT)", facets=[{
+                                         "facet_id": facet.id,
+                                         "limit_type": "count",
+                                         "limit_value": 5,
+                                         "order": "random"
+                                     }])
+    temp_dataset.commit()
+
+    # Remember the facet ID before deleting
+    deleted_facet_id = facet.id
+
+    # Delete the facet so that the template now references a non-existent facet
+    session = temp_dataset.get_session()
+    session.delete(facet)
+    temp_dataset.commit()
+
+    # Open the export wizard and update template details
+    wizard = ExportWizard(None, app_with_dataset, temp_dataset)
+    qtbot.addWidget(wizard)
+
+    wizard.selected_template = template
+    wizard.update_template_details()
+
+    details_html = wizard.template_details.toHtml()
+
+    # The fallback label using the raw facet ID must appear
+    assert f"Facet ID {deleted_facet_id}" in details_html
+    # The original facet name should no longer appear because the facet record is gone
+    assert "Transient Facet" not in details_html
 
 
 def test_export_wizard_model_selection_step_exists(app_with_dataset, temp_dataset, qtbot):
