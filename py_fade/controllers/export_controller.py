@@ -25,6 +25,7 @@ from py_fade.data_formats.share_gpt_format import ShareGPTFormat
 from py_fade.data_formats.dpo_data_format import DPODataFormat, DPOPair
 from py_fade.data_formats.kto_data_format import KTODataFormat, KTOSample
 from py_fade.data_formats.facet_backup import FacetBackupFormat
+from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 from py_fade.providers.llm_templates import get_template_function
 
 if TYPE_CHECKING:
@@ -616,13 +617,13 @@ class ExportController:
         # Get best valid completion (highest rated among those that pass thresholds)
         best_completion = max(valid_completions, key=lambda x: self._get_completion_rating(x[0], facet))[0]
 
-        # Create conversation messages
-        messages = [
-            CommonMessage(role="user", content=sample.prompt_revision.prompt_text),
-            CommonMessage(role="assistant", content=best_completion.completion_text)
-        ]
+        # Parse prompt text into multi-turn conversation history using flat prefix markers
+        prompt_conversation = parse_flat_prefix_string(sample.prompt_revision.prompt_text)
 
-        return CommonConversation(messages=messages), []
+        # Append the best completion as the final assistant message
+        prompt_conversation.append({"role": "assistant", "content": best_completion.completion_text})
+
+        return prompt_conversation, []
 
     def _get_completion_rating(self, completion: PromptCompletion, facet: "Facet") -> int:
         """
