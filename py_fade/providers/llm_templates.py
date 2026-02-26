@@ -48,7 +48,7 @@ def apply_template_gemma3(messages: CommonConversation) -> str:
     return prompt
 
 
-def apply_template_qwen3(messages: CommonConversation) -> str:
+def apply_template_qwen3(messages: CommonConversation, thinking="empty") -> str:
     """
     Apply the Qwen3 chat template to the given messages.
 
@@ -73,6 +73,8 @@ def apply_template_qwen3(messages: CommonConversation) -> str:
             prompt += f"<|im_start|>{role}\n{content}<|im_end|>\n"
     if messages.messages and messages.messages[-1].role == "user":  # If last message is user, start assistant turn
         prompt += "<|im_start|>assistant\n"
+        if thinking == "empty":
+            prompt += "<think>\n\n</think>\n"
 
     return prompt
 
