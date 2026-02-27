@@ -411,7 +411,12 @@ class PrefillAwareLlamaCppInternal(BasePrefillAwareProvider):
         if not tokens_prompt:
             raise ValueError("Prompt tokens cannot be empty for evaluation.")
         if len(tokens_all) > self.current_model_context_length:
-            raise ValueError("Total tokens (prompt + completion) exceed model context length for evaluation.")
+            self.log.warning(
+                "Prompt (%d tokens) + completion (%d tokens) = %d total tokens exceed model context length (%d). Evaluation impossible.",
+                len(tokens_prompt), len(tokens_completion), len(tokens_all), self.current_model_context_length)
+            raise ValueError(
+                "Prompt (%d tokens) + completion (%d tokens) = %d total tokens exceed model context length (%d). Evaluation impossible." %
+                (len(tokens_prompt), len(tokens_completion), len(tokens_all), self.current_model_context_length))
 
         all_tokens = tokens_prompt + tokens_completion
         completion_token_offset = len(tokens_prompt)
