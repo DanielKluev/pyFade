@@ -3,9 +3,9 @@
 The window presents the prompt, the frozen original completion, and an editable
 column for a revised completion. Users can either hand-edit the completion or
 request an automatic continuation from the same provider that produced the
-original text. When saving, the dialog can archive the original completion and
-optionally record a facet preference so downstream tooling understands which
-variant should be preferred.
+original text. When saving, the dialog can archive or delete the original
+completion, optionally record a facet preference, and optionally inherit all
+facet ratings from the original to the new completion.
 """
 
 from __future__ import annotations
@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import (
 
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_pairwise_ranks import PromptCompletionPairwiseRanking
+from py_fade.dataset.completion_rating import PromptCompletionRating
 
 if TYPE_CHECKING:  # pragma: no cover - import hints only
     from py_fade.app import pyFadeApp
@@ -72,6 +73,8 @@ class ThreeWayCompletionEditorWindow(QDialog):
         self.new_edit: QPlainTextEdit | None = None
         self.archive_checkbox: QCheckBox | None = None
         self.pairwise_checkbox: QCheckBox | None = None
+        self.delete_checkbox: QCheckBox | None = None
+        self.inherit_ratings_checkbox: QCheckBox | None = None
         self.generate_button: QPushButton | None = None
         self.save_button: QPushButton | None = None
         self.status_label: QLabel | None = None
@@ -155,7 +158,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
         options_layout = QHBoxLayout()
         options_layout.setSpacing(10)
         self.archive_checkbox = QCheckBox("Archive original on save", self)
-        self.archive_checkbox.setChecked(True)
+        self.archive_checkbox.setChecked(False)
         options_layout.addWidget(self.archive_checkbox)
 
         self.pairwise_checkbox = QCheckBox(
@@ -163,6 +166,15 @@ class ThreeWayCompletionEditorWindow(QDialog):
             self,
         )
         options_layout.addWidget(self.pairwise_checkbox)
+
+        self.delete_checkbox = QCheckBox("Delete original on save", self)
+        self.delete_checkbox.setChecked(self.mode == EditorMode.CONTINUATION)
+        options_layout.addWidget(self.delete_checkbox)
+
+        self.inherit_ratings_checkbox = QCheckBox("Inherit ratings from original", self)
+        self.inherit_ratings_checkbox.setChecked(self.mode == EditorMode.CONTINUATION)
+        options_layout.addWidget(self.inherit_ratings_checkbox)
+
         options_layout.addStretch()
         layout.addLayout(options_layout)
 
@@ -304,7 +316,8 @@ class ThreeWayCompletionEditorWindow(QDialog):
             self.pairwise_checkbox.setToolTip("Select a facet in the parent view to tag pairwise preference.")
         else:
             self.pairwise_checkbox.setEnabled(True)
-            self.pairwise_checkbox.setChecked(True)
+            # Default pairwise ON for MANUAL (editing), OFF for CONTINUATION
+            self.pairwise_checkbox.setChecked(self.mode == EditorMode.MANUAL)
             self.pairwise_checkbox.setToolTip(f"Saving will prefer the new completion for facet '{facet.name}'.")
 
     def _build_column(self, parent: QWidget, *, title: str, background: str, font: QFont, read_only: bool) -> QPlainTextEdit:
@@ -491,6 +504,12 @@ class ThreeWayCompletionEditorWindow(QDialog):
         if self.pairwise_checkbox and self.pairwise_checkbox.isChecked():
             self._apply_pairwise_preference(new_completion)
 
+        if self.inherit_ratings_checkbox and self.inherit_ratings_checkbox.isChecked():
+            self._inherit_ratings(new_completion)
+
+        if self.delete_checkbox and self.delete_checkbox.isChecked():
+            self._delete_original_completion()
+
         self.completion_saved.emit(new_completion)
         self._set_status("New completion saved.")
         self.accept()
@@ -544,6 +563,37 @@ class ThreeWayCompletionEditorWindow(QDialog):
 
         # Create new PromptCompletionPairwiseRanking record if not already existing for this facet and pair
         PromptCompletionPairwiseRanking.get_or_create(self.dataset, new_completion, self.original_completion, self.active_facet)
+
+    def _inherit_ratings(self, new_completion: PromptCompletion) -> None:
+        """Copy all facet ratings from the original completion to the new completion."""
+
+        if not self.original_completion or not self.dataset:
+            return
+
+        for rating in self.original_completion.ratings:
+            PromptCompletionRating.set_rating(self.dataset, new_completion, rating.facet, rating.rating)
+            self.log.debug("Inherited rating %d for facet %s to completion %s", rating.rating, rating.facet_id, new_completion.id)
+
+    def _delete_original_completion(self) -> None:
+        """Delete the original completion and all associated objects from the database."""
+
+        if not self.original_completion or not self.dataset:
+            return
+
+        session = self.dataset.get_session()
+        original_id = self.original_completion.id
+
+        # Manually delete pairwise rankings referencing the original (no cascade configured)
+        pairwise_rankings = session.query(
+            PromptCompletionPairwiseRanking).filter((PromptCompletionPairwiseRanking.better_completion_id == original_id) |
+                                                    (PromptCompletionPairwiseRanking.worse_completion_id == original_id)).all()
+        for ranking in pairwise_rankings:
+            session.delete(ranking)
+
+        # Delete the completion itself (ratings and logprobs cascade automatically)
+        session.delete(self.original_completion)
+        session.commit()
+        self.log.debug("Deleted original completion %s and all associated objects", original_id)
 
     def _set_status(self, message: str, *, error: bool = False) -> None:
         """Update the status label and mirror the message to logs."""

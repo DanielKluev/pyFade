@@ -10,6 +10,7 @@ import pytest
 
 from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_pairwise_ranks import PromptCompletionPairwiseRanking
+from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow, EditorMode
@@ -67,7 +68,7 @@ def test_manual_edit_saves_new_completion_with_pairwise_preference(
     qt_app: "QApplication",
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Saving a manual edit archives the parent and records a facet preference."""
+    """Saving a manual edit with archive enabled archives the parent and records a facet preference."""
 
     caplog.set_level(logging.DEBUG, logger="ThreeWayCompletionEditorWindow")
 
@@ -86,6 +87,10 @@ def test_manual_edit_saves_new_completion_with_pairwise_preference(
 
     assert window.save_button is not None and not window.save_button.isEnabled()
     assert window.new_edit is not None
+
+    # Explicitly enable archive (defaults to OFF in MANUAL mode)
+    assert window.archive_checkbox is not None
+    window.archive_checkbox.setChecked(True)
 
     window.new_edit.setPlainText(original.completion_text + "\nRewritten for clarity.")
     qt_app.processEvents()
@@ -143,6 +148,9 @@ def test_generation_role_persists_provider_metadata(
     assert len(generated_text) > 0
 
     assert window.save_button is not None and window.save_button.isEnabled()
+    # Disable delete for this test (testing basic generation persistence, not delete)
+    assert window.delete_checkbox is not None
+    window.delete_checkbox.setChecked(False)
     window.save_button.click()
     qt_app.processEvents()
 
@@ -281,6 +289,9 @@ def test_truncated_completion_continuation_workflow(
 
     # Save the continuation
     assert window.save_button is not None and window.save_button.isEnabled()
+    # Disable delete for this test (testing continuation workflow, not delete)
+    assert window.delete_checkbox is not None
+    window.delete_checkbox.setChecked(False)
     window.save_button.click()
     qt_app.processEvents()
 
@@ -369,6 +380,9 @@ def test_continuation_mode_uses_custom_token_settings(
 
     # Save and check the stored parameters
     assert window.save_button is not None and window.save_button.isEnabled()
+    # Disable delete for this test (testing token settings, not delete)
+    assert window.delete_checkbox is not None
+    window.delete_checkbox.setChecked(False)
     window.save_button.click()
     qt_app.processEvents()
 
@@ -382,6 +396,264 @@ def test_continuation_mode_uses_custom_token_settings(
     continuation = children[0]
     assert continuation.max_tokens == custom_max_tokens
     assert continuation.context_length == custom_context_length
+
+    window.deleteLater()
+    qt_app.processEvents()
+
+
+@pytest.mark.usefixtures("ensure_google_icon_font")
+def test_continuation_mode_default_states(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+) -> None:
+    """Continuation mode default checkbox states: delete=on, inherit_ratings=on, archive=off, pairwise=off."""
+
+    original = _persist_completion(temp_dataset, model_id="mock-echo-model")
+    facet = Facet.create(temp_dataset, "Accuracy", "Factual correctness")
+    temp_dataset.commit()
+
+    window = ThreeWayCompletionEditorWindow(app_with_dataset, temp_dataset, original, EditorMode.CONTINUATION, facet=facet)
+    qt_app.processEvents()
+
+    assert window.archive_checkbox is not None
+    assert window.pairwise_checkbox is not None
+    assert window.delete_checkbox is not None
+    assert window.inherit_ratings_checkbox is not None
+
+    assert not window.archive_checkbox.isChecked(), "Archive should default to OFF in CONTINUATION mode"
+    assert not window.pairwise_checkbox.isChecked(), "Pairwise should default to OFF in CONTINUATION mode"
+    assert window.delete_checkbox.isChecked(), "Delete should default to ON in CONTINUATION mode"
+    assert window.inherit_ratings_checkbox.isChecked(), "Inherit ratings should default to ON in CONTINUATION mode"
+
+    window.deleteLater()
+    qt_app.processEvents()
+
+
+@pytest.mark.usefixtures("ensure_google_icon_font")
+def test_manual_mode_default_states(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+) -> None:
+    """Manual/edit mode default checkbox states: delete=off, inherit_ratings=off, archive=off, pairwise=on."""
+
+    original = _persist_completion(temp_dataset, model_id="mock-echo-model")
+    facet = Facet.create(temp_dataset, "Accuracy", "Factual correctness")
+    temp_dataset.commit()
+
+    window = ThreeWayCompletionEditorWindow(app_with_dataset, temp_dataset, original, EditorMode.MANUAL, facet=facet)
+    qt_app.processEvents()
+
+    assert window.archive_checkbox is not None
+    assert window.pairwise_checkbox is not None
+    assert window.delete_checkbox is not None
+    assert window.inherit_ratings_checkbox is not None
+
+    assert not window.archive_checkbox.isChecked(), "Archive should default to OFF in MANUAL mode"
+    assert window.pairwise_checkbox.isChecked(), "Pairwise should default to ON in MANUAL mode (when facet available)"
+    assert not window.delete_checkbox.isChecked(), "Delete should default to OFF in MANUAL mode"
+    assert not window.inherit_ratings_checkbox.isChecked(), "Inherit ratings should default to OFF in MANUAL mode"
+
+    window.deleteLater()
+    qt_app.processEvents()
+
+
+@pytest.mark.usefixtures("ensure_google_icon_font")
+def test_delete_original_removes_completion_and_associated_objects(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Saving with delete_checkbox checked deletes the original completion from the database."""
+
+    caplog.set_level(logging.DEBUG, logger="ThreeWayCompletionEditorWindow")
+
+    original = _persist_completion(temp_dataset, completion_text=_DEF_COMPLETION)
+    original_id = original.id
+
+    window = ThreeWayCompletionEditorWindow(app_with_dataset, temp_dataset, original, EditorMode.MANUAL)
+    qt_app.processEvents()
+
+    assert window.delete_checkbox is not None
+    assert window.new_edit is not None
+
+    window.delete_checkbox.setChecked(True)
+    window.new_edit.setPlainText(_DEF_COMPLETION + "\nEdited version.")
+    qt_app.processEvents()
+
+    assert window.save_button is not None and window.save_button.isEnabled()
+    window.save_button.click()
+    qt_app.processEvents()
+
+    session = temp_dataset.session
+    assert session is not None
+
+    # Original completion should no longer exist in database
+    deleted = session.query(PromptCompletion).filter(PromptCompletion.id == original_id).one_or_none()
+    assert deleted is None, "Original completion should have been deleted"
+
+    window.deleteLater()
+    qt_app.processEvents()
+
+
+@pytest.mark.usefixtures("ensure_google_icon_font")
+def test_delete_original_also_removes_pairwise_rankings(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+) -> None:
+    """Deleting original completion also removes pairwise rankings that reference it."""
+
+    original = _persist_completion(temp_dataset, completion_text=_DEF_COMPLETION)
+    other = _persist_completion(temp_dataset, completion_text="Another completion.")
+    facet = Facet.create(temp_dataset, "Style", "Writing style quality")
+    temp_dataset.commit()
+
+    # Create a pairwise ranking involving the original
+    PromptCompletionPairwiseRanking.get_or_create(temp_dataset, original, other, facet)
+
+    original_id = original.id
+
+    window = ThreeWayCompletionEditorWindow(app_with_dataset, temp_dataset, original, EditorMode.MANUAL)
+    qt_app.processEvents()
+
+    assert window.delete_checkbox is not None
+    assert window.new_edit is not None
+
+    window.delete_checkbox.setChecked(True)
+    window.new_edit.setPlainText(_DEF_COMPLETION + "\nEdited.")
+    qt_app.processEvents()
+
+    assert window.save_button is not None and window.save_button.isEnabled()
+    window.save_button.click()
+    qt_app.processEvents()
+
+    session = temp_dataset.session
+    assert session is not None
+
+    # Pairwise rankings referencing original should also be gone
+    rankings = session.query(
+        PromptCompletionPairwiseRanking).filter((PromptCompletionPairwiseRanking.better_completion_id == original_id) |
+                                                (PromptCompletionPairwiseRanking.worse_completion_id == original_id)).all()
+    assert len(rankings) == 0, "Pairwise rankings referencing deleted completion should also be removed"
+
+    window.deleteLater()
+    qt_app.processEvents()
+
+
+@pytest.mark.usefixtures("ensure_google_icon_font")
+def test_inherit_ratings_copies_facet_ratings_to_new_completion(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Saving with inherit_ratings_checkbox checked copies all facet ratings from original to new completion."""
+
+    caplog.set_level(logging.DEBUG, logger="ThreeWayCompletionEditorWindow")
+
+    original = _persist_completion(temp_dataset, completion_text=_DEF_COMPLETION)
+    facet1 = Facet.create(temp_dataset, "Accuracy", "Factual correctness")
+    facet2 = Facet.create(temp_dataset, "Clarity", "Writing clarity")
+    temp_dataset.commit()
+
+    # Set ratings on the original completion
+    PromptCompletionRating.set_rating(temp_dataset, original, facet1, 8)
+    PromptCompletionRating.set_rating(temp_dataset, original, facet2, 6)
+
+    window = ThreeWayCompletionEditorWindow(app_with_dataset, temp_dataset, original, EditorMode.MANUAL)
+    qt_app.processEvents()
+
+    assert window.inherit_ratings_checkbox is not None
+    assert window.new_edit is not None
+
+    window.inherit_ratings_checkbox.setChecked(True)
+    window.new_edit.setPlainText(_DEF_COMPLETION + "\nInherited rating test.")
+    qt_app.processEvents()
+
+    assert window.save_button is not None and window.save_button.isEnabled()
+    window.save_button.click()
+    qt_app.processEvents()
+
+    session = temp_dataset.session
+    assert session is not None
+
+    children = (session.query(PromptCompletion).filter(PromptCompletion.parent_completion_id == original.id).all())
+    assert len(children) == 1
+    new_completion = children[0]
+
+    # New completion should have the same ratings as original
+    inherited_rating1 = PromptCompletionRating.get(temp_dataset, new_completion, facet1)
+    inherited_rating2 = PromptCompletionRating.get(temp_dataset, new_completion, facet2)
+    assert inherited_rating1 is not None
+    assert inherited_rating1.rating == 8
+    assert inherited_rating2 is not None
+    assert inherited_rating2.rating == 6
+
+    # Original should still have its ratings (not deleted by inherit)
+    original_rating1 = PromptCompletionRating.get(temp_dataset, original, facet1)
+    original_rating2 = PromptCompletionRating.get(temp_dataset, original, facet2)
+    assert original_rating1 is not None
+    assert original_rating1.rating == 8
+    assert original_rating2 is not None
+    assert original_rating2.rating == 6
+
+    window.deleteLater()
+    qt_app.processEvents()
+
+
+@pytest.mark.usefixtures("ensure_google_icon_font")
+def test_continuation_mode_delete_and_inherit_ratings_combined(
+    app_with_dataset: "pyFadeApp",
+    temp_dataset: "DatasetDatabase",
+    qt_app: "QApplication",
+) -> None:
+    """Continuation mode with default settings: delete original and inherit its ratings to new completion."""
+
+    original = _persist_completion(temp_dataset, completion_text=_DEF_COMPLETION, model_id="mock-echo-model")
+    facet = Facet.create(temp_dataset, "Quality", "Overall quality")
+    temp_dataset.commit()
+
+    # Set a rating on the original
+    PromptCompletionRating.set_rating(temp_dataset, original, facet, 7)
+    original_id = original.id
+
+    window = ThreeWayCompletionEditorWindow(app_with_dataset, temp_dataset, original, EditorMode.CONTINUATION)
+    qt_app.processEvents()
+
+    # Continuation mode defaults: delete=on, inherit_ratings=on
+    assert window.delete_checkbox is not None and window.delete_checkbox.isChecked()
+    assert window.inherit_ratings_checkbox is not None and window.inherit_ratings_checkbox.isChecked()
+
+    # Capture saved completion via signal (parent_completion_id may be SET NULL by SQLAlchemy after original deletion)
+    saved_completions: list[PromptCompletion] = []
+    window.completion_saved.connect(lambda c: saved_completions.append(c))
+
+    assert window.generate_button is not None and window.generate_button.isEnabled()
+    window.generate_button.click()
+    qt_app.processEvents()
+
+    assert window.save_button is not None and window.save_button.isEnabled()
+    window.save_button.click()
+    qt_app.processEvents()
+
+    session = temp_dataset.session
+    assert session is not None
+
+    # Original should be deleted
+    deleted = session.query(PromptCompletion).filter(PromptCompletion.id == original_id).one_or_none()
+    assert deleted is None, "Original should have been deleted in CONTINUATION mode"
+
+    # New completion should exist (captured via signal before deletion)
+    assert len(saved_completions) == 1, "completion_saved signal should have fired once"
+    new_completion = saved_completions[0]
+    session.refresh(new_completion)
+
+    inherited_rating = PromptCompletionRating.get(temp_dataset, new_completion, facet)
+    assert inherited_rating is not None
+    assert inherited_rating.rating == 7
 
     window.deleteLater()
     qt_app.processEvents()
