@@ -17,6 +17,7 @@ from sqlalchemy.types import DateTime
 from py_fade.dataset.dataset_base import dataset_base
 
 if TYPE_CHECKING:
+    from py_fade.dataset.completion_tag import CompletionTag
     from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.dataset.sample import Sample
     from py_fade.dataset.sample_tag import SampleTag
@@ -41,6 +42,10 @@ class Tag(dataset_base):
 
     # Many-to-many relationship with samples
     sample_tags: Mapped[List["SampleTag"]] = relationship("SampleTag", back_populates="tag", cascade="all, delete-orphan", lazy="select")
+
+    # Many-to-many relationship with completions
+    completion_tags: Mapped[List["CompletionTag"]] = relationship("CompletionTag", back_populates="tag", cascade="all, delete-orphan",
+                                                                  lazy="select")
 
     log = logging.getLogger("Tag")
 

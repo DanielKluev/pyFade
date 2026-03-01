@@ -25,6 +25,7 @@ from py_fade.dataset.completion import PromptCompletion
 from py_fade.dataset.completion_logprobs import PromptCompletionLogprobs
 from py_fade.dataset.completion_pairwise_ranks import PromptCompletionPairwiseRanking  # pylint: disable=unused-import # Required for SQLAlchemy metadata registration
 from py_fade.dataset.completion_rating import PromptCompletionRating  # pylint: disable=unused-import # Required for SQLAlchemy metadata registration
+from py_fade.dataset.completion_tag import CompletionTag  # pylint: disable=unused-import # Required for SQLAlchemy metadata registration
 from py_fade.dataset.data_filter import DataFilter
 from py_fade.dataset.dataset_base import dataset_base
 from py_fade.dataset.export_template import ExportTemplate  # pylint: disable=unused-import # Required for SQLAlchemy metadata registration
