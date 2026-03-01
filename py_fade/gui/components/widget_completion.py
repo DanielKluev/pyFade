@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint
 from PyQt6.QtGui import QColor, QContextMenuEvent
 from PyQt6.QtWidgets import (
     QFrame,
@@ -697,7 +697,7 @@ class CompletionFrame(QFrame):
         else:
             super().contextMenuEvent(event)
 
-    def _show_context_menu(self, global_pos) -> None:
+    def _show_context_menu(self, global_pos: QPoint) -> None:
         """
         Display the completion context menu.
 

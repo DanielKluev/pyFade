@@ -181,6 +181,10 @@ class TestTagHeaderDisplay:
         qt_app.processEvents()
 
         assert frame.tag_header_label is not None
+        # The label should show the last part after '::' - 'WIP' for 'Completion::WIP'
+        text_label = getattr(frame.tag_header_label, 'text_label', None)
+        assert text_label is not None
+        assert text_label.text() == "WIP"
 
         frame.deleteLater()
         qt_app.processEvents()
@@ -209,12 +213,10 @@ class TestTagHeaderDisplay:
         qt_app.processEvents()
 
         assert frame.tag_header_label is not None
-        # The label text should be at most 6 chars (last part of 'VeryLongTagName' is 'VeryLongTagName' -> 'VeryLo')
-        label_widget = frame.tag_header_label
-        # Access the text_label child since QLabelWithIconAndText wraps a QLabel
-        text_label = getattr(label_widget, 'text_label', None)
-        if text_label is not None:
-            assert len(text_label.text()) <= 6
+        # The label text should be at most 6 chars (last part of 'VeryLongTagName' -> 'VeryLo')
+        text_label = getattr(frame.tag_header_label, 'text_label', None)
+        assert text_label is not None
+        assert len(text_label.text()) <= 6
 
         frame.deleteLater()
         qt_app.processEvents()
@@ -247,8 +249,8 @@ class TestTagHeaderDisplay:
         assert frame.tag_header_label is not None
         # The label text should be "2" (count of tags)
         text_label = getattr(frame.tag_header_label, 'text_label', None)
-        if text_label is not None:
-            assert text_label.text() == "2"
+        assert text_label is not None
+        assert text_label.text() == "2"
 
         frame.deleteLater()
         qt_app.processEvents()
