@@ -8,10 +8,12 @@ import logging
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QContextMenuEvent
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
+    QLabel,
+    QMenu,
     QMessageBox,
     QSizePolicy,
     QVBoxLayout,
@@ -26,7 +28,7 @@ from py_fade.gui.components.widget_button_with_icon import QPushButtonWithIcon
 from py_fade.gui.components.widget_completion_text_editor import CompletionTextEdit
 from py_fade.data_formats.base_data_classes import CommonCompletionProtocol
 from py_fade.providers.providers_manager import MappedModel
-from py_fade.dataset.completion import PromptCompletion
+from py_fade.dataset.completion import PromptCompletion, WIP_TAG_NAME
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
@@ -94,6 +96,9 @@ class CompletionFrame(QFrame):
         self.heatmap_button: QPushButtonWithIcon | None = None
         self.use_as_prefill_button: QPushButtonWithIcon | None = None
         self.remove_button: QPushButtonWithIcon | None = None
+        self.context_menu_button: QPushButtonWithIcon | None = None
+        self.tag_header_label: QWidget | None = None  # Tag icon+text widget in header row
+        self.wip_indicator: QLabel | None = None  # '?' indicator shown instead of stars for WIP completions
 
         self.setup_ui()
         self.connect_signals()
@@ -115,6 +120,13 @@ class CompletionFrame(QFrame):
         self.model_label = QLabelWithIconAndText("model", "", size=14, parent=self)
         self.header_layout.addWidget(self.model_label)
         self.header_layout.addStretch()
+        # Context menu button ("...") - only in sample mode; added at the end so it stays rightmost
+        if self.display_mode == "sample":
+            self.context_menu_button = QPushButtonWithIcon("more_horiz", parent=self, icon_size=self.icons_size, button_size=28)
+            self.context_menu_button.setFlat(True)
+            self.context_menu_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.context_menu_button.setToolTip("More options")
+            self.header_layout.addWidget(self.context_menu_button)
         self.main_layout.addLayout(self.header_layout)
 
         # Status icons layout
@@ -139,6 +151,15 @@ class CompletionFrame(QFrame):
         if self.display_mode == "sample":
             self.rating_widget = CompletionRatingWidget(self.dataset, self, icon_size=self.actions_icon_size)
             self.actions_layout.addWidget(self.rating_widget)
+
+            # WIP indicator - shown instead of rating stars when Completion::WIP tag is present
+            self.wip_indicator = QLabel(self)
+            self.wip_indicator.setPixmap(google_icon_font.pixmap("question_mark", size=self.actions_icon_size, color="#f57c00"))
+            self.wip_indicator.setToolTip(f"WIP: This completion has the '{WIP_TAG_NAME}' tag. Rating is not applicable.")
+            self.wip_indicator.setFixedSize(int(self.actions_icon_size * 1.5), int(self.actions_icon_size * 1.5))
+            self.wip_indicator.hide()
+            self.actions_layout.addWidget(self.wip_indicator)
+
             self.actions_layout.addStretch()
 
         # Action buttons - mode-specific
@@ -249,6 +270,10 @@ class CompletionFrame(QFrame):
         if self.display_mode == "sample" and hasattr(self, "rating_widget"):
             self.rating_widget.rating_saved.connect(self._log_rating_saved)
 
+        # Connect context menu button (sample mode only)
+        if self.context_menu_button:
+            self.context_menu_button.clicked.connect(self._on_context_menu_button_clicked)
+
         # Connect common buttons
         if self.discard_button:
             self.discard_button.clicked.connect(self._on_discard_clicked)
@@ -309,8 +334,12 @@ class CompletionFrame(QFrame):
         self._update_status_icons()
         self.text_edit.set_completion(completion)
 
-        # Update rating widget for sample mode
+        # Update tag display in header row (sample mode only, for saved completions)
+        self._update_tag_header_label()
+
+        # Update rating widget and WIP indicator for sample mode
         if self.display_mode == "sample" and hasattr(self, "rating_widget"):
+            self._update_wip_display()
             self.rating_widget.set_context(self.completion, self.current_facet)
 
         self._update_action_buttons()
@@ -568,12 +597,150 @@ class CompletionFrame(QFrame):
                 tooltip=self._temperature_tooltip(completion),
             )
         self.temperature_label = new_label
-        self.header_layout.addWidget(new_label)
+        # Insert before context menu button (which is always the last item in sample mode)
+        if self.context_menu_button is not None:
+            self.header_layout.insertWidget(self.header_layout.count() - 1, new_label)
+        else:
+            self.header_layout.addWidget(new_label)
 
     @staticmethod
     def _temperature_tooltip(completion: "PromptCompletion | LLMResponse") -> str:
         """Build tooltip text describing sampling parameters."""
         return f"Temperature: {completion.temperature}, top_k: {completion.top_k}"
+
+    def _update_tag_header_label(self) -> None:
+        """
+        Update the tag icon and label in the header row based on completion's assigned tags.
+
+        Shows a tag icon with label when completion has tags:
+        - Single tag: split by '::' and take last part, shortened to 6 chars if longer.
+        - Multiple tags: show count.
+        Tooltip lists all assigned tag names, one per line.
+        Only applies to saved PromptCompletion objects in sample mode.
+        """
+        # Remove existing tag label if present
+        if self.tag_header_label is not None:
+            self.header_layout.removeWidget(self.tag_header_label)
+            self.tag_header_label.deleteLater()
+            self.tag_header_label = None
+
+        # Only show tags for saved completions in sample mode
+        if self.display_mode != "sample" or not isinstance(self.completion, PromptCompletion):
+            return
+        if getattr(self.completion, "id", None) is None:
+            return
+
+        tags = self.completion.get_tags(self.dataset)
+        if not tags:
+            return
+
+        tag_names = [tag.name for tag in tags]
+        tooltip_text = "\n".join(tag_names)
+
+        if len(tags) == 1:
+            # Single tag: use last part after '::', shorten to 6 chars
+            parts = tag_names[0].split("::")
+            label_text = parts[-1].strip()[:6]
+        else:
+            # Multiple tags: show count
+            label_text = str(len(tags))
+
+        tag_label = QLabelWithIconAndText("label", label_text, size=14, parent=self, color="#7b1fa2", tooltip=tooltip_text)
+        self.tag_header_label = tag_label
+
+        # Insert before context menu button (always last item in sample mode)
+        if self.context_menu_button is not None:
+            self.header_layout.insertWidget(self.header_layout.count() - 1, tag_label)
+        else:
+            self.header_layout.addWidget(tag_label)
+
+    def _update_wip_display(self) -> None:
+        """
+        Update rating widget and WIP indicator visibility based on the WIP tag.
+
+        When the Completion::WIP tag is assigned, hides the rating stars and shows
+        a '?' indicator. When not WIP, shows rating stars and hides the indicator.
+        Only applies in sample mode.
+        """
+        if self.display_mode != "sample":
+            return
+        if not isinstance(self.completion, PromptCompletion) or getattr(self.completion, "id", None) is None:
+            # Unsaved completion: show normal rating widget
+            if hasattr(self, "rating_widget"):
+                self.rating_widget.show()
+            if self.wip_indicator:
+                self.wip_indicator.hide()
+            return
+
+        is_wip = self.completion.is_wip(self.dataset)
+        if hasattr(self, "rating_widget"):
+            self.rating_widget.setVisible(not is_wip)
+        if self.wip_indicator:
+            self.wip_indicator.setVisible(is_wip)
+
+    def _on_context_menu_button_clicked(self) -> None:
+        """Handle '...' context menu button click by showing the context menu at the button position."""
+        if self.context_menu_button:
+            pos = self.context_menu_button.mapToGlobal(self.context_menu_button.rect().bottomLeft())
+            self._show_context_menu(pos)
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:  # pylint: disable=invalid-name
+        """
+        Show the completion context menu on right-click.
+
+        Only shown in sample mode for saved completions. Right-clicking the text area
+        is handled by the text edit widget itself and does not trigger this handler.
+        """
+        if self.display_mode == "sample":
+            self._show_context_menu(event.globalPos())
+            event.accept()
+        else:
+            super().contextMenuEvent(event)
+
+    def _show_context_menu(self, global_pos) -> None:
+        """
+        Display the completion context menu.
+
+        Shows a context menu with available operations for the completion.
+        Currently supports: Edit tags.
+
+        Args:
+            global_pos: Global screen position to show the menu at
+        """
+        if self.display_mode != "sample":
+            return
+
+        menu = QMenu(self)
+
+        edit_tags_action = menu.addAction(google_icon_font.as_icon("label"), "Edit tags")
+
+        action = menu.exec(global_pos)
+
+        if action == edit_tags_action:
+            self._open_tags_dialog()
+
+    def _open_tags_dialog(self) -> None:
+        """
+        Open the tag editing dialog for this completion.
+
+        Only available for saved completions (those with a database ID).
+        After the dialog is closed, refreshes the tag display and WIP indicator.
+        """
+        if not isinstance(self.completion, PromptCompletion) or getattr(self.completion, "id", None) is None:
+            QMessageBox.warning(self, "Warning", "Tags can only be assigned to saved completions.")
+            return
+
+        from py_fade.gui.dialog_sample_tags import SampleTagsDialog  # pylint: disable=import-outside-toplevel
+        dialog = SampleTagsDialog(self.dataset, self.completion, parent=self)
+        result = dialog.exec()
+
+        if result == QMessageBox.DialogCode.Accepted:
+            # Refresh tag display and WIP indicator
+            self._update_tag_header_label()
+            self._update_wip_display()
+            if hasattr(self, "rating_widget"):
+                self.rating_widget.set_context(self.completion, self.current_facet)
+            self.log.debug("Tags updated for completion %s", self.completion.id)
 
     def _update_status_icons(self) -> None:
         """Populate status icons based on completion properties."""

@@ -554,6 +554,7 @@ class WidgetSample(QWidget):
         
         Completions are sorted by:
         1. Rating for active facet (higher rated completions first, 0 rating is considered no rating)
+           WIP completions (with Completion::WIP tag) are treated as rating 11 and sorted first.
         2. Within each rating group, by scored_logprob for active model (higher scores first)
         3. Completions without logprobs appear after those with logprobs
         """
@@ -561,6 +562,10 @@ class WidgetSample(QWidget):
                       self.active_facet, self.active_model)
 
         def sort_key(completion: "PromptCompletion") -> tuple[int, float, float]:
+            # WIP completions sort first with effective rating 11
+            if completion.is_wip(self.dataset):
+                return (-11, 0.0, 0.0)
+
             # Get rating for active facet (default to 0 if no rating or no facet)
             rating = 0
             if self.active_facet:
@@ -589,6 +594,7 @@ class WidgetSample(QWidget):
         
         Frames are sorted by:
         1. Rating for active facet (higher rated completions first)
+           WIP completions (with Completion::WIP tag) are treated as rating 11 and sorted first.
         2. Within each rating group, by scored_logprob for active model (higher scores first)
         3. Completions without logprobs appear after those with logprobs
         
@@ -602,6 +608,10 @@ class WidgetSample(QWidget):
 
         def sort_key(frame_tuple: tuple["PromptCompletion", CompletionFrame]) -> tuple[int, float, float]:
             completion, _frame = frame_tuple
+
+            # WIP completions sort first with effective rating 11
+            if completion.is_wip(self.dataset):
+                return (-11, 0.0, 0.0)
 
             # Get rating for active facet (default to 0 if no rating or no facet)
             rating = 0

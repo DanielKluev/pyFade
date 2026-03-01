@@ -18,10 +18,15 @@ from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.dataset_base import dataset_base
 
 if TYPE_CHECKING:
+    from py_fade.dataset.completion_tag import CompletionTag
     from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.dataset.prompt import PromptRevision
     from py_fade.providers.llm_response import LLMResponse
     from py_fade.dataset.facet import Facet
+    from py_fade.dataset.tag import Tag
+
+# Tag name used for WIP (Work In Progress) completions - sorted to the top (effective rating 11)
+WIP_TAG_NAME = "Completion::WIP"
 
 
 class PromptCompletion(dataset_base):
@@ -53,6 +58,12 @@ class PromptCompletion(dataset_base):
         back_populates="prompt_completion",
         cascade="all, delete-orphan",
         lazy="selectin",
+    )
+    completion_tags: Mapped[list["CompletionTag"]] = relationship(
+        "CompletionTag",
+        back_populates="completion",
+        cascade="all, delete-orphan",
+        lazy="select",
     )
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)  # SHA256 hash of completion_text for deduplication.
     # Allow different (prompt_revision_id, sha256) pairs.
@@ -168,3 +179,80 @@ class PromptCompletion(dataset_base):
             logprobs_entry._alternative_logprobs = None  # pylint: disable=protected-access
             # Set alternative_logprobs_bin to empty compressed data
             logprobs_entry.alternative_logprobs_bin = PromptCompletionLogprobs.compress_alternative_logprobs(CompletionTopLogprobs([]))
+
+    def add_tag(self, dataset: "DatasetDatabase", tag: "Tag") -> None:
+        """
+        Add a tag to this completion.
+
+        Args:
+            dataset: The dataset database instance
+            tag: The tag to add
+
+        Raises:
+            ValueError: If the completion is not saved (no ID) or tag already assigned
+        """
+        from py_fade.dataset.completion_tag import CompletionTag  # pylint: disable=import-outside-toplevel
+        CompletionTag.create(dataset, self, tag)
+
+    def remove_tag(self, dataset: "DatasetDatabase", tag: "Tag") -> None:
+        """
+        Remove a tag from this completion.
+
+        Args:
+            dataset: The dataset database instance
+            tag: The tag to remove
+
+        Raises:
+            ValueError: If the tag is not assigned to this completion
+        """
+        from py_fade.dataset.completion_tag import CompletionTag  # pylint: disable=import-outside-toplevel
+        CompletionTag.delete_association(dataset, self, tag)
+
+    def has_tag(self, dataset: "DatasetDatabase", tag: "Tag") -> bool:
+        """
+        Check if this completion has the given tag assigned.
+
+        Args:
+            dataset: The dataset database instance
+            tag: The tag to check
+
+        Returns:
+            True if the tag is assigned, False otherwise
+        """
+        from py_fade.dataset.completion_tag import CompletionTag  # pylint: disable=import-outside-toplevel
+        session = dataset.get_session()
+        return session.query(CompletionTag).filter_by(completion_id=self.id, tag_id=tag.id).first() is not None
+
+    def get_tags(self, dataset: "DatasetDatabase") -> list["Tag"]:
+        """
+        Return all tags associated with this completion.
+
+        Args:
+            dataset: The dataset database instance
+
+        Returns:
+            List of Tag objects associated with this completion
+        """
+        from py_fade.dataset.tag import Tag as TagModel  # pylint: disable=import-outside-toplevel
+        from py_fade.dataset.completion_tag import CompletionTag  # pylint: disable=import-outside-toplevel
+        session = dataset.get_session()
+        return list(session.query(TagModel).join(CompletionTag).filter(CompletionTag.completion_id == self.id).all())
+
+    def is_wip(self, dataset: "DatasetDatabase") -> bool:
+        """
+        Check if this completion has the WIP (Work In Progress) tag assigned.
+
+        WIP completions are displayed with a ? indicator instead of rating stars and are
+        sorted to the beginning of the completion list (effective rating 11).
+
+        Args:
+            dataset: The dataset database instance
+
+        Returns:
+            True if the Completion::WIP tag is assigned, False otherwise
+        """
+        from py_fade.dataset.completion_tag import CompletionTag  # pylint: disable=import-outside-toplevel
+        from py_fade.dataset.tag import Tag as TagModel  # pylint: disable=import-outside-toplevel
+        session = dataset.get_session()
+        return (session.query(CompletionTag).join(TagModel).filter(CompletionTag.completion_id == self.id,
+                                                                   TagModel.name == WIP_TAG_NAME).first() is not None)
