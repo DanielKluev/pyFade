@@ -213,39 +213,35 @@ class BlockwiseGenerationController:
                 self.log.info("Block generation stopped by request at candidate %d/%d.", i, width)
                 break
 
-            try:
-                response = self.mapped_model.generate(
-                    prompt=conversation,
-                    prefill=completion_prefill,
-                    temperature=self.temperature,
-                    top_k=self.top_k,
-                    context_length=self.context_length,
-                    max_tokens=self.max_tokens,
-                )
+            response = self.mapped_model.generate(
+                prompt=conversation,
+                prefill=completion_prefill,
+                temperature=self.temperature,
+                top_k=self.top_k,
+                context_length=self.context_length,
+                max_tokens=self.max_tokens,
+            )
 
-                block_text = self._extract_block_text(response.completion_text)
-                if not block_text:
-                    self.log.warning("Empty block generated at candidate %d/%d, skipping.", i + 1, width)
-                    continue
+            block_text = self._extract_block_text(response.completion_text)
+            if not block_text:
+                self.log.warning("Empty block generated at candidate %d/%d, skipping.", i + 1, width)
+                continue
 
-                if self._is_duplicate(block_text):
-                    self.log.debug("Duplicate block at candidate %d/%d, skipping: %s", i + 1, width, block_text[:50])
-                    continue
+            if self._is_duplicate(block_text):
+                self.log.debug("Duplicate block at candidate %d/%d, skipping: %s", i + 1, width, block_text[:50])
+                continue
 
-                candidate = BlockCandidate(
-                    text=block_text,
-                    word_count=len(block_text.split()),
-                    token_count=len(response.logprobs.sampled_logprobs) if response.logprobs else 0,
-                    response=response,
-                )
-                self.candidates.append(candidate)
-                new_candidates.append(candidate)
+            candidate = BlockCandidate(
+                text=block_text,
+                word_count=len(block_text.split()),
+                token_count=len(response.logprobs.sampled_logprobs) if response.logprobs else 0,
+                response=response,
+            )
+            self.candidates.append(candidate)
+            new_candidates.append(candidate)
 
-                if on_candidate:
-                    on_candidate(candidate)
-
-            except Exception:  # pylint: disable=broad-except
-                self.log.exception("Error generating candidate %d/%d.", i + 1, width)
+            if on_candidate:
+                on_candidate(candidate)
 
         return new_candidates
 

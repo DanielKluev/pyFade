@@ -252,7 +252,7 @@ class WindowBlockwiseGeneration(QWidget):
         pane_layout.addWidget(self.completion_text)
 
         # Block gutter / stats panel
-        self.gutter_label = QLabel("Blocks: 0 | Words: 0 | Tokens: 0", self)
+        self.gutter_label = QLabel("Blocks: 0 | Words: 0", self)
         pane_layout.addWidget(self.gutter_label)
 
         return pane
@@ -389,6 +389,7 @@ class WindowBlockwiseGeneration(QWidget):
 
         self.status_label.setText(f"Generating {width} candidates...")
         self.generate_button.setEnabled(False)
+        self._set_candidate_buttons_enabled(False)
 
         self.worker_thread = BlockwiseGenerationWorker(self.controller, width)
         self.worker_thread.candidate_ready.connect(self._on_candidate_generated)
@@ -396,10 +397,17 @@ class WindowBlockwiseGeneration(QWidget):
         self.worker_thread.generation_error.connect(self._on_generation_error)
         self.worker_thread.start()
 
+    def _stop_worker(self) -> None:
+        """Request interruption and wait for the worker thread to finish."""
+        if self.worker_thread and self.worker_thread.isRunning():
+            self.worker_thread.requestInterruption()
+            self.worker_thread.wait(30000)
+
     @pyqtSlot(int)
     def _on_generation_finished(self, new_count: int) -> None:
         """Handle completion of the worker thread."""
         self.generate_button.setEnabled(True)
+        self._set_candidate_buttons_enabled(True)
         self.status_label.setText(f"Generated {new_count} new candidates (total: {len(self.controller.candidates)})")
 
     @pyqtSlot(str)
@@ -407,6 +415,7 @@ class WindowBlockwiseGeneration(QWidget):
         """Handle an error from the worker thread."""
         self.log.error("Block generation failed: %s", error_msg)
         self.generate_button.setEnabled(True)
+        self._set_candidate_buttons_enabled(True)
         self.status_label.setText(f"Generation error: {error_msg}")
 
     def _on_candidate_generated(self, candidate: BlockCandidate) -> None:
@@ -457,13 +466,27 @@ class WindowBlockwiseGeneration(QWidget):
             widget.deleteLater()
         self.candidate_widgets.clear()
 
+    def _set_candidate_buttons_enabled(self, enabled: bool) -> None:
+        """Enable or disable action buttons on all candidate widgets."""
+        for widget in self.candidate_widgets:
+            widget.accept_button.setEnabled(enabled)
+            widget.edit_button.setEnabled(enabled)
+            widget.rewrite_button.setEnabled(enabled)
+            widget.shorter_button.setEnabled(enabled)
+            widget.longer_button.setEnabled(enabled)
+
     @pyqtSlot()
     def _on_accept_candidate(self, candidate: BlockCandidate) -> None:
-        """Accept a candidate block — append to completion, clear candidates."""
+        """Accept a candidate block — append to completion, clear candidates.
+
+        Stops the worker thread first to prevent concurrent state mutation.
+        """
+        self._stop_worker()
         self.controller.accept_candidate(candidate)
         self._clear_candidate_widgets()
         self._update_completion_display()
         self.is_saved = False
+        self.generate_button.setEnabled(True)
         self.status_label.setText(f"Block accepted. Total blocks: {len(self.controller.accepted_blocks)}")
 
     def _on_edit_candidate(self, candidate: BlockCandidate, widget: BlockCandidateWidget) -> None:
@@ -513,7 +536,7 @@ class WindowBlockwiseGeneration(QWidget):
         # Update gutter stats
         blocks = len(self.controller.accepted_blocks)
         words = len(accepted_text.split()) if accepted_text else 0
-        self.gutter_label.setText(f"Blocks: {blocks} | Words: {words} | Tokens: 0")
+        self.gutter_label.setText(f"Blocks: {blocks} | Words: {words}")
 
     @pyqtSlot(bool)
     def _on_edit_toggled(self, checked: bool) -> None:
@@ -560,6 +583,11 @@ class WindowBlockwiseGeneration(QWidget):
             self.status_label.setText("Completion saved.")
         else:
             QMessageBox.warning(self, "Warning", "No sample widget connected. Cannot save.")
+
+    def closeEvent(self, event) -> None:  # pylint: disable=invalid-name
+        """Stop worker thread and clean up on window close."""
+        self._stop_worker()
+        super().closeEvent(event)
 
     def resizeEvent(self, event) -> None:  # pylint: disable=invalid-name
         """Handle window resize to adjust candidate grid width."""

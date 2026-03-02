@@ -40,6 +40,8 @@ def blockwise_window(app_with_dataset: "pyFadeApp", qt_app: QApplication, ensure
                      mock_mapped_model: MappedModel) -> WindowBlockwiseGeneration:
     """
     Create a WindowBlockwiseGeneration for testing.
+
+    Yields the window and cleans it up after the test.
     """
     _ = ensure_google_icon_font
     window = WindowBlockwiseGeneration(
@@ -51,7 +53,10 @@ def blockwise_window(app_with_dataset: "pyFadeApp", qt_app: QApplication, ensure
     )
     window.show()
     qt_app.processEvents()
-    return window
+    yield window
+    window.close()
+    window.deleteLater()
+    qt_app.processEvents()
 
 
 # ---------------------------------------------------------------------------
@@ -424,9 +429,9 @@ class TestGenerationWithMockProvider:
         """
         blockwise_window.width_spin.setValue(2)
         blockwise_window.generate_blocks()
-        # Wait for worker thread to finish
+        # Wait for worker thread to finish with bounded timeout
         assert blockwise_window.worker_thread is not None, "Worker thread should be created"
-        blockwise_window.worker_thread.wait()
+        assert blockwise_window.worker_thread.wait(5000), "Worker thread should finish within 5 seconds"
         qt_app.processEvents()
 
         assert len(blockwise_window.candidate_widgets) > 0
@@ -437,9 +442,9 @@ class TestGenerationWithMockProvider:
         """
         blockwise_window.width_spin.setValue(1)
         blockwise_window.generate_blocks()
-        # Wait for worker thread to finish
+        # Wait for worker thread to finish with bounded timeout
         assert blockwise_window.worker_thread is not None, "Worker thread should be created"
-        blockwise_window.worker_thread.wait()
+        assert blockwise_window.worker_thread.wait(5000), "Worker thread should finish within 5 seconds"
         qt_app.processEvents()
 
         status = blockwise_window.status_label.text()
