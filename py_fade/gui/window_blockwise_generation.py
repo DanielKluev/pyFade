@@ -213,7 +213,7 @@ class WindowBlockwiseGeneration(QWidget):
         self.main_splitter.setStretchFactor(0, 1)
         self.main_splitter.setStretchFactor(1, 2)
 
-        layout.addWidget(self.main_splitter)
+        layout.addWidget(self.main_splitter, 1)
 
     def _build_current_completion_pane(self) -> QFrame:
         """Build the Current Completion pane (left side)."""

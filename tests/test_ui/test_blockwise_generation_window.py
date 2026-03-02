@@ -122,6 +122,17 @@ class TestWindowBlockwiseGenerationLayout:
         """
         assert blockwise_window.top_k_spin.value() == blockwise_window.app.config.default_top_k
 
+    def test_main_splitter_has_stretch_factor(self, blockwise_window: WindowBlockwiseGeneration) -> None:
+        """
+        The main splitter should have stretch factor > 0 in the window layout so
+        it expands to fill available space, preventing the header label from
+        consuming excessive vertical space.
+        """
+        main_layout = blockwise_window.layout()
+        splitter_index = main_layout.indexOf(blockwise_window.main_splitter)
+        assert splitter_index >= 0, "main_splitter must be in the window layout"
+        assert main_layout.stretch(splitter_index) > 0, "main_splitter must have a positive stretch factor"
+
 
 # ---------------------------------------------------------------------------
 # Test BlockCandidateWidget
