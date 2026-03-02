@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt
 
 from py_fade.dataset.completion_rating import PromptCompletionRating
 from py_fade.dataset.data_filter import DataFilter
+from py_fade.dataset.export_template import ExportTemplate
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.prompt import PromptRevision
 from py_fade.dataset.sample import Sample
@@ -926,3 +927,82 @@ def test_navigation_tree_samples_by_group_mixed_nodes_sorted(temp_dataset, ensur
     organic_item = chemistry_item.child(3)
     assert organic_item.childCount() == 1
     assert organic_item.child(0).text(0) == "Benzene"
+
+
+def test_navigation_tree_facets_sorted_by_name(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that facets in the navigation tree are sorted alphabetically by name (case-insensitive).
+
+    Creates three facets with names out of alphabetical order and verifies they are displayed
+    in ascending alphabetical order regardless of creation order.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    Facet.create(temp_dataset, "Zebra", "Last alphabetically")
+    Facet.create(temp_dataset, "apple", "Lowercase first")
+    Facet.create(temp_dataset, "Mango", "Middle")
+    temp_dataset.commit()
+
+    tree = WidgetNavigationTree()
+    criteria = {"show": "Facets", "data_filter": DataFilter([])}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    assert tree.tree.topLevelItemCount() == 3
+    assert tree.tree.topLevelItem(0).text(0) == "apple"
+    assert tree.tree.topLevelItem(1).text(0) == "Mango"
+    assert tree.tree.topLevelItem(2).text(0) == "Zebra"
+
+
+def test_navigation_tree_tags_sorted_by_name(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that tags in the navigation tree are sorted alphabetically by name (case-insensitive).
+
+    Creates three tags with names out of alphabetical order and verifies they are displayed
+    in ascending alphabetical order regardless of creation order.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    Tag.create(temp_dataset, "Zebra", "Last alphabetically", scope="both")
+    Tag.create(temp_dataset, "apple", "Lowercase first", scope="both")
+    Tag.create(temp_dataset, "Mango", "Middle", scope="both")
+    temp_dataset.commit()
+
+    tree = WidgetNavigationTree()
+    criteria = {"show": "Tags", "data_filter": DataFilter([])}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    assert tree.tree.topLevelItemCount() == 3
+    assert tree.tree.topLevelItem(0).text(0) == "apple"
+    assert tree.tree.topLevelItem(1).text(0) == "Mango"
+    assert tree.tree.topLevelItem(2).text(0) == "Zebra"
+
+
+def test_navigation_tree_export_templates_sorted_by_name(temp_dataset, ensure_google_icon_font, qt_app):
+    """
+    Test that export templates in the navigation tree are sorted alphabetically by name (case-insensitive).
+
+    Creates three export templates with names out of alphabetical order and verifies they are displayed
+    in ascending alphabetical order regardless of creation order.
+    """
+    _ = ensure_google_icon_font  # Used for side effect of loading icon font
+
+    ExportTemplate.create(temp_dataset, name="Zebra Template", description="Last alphabetically", training_type="dpo",
+                          output_format="JSONL (Anthropic)", model_families=["Llama3"])
+    ExportTemplate.create(temp_dataset, name="apple template", description="Lowercase first", training_type="dpo",
+                          output_format="JSONL (Anthropic)", model_families=["Llama3"])
+    ExportTemplate.create(temp_dataset, name="Mango Template", description="Middle", training_type="dpo", output_format="JSONL (Anthropic)",
+                          model_families=["Llama3"])
+    temp_dataset.commit()
+
+    tree = WidgetNavigationTree()
+    criteria = {"show": "Export Templates", "data_filter": DataFilter([])}
+    tree.update_content(criteria, temp_dataset)
+    qt_app.processEvents()
+
+    assert tree.tree.topLevelItemCount() == 3
+    # Names sorted case-insensitively: apple template, Mango Template, Zebra Template
+    assert tree.tree.topLevelItem(0).text(0) == "apple template — DPO"
+    assert tree.tree.topLevelItem(1).text(0) == "Mango Template — DPO"
+    assert tree.tree.topLevelItem(2).text(0) == "Zebra Template — DPO"

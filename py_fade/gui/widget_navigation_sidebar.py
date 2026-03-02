@@ -820,6 +820,8 @@ class WidgetNavigationTree(QWidget):
         if search_value:
             facets = [facet for facet in facets if search_value in facet.name.lower() or search_value in facet.description.lower()]
 
+        facets = sorted(facets, key=lambda f: f.name.lower())
+
         if not facets:
             placeholder = QTreeWidgetItem(self.tree, ["No facets available"])
             placeholder.setFlags(placeholder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
@@ -845,6 +847,8 @@ class WidgetNavigationTree(QWidget):
 
         if search_value:
             tags = [tag for tag in tags if search_value in tag.name.lower() or search_value in tag.description.lower()]
+
+        tags = sorted(tags, key=lambda t: t.name.lower())
 
         if not tags:
             placeholder = QTreeWidgetItem(self.tree, ["No tags available"])
@@ -999,6 +1003,8 @@ class WidgetNavigationTree(QWidget):
             templates = [
                 template for template in templates if search_value in template.name.lower() or search_value in template.description.lower()
             ]
+
+        templates = sorted(templates, key=lambda t: t.name.lower())
 
         if not templates:
             placeholder = QTreeWidgetItem(self.tree, ["No export templates available"])
