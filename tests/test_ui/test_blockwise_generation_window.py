@@ -110,14 +110,14 @@ class TestWindowBlockwiseGenerationLayout:
         """
         Temperature spin box has default value matching app config.
         """
-        # Default is 0.7 * 100 = 70
-        assert blockwise_window.temperature_spin.value() == 70
+        expected = int(blockwise_window.app.config.default_temperature * 100)
+        assert blockwise_window.temperature_spin.value() == expected
 
     def test_top_k_spin_default(self, blockwise_window: WindowBlockwiseGeneration) -> None:
         """
-        Top-K spin box has default value of 40.
+        Top-K spin box has default value matching app config.
         """
-        assert blockwise_window.top_k_spin.value() == 40
+        assert blockwise_window.top_k_spin.value() == blockwise_window.app.config.default_top_k
 
 
 # ---------------------------------------------------------------------------

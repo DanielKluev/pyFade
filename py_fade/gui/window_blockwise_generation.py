@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
+    QApplication,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -281,7 +282,7 @@ class WindowBlockwiseGeneration(QWidget):
         controls_layout.addWidget(QLabel("Temperature:"))
         self.temperature_spin = QSpinBox(self)
         self.temperature_spin.setRange(0, 200)
-        self.temperature_spin.setValue(70)
+        self.temperature_spin.setValue(int(self.app.config.default_temperature * 100))
         self.temperature_spin.setSuffix(" / 100")
         self.temperature_spin.setToolTip("Temperature × 100 (e.g. 70 = 0.7)")
         controls_layout.addWidget(self.temperature_spin)
@@ -290,7 +291,7 @@ class WindowBlockwiseGeneration(QWidget):
         controls_layout.addWidget(QLabel("Top-K:"))
         self.top_k_spin = QSpinBox(self)
         self.top_k_spin.setRange(1, 200)
-        self.top_k_spin.setValue(40)
+        self.top_k_spin.setValue(self.app.config.default_top_k)
         self.top_k_spin.setToolTip("Top-K sampling parameter")
         controls_layout.addWidget(self.top_k_spin)
 
@@ -467,7 +468,7 @@ class WindowBlockwiseGeneration(QWidget):
         # Update gutter stats
         blocks = len(self.controller.accepted_blocks)
         words = len(accepted_text.split()) if accepted_text else 0
-        self.gutter_label.setText(f"Blocks: {blocks} | Words: {words}")
+        self.gutter_label.setText(f"Blocks: {blocks} | Words: {words} | Tokens: 0")
 
     @pyqtSlot(bool)
     def _on_edit_toggled(self, checked: bool) -> None:
@@ -484,7 +485,7 @@ class WindowBlockwiseGeneration(QWidget):
 
     def _copy_completion(self) -> None:
         """Copy completion text to clipboard."""
-        clipboard = self.app.clipboard() if hasattr(self.app, 'clipboard') else None
+        clipboard = QApplication.clipboard()
         if clipboard:
             clipboard.setText(self.completion_text.toPlainText())
         self.status_label.setText("Copied to clipboard.")
