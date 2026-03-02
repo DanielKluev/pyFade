@@ -7,10 +7,6 @@ candidate generation, block acceptance, rewriting, and save response building.
 # pylint: disable=redefined-outer-name
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
-
 import pytest
 
 from py_fade.controllers.blockwise_generation_controller import (
@@ -18,13 +14,10 @@ from py_fade.controllers.blockwise_generation_controller import (
     BlockwiseGenerationController,
     _default_rewrite_template,
 )
-from py_fade.data_formats.base_data_classes import CommonConversation, CompletionPrefill
+from py_fade.data_formats.base_data_classes import CommonConversation
 from py_fade.providers.llm_response import LLMResponse
 from py_fade.providers.mock_provider import MockLLMProvider
 from py_fade.providers.providers_manager import MappedModel
-
-if TYPE_CHECKING:
-    pass
 
 # ---------------------------------------------------------------------------
 # Fixtures

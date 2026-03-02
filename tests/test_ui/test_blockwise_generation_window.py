@@ -7,21 +7,19 @@ acceptance flow, editing, saving, and WidgetSample integration.
 # pylint: disable=redefined-outer-name
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from PyQt6.QtWidgets import QApplication
 
-from py_fade.controllers.blockwise_generation_controller import BlockCandidate, BlockwiseGenerationController
+from py_fade.controllers.blockwise_generation_controller import BlockCandidate
 from py_fade.gui.window_blockwise_generation import BlockCandidateWidget, WindowBlockwiseGeneration
 from py_fade.providers.mock_provider import MockLLMProvider
 from py_fade.providers.providers_manager import MappedModel
 
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
-    from py_fade.dataset.dataset import DatasetDatabase
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -304,14 +302,14 @@ class TestEditToggle:
     Test the edit toggle button for the completion text.
     """
 
-    def test_edit_toggle_enables_editing(self, blockwise_window: WindowBlockwiseGeneration, qt_app: QApplication) -> None:
+    def test_edit_toggle_enables_editing(self, blockwise_window: WindowBlockwiseGeneration) -> None:
         """
         Toggling the edit button enables editing.
         """
         blockwise_window._on_edit_toggled(True)  # pylint: disable=protected-access
         assert blockwise_window.completion_text.isReadOnly() is False
 
-    def test_edit_toggle_disables_editing(self, blockwise_window: WindowBlockwiseGeneration, qt_app: QApplication) -> None:
+    def test_edit_toggle_disables_editing(self, blockwise_window: WindowBlockwiseGeneration) -> None:
         """
         Toggling the edit button off disables editing.
         """
@@ -331,7 +329,7 @@ class TestSaveCompletion:
     """
 
     def test_save_with_sample_widget(self, app_with_dataset: "pyFadeApp", qt_app: QApplication, ensure_google_icon_font: None,
-                                     mock_mapped_model: MappedModel, temp_dataset: "DatasetDatabase") -> None:
+                                     mock_mapped_model: MappedModel) -> None:
         """
         Saving completion with sample widget calls add_completion.
         """
@@ -422,20 +420,26 @@ class TestGenerationWithMockProvider:
 
     def test_generate_blocks_creates_candidates(self, blockwise_window: WindowBlockwiseGeneration, qt_app: QApplication) -> None:
         """
-        Clicking generate produces candidate widgets.
+        Clicking generate produces candidate widgets after worker thread finishes.
         """
         blockwise_window.width_spin.setValue(2)
         blockwise_window.generate_blocks()
+        # Wait for worker thread to finish
+        if blockwise_window.worker_thread:
+            blockwise_window.worker_thread.wait()
         qt_app.processEvents()
 
         assert len(blockwise_window.candidate_widgets) > 0
 
     def test_generate_updates_status(self, blockwise_window: WindowBlockwiseGeneration, qt_app: QApplication) -> None:
         """
-        Generation updates the status label.
+        Generation updates the status label after worker thread finishes.
         """
         blockwise_window.width_spin.setValue(1)
         blockwise_window.generate_blocks()
+        # Wait for worker thread to finish
+        if blockwise_window.worker_thread:
+            blockwise_window.worker_thread.wait()
         qt_app.processEvents()
 
         status = blockwise_window.status_label.text()

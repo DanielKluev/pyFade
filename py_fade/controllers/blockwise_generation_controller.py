@@ -11,7 +11,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable
 
-from py_fade.data_formats.base_data_classes import (CommonConversation, CommonMessage, CompletionPrefill)
+from py_fade.data_formats.base_data_classes import (CommonConversation, CompletionPrefill)
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 from py_fade.providers.llm_response import LLMResponse
 

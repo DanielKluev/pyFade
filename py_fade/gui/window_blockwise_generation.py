@@ -12,7 +12,7 @@ Key classes: `BlockCandidateWidget`, `WindowBlockwiseGeneration`
 import logging
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt, pyqtSlot
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QApplication,
@@ -23,7 +23,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPlainTextEdit,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
     QSpinBox,
@@ -39,6 +38,31 @@ if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
     from py_fade.gui.widget_sample import WidgetSample
     from py_fade.providers.providers_manager import MappedModel
+
+
+class BlockwiseGenerationWorker(QThread):
+    """Worker thread for blockwise generation to keep UI responsive."""
+
+    candidate_ready = pyqtSignal(object)  # BlockCandidate
+    generation_finished = pyqtSignal(int)  # number of new candidates
+    generation_error = pyqtSignal(str)
+
+    def __init__(self, controller: BlockwiseGenerationController, width: int) -> None:
+        super().__init__()
+        self.controller = controller
+        self.width = width
+
+    def run(self) -> None:
+        """Execute block generation and emit progress signals."""
+        try:
+            new_candidates = self.controller.generate_candidates(
+                width=self.width,
+                on_candidate=self.candidate_ready.emit,
+                on_check_stop=self.isInterruptionRequested,
+            )
+            self.generation_finished.emit(len(new_candidates))
+        except Exception as exc:  # pylint: disable=broad-except
+            self.generation_error.emit(str(exc))
 
 
 class BlockCandidateWidget(QFrame):
@@ -123,7 +147,7 @@ class WindowBlockwiseGeneration(QWidget):
 
     min_candidate_width = 280  # Minimum width for each candidate widget in the grid
 
-    def __init__(self, parent: QWidget | None, app: "pyFadeApp", prompt: str, sample_widget: "WidgetSample",
+    def __init__(self, parent: QWidget | None, app: "pyFadeApp", prompt: str, sample_widget: "WidgetSample | None",
                  mapped_model: "MappedModel") -> None:
         super().__init__(parent)
         self.log = logging.getLogger("WindowBlockwiseGeneration")
@@ -135,6 +159,7 @@ class WindowBlockwiseGeneration(QWidget):
         self.is_saved = False
         self.grid_width = 3
         self.is_edit_enabled = False
+        self.worker_thread: BlockwiseGenerationWorker | None = None
 
         # Initialize the controller
         self.controller = BlockwiseGenerationController(
@@ -354,24 +379,35 @@ class WindowBlockwiseGeneration(QWidget):
 
     @pyqtSlot()
     def generate_blocks(self) -> None:
-        """Trigger generation of candidate blocks."""
+        """Trigger generation of candidate blocks in a worker thread."""
+        if self.worker_thread and self.worker_thread.isRunning():
+            self.log.warning("Generation already in progress.")
+            return
+
         self._sync_controller_settings()
         width = self.width_spin.value()
 
         self.status_label.setText(f"Generating {width} candidates...")
         self.generate_button.setEnabled(False)
 
-        try:
-            new_candidates = self.controller.generate_candidates(
-                width=width,
-                on_candidate=self._on_candidate_generated,
-            )
-            self.status_label.setText(f"Generated {len(new_candidates)} new candidates (total: {len(self.controller.candidates)})")
-        except Exception as exc:  # pylint: disable=broad-except
-            self.log.exception("Block generation failed.")
-            self.status_label.setText(f"Generation error: {exc}")
-        finally:
-            self.generate_button.setEnabled(True)
+        self.worker_thread = BlockwiseGenerationWorker(self.controller, width)
+        self.worker_thread.candidate_ready.connect(self._on_candidate_generated)
+        self.worker_thread.generation_finished.connect(self._on_generation_finished)
+        self.worker_thread.generation_error.connect(self._on_generation_error)
+        self.worker_thread.start()
+
+    @pyqtSlot(int)
+    def _on_generation_finished(self, new_count: int) -> None:
+        """Handle completion of the worker thread."""
+        self.generate_button.setEnabled(True)
+        self.status_label.setText(f"Generated {new_count} new candidates (total: {len(self.controller.candidates)})")
+
+    @pyqtSlot(str)
+    def _on_generation_error(self, error_msg: str) -> None:
+        """Handle an error from the worker thread."""
+        self.log.error("Block generation failed: %s", error_msg)
+        self.generate_button.setEnabled(True)
+        self.status_label.setText(f"Generation error: {error_msg}")
 
     def _on_candidate_generated(self, candidate: BlockCandidate) -> None:
         """Handle a newly generated candidate — add to the grid."""
@@ -388,7 +424,16 @@ class WindowBlockwiseGeneration(QWidget):
         widget.shorter_button.clicked.connect(lambda checked=False, c=candidate: self._on_shorter_candidate(c))
         widget.longer_button.clicked.connect(lambda checked=False, c=candidate: self._on_longer_candidate(c))
 
-        self.candidate_widgets.append(widget)
+        # Keep widget order in sync with controller.candidates
+        try:
+            candidate_index = self.controller.candidates.index(candidate)
+        except ValueError:
+            candidate_index = len(self.candidate_widgets)
+
+        if 0 <= candidate_index <= len(self.candidate_widgets):
+            self.candidate_widgets.insert(candidate_index, widget)
+        else:
+            self.candidate_widgets.append(widget)
         self._rearrange_candidates_grid()
 
     def _rearrange_candidates_grid(self) -> None:
@@ -499,9 +544,11 @@ class WindowBlockwiseGeneration(QWidget):
             QMessageBox.warning(self, "Warning", "Cannot save an empty completion.")
             return
 
-        # Rebuild accepted_blocks from current text if it was manually edited
+        # Rebuild accepted_blocks from current text if it was manually edited,
+        # splitting into newline-delimited blocks to preserve block boundaries.
         if self.is_edit_enabled:
-            self.controller.accepted_blocks = [current_text]
+            lines = current_text.splitlines(keepends=True)
+            self.controller.accepted_blocks = lines
 
         if self.sample_widget:
             response = self.controller.build_save_response()
