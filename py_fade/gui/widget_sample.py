@@ -39,6 +39,7 @@ from py_fade.gui.dialog_facet_switch import FacetSwitchDialog
 from py_fade.gui.gui_helpers import get_dataset_preferences, update_dataset_preferences
 from py_fade.gui.widget_completion_beams import WidgetCompletionBeams
 from py_fade.gui.widget_new_completion import NewCompletionFrame
+from py_fade.gui.window_blockwise_generation import WindowBlockwiseGeneration
 from py_fade.gui.window_detached_notes import DetachedNotesWindow
 from py_fade.gui.window_three_way_completion_editor import ThreeWayCompletionEditorWindow, EditorMode
 from py_fade.providers.providers_manager import MappedModel
@@ -286,6 +287,10 @@ class WidgetSample(QWidget):
         self.beam_search_button.setToolTip("Beam Search")
         self.beam_search_button.clicked.connect(self.open_beam_search)
 
+        self.blockwise_button = QPushButtonWithIcon("view_stream", "", parent=self, icon_size=20, button_size=32)
+        self.blockwise_button.setToolTip("Blockwise Generation")
+        self.blockwise_button.clicked.connect(self.open_blockwise_generation)
+
         self.delete_button = QPushButtonWithIcon("delete", "", parent=self, icon_size=20, button_size=32)
         self.delete_button.setToolTip("Delete Sample")
         self.delete_button.clicked.connect(self.delete_sample)
@@ -293,6 +298,7 @@ class WidgetSample(QWidget):
         buttons_row_layout.addWidget(self.save_button)
         buttons_row_layout.addWidget(self.copy_button)
         buttons_row_layout.addWidget(self.beam_search_button)
+        buttons_row_layout.addWidget(self.blockwise_button)
         buttons_row_layout.addWidget(self.delete_button)
         buttons_row_layout.addStretch()  # Push buttons to the left
 
@@ -1008,6 +1014,27 @@ class WidgetSample(QWidget):
             mapped_model=self.active_model,
         )
         self.beam_search_widget.showMaximized()
+
+    def open_blockwise_generation(self):
+        """Open the blockwise generation window with current prompt."""
+        prompt_text = self.prompt_area.toPlainText().strip()
+        if not prompt_text:
+            QMessageBox.warning(self, "Warning", "Please enter a prompt before starting blockwise generation.")
+            return
+
+        if not self.active_model:
+            QMessageBox.warning(self, "Warning", "Please select a model before starting blockwise generation.")
+            return
+
+        # Create and show blockwise generation window (non-modal, independent)
+        self.blockwise_generation_widget = WindowBlockwiseGeneration(
+            parent=None,  # Independent window
+            app=self.app,
+            prompt=prompt_text,
+            sample_widget=self,
+            mapped_model=self.active_model,
+        )
+        self.blockwise_generation_widget.showMaximized()
 
     def open_detached_notes(self) -> None:
         """
