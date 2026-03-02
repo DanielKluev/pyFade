@@ -425,8 +425,8 @@ class TestGenerationWithMockProvider:
         blockwise_window.width_spin.setValue(2)
         blockwise_window.generate_blocks()
         # Wait for worker thread to finish
-        if blockwise_window.worker_thread:
-            blockwise_window.worker_thread.wait()
+        assert blockwise_window.worker_thread is not None, "Worker thread should be created"
+        blockwise_window.worker_thread.wait()
         qt_app.processEvents()
 
         assert len(blockwise_window.candidate_widgets) > 0
@@ -438,8 +438,8 @@ class TestGenerationWithMockProvider:
         blockwise_window.width_spin.setValue(1)
         blockwise_window.generate_blocks()
         # Wait for worker thread to finish
-        if blockwise_window.worker_thread:
-            blockwise_window.worker_thread.wait()
+        assert blockwise_window.worker_thread is not None, "Worker thread should be created"
+        blockwise_window.worker_thread.wait()
         qt_app.processEvents()
 
         status = blockwise_window.status_label.text()

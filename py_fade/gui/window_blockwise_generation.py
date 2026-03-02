@@ -548,6 +548,9 @@ class WindowBlockwiseGeneration(QWidget):
         # splitting into newline-delimited blocks to preserve block boundaries.
         if self.is_edit_enabled:
             lines = current_text.splitlines(keepends=True)
+            # Ensure the last block has a trailing newline for consistency
+            if lines and not lines[-1].endswith('\n'):
+                lines[-1] += '\n'
             self.controller.accepted_blocks = lines
 
         if self.sample_widget:
