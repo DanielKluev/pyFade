@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Added
+- **Blockwise Generation**: New paragraph-by-paragraph completion generation mode
+  - `BlockwiseGenerationController` for shadow-prefill prompt construction, generate-to-newline logic, automatic deduplication, and instruction-following regeneration with stub templates
+  - `WindowBlockwiseGeneration` — non-modal, independent three-pane window (Current Completion, Generation Settings, Block Candidates)
+  - Current Completion pane with edit guard, save button, and block/word stats gutter
+  - Generation Settings with prompt display, global/block instructions, manual prefix, configurable width/temperature/top-k
+  - Block Candidates with responsive grid layout and action buttons (accept, edit, rewrite, make shorter, make longer)
+  - "Blockwise Generation" button (`view_stream` icon) added to `WidgetSample` control panel
+  - Comprehensive test coverage: 71 new tests for controller and UI components
 - **Beam Management Buttons**: Added bulk and per-beam controls for managing beams in the Beam Search Window
   - **Remove from View button** (`remove_circle_outline` icon) on saved beam frames: removes the beam from the Beam Search Window without deleting it from the database, distinct from the delete button
   - **Unpin button** visible on saved pinned beams: allows unpinning a beam that was saved while pinned
