@@ -39,6 +39,29 @@ PREFILL_COLOR = QColor("#FFF9C4")
 BEAM_TOKEN_COLOR = QColor("#C5E1A5")
 
 
+def short_model_name(model_id: str) -> str:
+    """
+    Shorten model name for display by splitting into components and trying to keep only most relevant parts.
+    """
+    # If the model_id is already short, return as is
+    if len(model_id) <= 20:
+        return model_id
+
+    family_name, rest = model_id.split(":", 1) if ":" in model_id else ("", model_id)
+    model_specs, tuning_specs = rest.split("/", 1) if "/" in rest else (rest, "")
+    model_specs_parts = model_specs.split("-")
+    tuning_specs_parts = tuning_specs.split("-") if tuning_specs else []
+
+    # Keep only the most relevant parts (e.g., first part of model_specs and first part of tuning_specs)
+    relevant_model_specs = "-".join(model_specs_parts[:1]) if model_specs_parts else ""
+    relevant_tuning_specs = "-".join(tuning_specs_parts[:1]) if tuning_specs_parts else ""
+
+    short_name = f"{family_name}:{relevant_model_specs}"
+    if relevant_tuning_specs:
+        short_name += f"/{relevant_tuning_specs}"
+    return short_name
+
+
 class CompletionFrame(QFrame):
     """Card-style shell that wraps completion metadata, rating control,
     and inline actions."""
@@ -318,7 +341,8 @@ class CompletionFrame(QFrame):
 
         # Set model info
         model_id = completion.model_id
-        self.model_label.setText(model_id)
+        self.model_label.setText(short_model_name(model_id))
+        self.model_label.setToolTip(model_id)
 
         # Update temperature label and visibility based on mode and completion type
         self._update_temperature_label(completion)
