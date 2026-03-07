@@ -213,7 +213,7 @@ class PlainTextEdit(QTextEdit):
         Open a Token Count Calculator window pre-populated with the selected text.
 
         Args:
-            selected_text: The currently selected text to analyse.
+            selected_text: The currently selected text to analyze.
         """
         from py_fade.gui.window_token_calculator import WindowTokenCalculator  # pylint: disable=import-outside-toplevel
 
