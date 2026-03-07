@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -196,6 +197,41 @@ class WidgetExportTemplate(CrudFormWidget):
 
         form_layout.addWidget(encryption_group)
 
+        # Multi-Completion settings (SFT only) ----------------------------------
+        multi_completion_group = QGroupBox("Multi-Completion (SFT only)", parent=self)
+        multi_completion_layout = QGridLayout(multi_completion_group)
+        multi_completion_layout.setContentsMargins(12, 12, 12, 12)
+        multi_completion_layout.setHorizontalSpacing(12)
+        multi_completion_layout.setVerticalSpacing(10)
+
+        cps_label = QLabel("Completions per Sample:", parent=multi_completion_group)
+        cps_label.setStyleSheet("font-weight: bold;")
+        self.completions_per_sample_spin = QSpinBox(parent=multi_completion_group)
+        self.completions_per_sample_spin.setMinimum(1)
+        self.completions_per_sample_spin.setMaximum(100)
+        self.completions_per_sample_spin.setValue(1)
+        self.completions_per_sample_spin.setToolTip(
+            "Number of top-rated eligible completions to export per sample. "
+            "With 1 (default) only the single best completion is used. "
+            "Higher values re-use the same prompt paired with the next best completions, reducing diversity collapse.")
+        multi_completion_layout.addWidget(cps_label, 0, 0)
+        multi_completion_layout.addWidget(self.completions_per_sample_spin, 0, 1)
+
+        fbf_label = QLabel("Facet Balancing Factor:", parent=multi_completion_group)
+        fbf_label.setStyleSheet("font-weight: bold;")
+        self.facet_balancing_factor_spin = QDoubleSpinBox(parent=multi_completion_group)
+        self.facet_balancing_factor_spin.setMinimum(0.0)
+        self.facet_balancing_factor_spin.setMaximum(10.0)
+        self.facet_balancing_factor_spin.setDecimals(2)
+        self.facet_balancing_factor_spin.setSingleStep(0.1)
+        self.facet_balancing_factor_spin.setValue(0.0)
+        self.facet_balancing_factor_spin.setToolTip("Reserved for future facet balancing. Must be 0 (disabled). "
+                                                    "When > 0 adjusts effective completions_per_sample per facet to balance facet sizes.")
+        multi_completion_layout.addWidget(fbf_label, 1, 0)
+        multi_completion_layout.addWidget(self.facet_balancing_factor_spin, 1, 1)
+
+        form_layout.addWidget(multi_completion_group)
+
         # Facets -------------------------------------------------------------
         facets_group = QGroupBox("Facet Selection", parent=self)
         facets_layout = QVBoxLayout(facets_group)
@@ -297,6 +333,8 @@ class WidgetExportTemplate(CrudFormWidget):
             self.normalize_checkbox.setChecked(False)
             self.encrypt_checkbox.setChecked(False)
             self.password_input.setText("")
+            self.completions_per_sample_spin.setValue(1)
+            self.facet_balancing_factor_spin.setValue(0.0)
             self.copy_button.setEnabled(False)
             self.set_delete_visible(False)
             self.clear_facets_table()
@@ -315,6 +353,8 @@ class WidgetExportTemplate(CrudFormWidget):
             self.normalize_checkbox.setChecked(template.normalize_style)
             self.encrypt_checkbox.setChecked(template.encrypt)
             self.password_input.setText(template.encryption_password or "")
+            self.completions_per_sample_spin.setValue(getattr(template, "completions_per_sample", 1))
+            self.facet_balancing_factor_spin.setValue(getattr(template, "facet_balancing_factor", 0.0))
             self.copy_button.setEnabled(True)
             self.set_delete_visible(True)
             self.populate_facets_table(template.facets_json)
@@ -711,6 +751,8 @@ class WidgetExportTemplate(CrudFormWidget):
             "encrypt": self.encrypt_checkbox.isChecked(),
             "encryption_password": self.password_input.text().strip() or None,
             "facets": self._collect_facets_from_table(),
+            "completions_per_sample": self.completions_per_sample_spin.value(),
+            "facet_balancing_factor": self.facet_balancing_factor_spin.value(),
         }
 
     def _set_model_selection(self, models: list[str]) -> None:
