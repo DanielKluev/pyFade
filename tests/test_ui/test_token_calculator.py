@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import QWidget
 
 from py_fade.dataset.facet import Facet
 from py_fade.gui.window_token_calculator import WindowTokenCalculator, count_words, STATS_UPDATE_DELAY_MS
+from py_fade.gui.gui_helpers import find_providers_manager
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication
@@ -93,6 +94,63 @@ class TestCountWords:
 
 
 # ---------------------------------------------------------------------------
+# find_providers_manager unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestFindProvidersManager:
+    """Tests for the shared ``find_providers_manager`` helper function."""
+
+    def test_returns_none_for_none_widget(self, qt_app):
+        """
+        Passing ``None`` should return ``None`` without errors.
+        """
+        assert find_providers_manager(None) is None
+
+    def test_returns_none_when_no_ancestor_has_app(self, qt_app):
+        """
+        A widget with no ``app`` attribute in its parent chain should return ``None``.
+        """
+        widget = QWidget()
+        try:
+            assert find_providers_manager(widget) is None
+        finally:
+            widget.deleteLater()
+            qt_app.processEvents()
+
+    def test_finds_providers_manager_in_parent(self, qt_app):
+        """
+        Should locate the providers_manager via the ``app`` attribute of a parent widget.
+        """
+        parent = QWidget()
+        mock_pm = MagicMock()
+        parent.app = MagicMock()
+        parent.app.providers_manager = mock_pm
+        child = QWidget(parent)
+        try:
+            assert find_providers_manager(child) is mock_pm
+        finally:
+            parent.deleteLater()
+            qt_app.processEvents()
+
+    def test_finds_providers_manager_in_grandparent(self, qt_app):
+        """
+        Should walk up multiple levels to find the providers_manager.
+        """
+        grandparent = QWidget()
+        mock_pm = MagicMock()
+        grandparent.app = MagicMock()
+        grandparent.app.providers_manager = mock_pm
+        parent = QWidget(grandparent)
+        child = QWidget(parent)
+        try:
+            assert find_providers_manager(child) is mock_pm
+        finally:
+            grandparent.deleteLater()
+            qt_app.processEvents()
+
+
+# ---------------------------------------------------------------------------
 # WindowTokenCalculator unit tests
 # ---------------------------------------------------------------------------
 
@@ -130,17 +188,14 @@ class TestWindowTokenCalculator:
 
     def test_set_text_updates_stats(self, qt_app, mock_providers_manager):
         """
-        Calling ``set_text`` should replace content and trigger an immediate stats update
-        (the debounce timer fires after timeout, so we process events).
+        Calling ``set_text`` should replace content and immediately update stats
+        (bypassing the debounce timer).
         """
         window = WindowTokenCalculator(mock_providers_manager)
         try:
             window.set_text("one two three four five")
             assert window.get_text() == "one two three four five"
-            # Process events to let the timer fire
-            window._stats_timer.setInterval(0)
-            qt_app.processEvents()
-            window._update_stats()
+            # Stats should already be updated — no timer or processEvents needed
             assert "Words: 5" in window.stats_label.text()
             assert "Tokens: 5" in window.stats_label.text()
         finally:
@@ -310,13 +365,13 @@ class TestPlainTextEditSelectionStats:
 
     def test_find_providers_manager_returns_none_without_app(self, qt_app):
         """
-        ``_find_providers_manager`` should return None when no ancestor has ``app``.
+        ``find_providers_manager`` should return None when no ancestor has ``app``.
         """
         from py_fade.gui.components.widget_plain_text_edit import PlainTextEdit  # pylint: disable=import-outside-toplevel
 
         edit = PlainTextEdit()
         try:
-            result = edit._find_providers_manager()  # pylint: disable=protected-access
+            result = find_providers_manager(edit.parent())
             assert result is None
         finally:
             edit.deleteLater()
@@ -324,7 +379,7 @@ class TestPlainTextEditSelectionStats:
 
     def test_find_providers_manager_finds_app_in_parent(self, qt_app):
         """
-        ``_find_providers_manager`` should locate the providers_manager via
+        ``find_providers_manager`` should locate the providers_manager via
         the ``app`` attribute of an ancestor widget.
         """
         from py_fade.gui.components.widget_plain_text_edit import PlainTextEdit  # pylint: disable=import-outside-toplevel
@@ -336,10 +391,37 @@ class TestPlainTextEditSelectionStats:
 
         edit = PlainTextEdit(parent)
         try:
-            result = edit._find_providers_manager()  # pylint: disable=protected-access
+            result = find_providers_manager(edit.parent())
             assert result is mock_pm
         finally:
             parent.deleteLater()
+            qt_app.processEvents()
+
+    def test_multiline_selection_normalizes_paragraph_separator(self, qt_app):
+        """
+        Multi-line selections should have U+2029 paragraph separators
+        normalized to standard newlines before being passed to the calculator.
+
+        QTextCursor.selectedText() replaces line breaks with U+2029;
+        the context menu should normalize these to ``\\n``.
+        """
+        from py_fade.gui.components.widget_plain_text_edit import PlainTextEdit  # pylint: disable=import-outside-toplevel
+
+        edit = PlainTextEdit()
+        try:
+            edit.setPlainText("line one\nline two\nline three")
+            cursor = edit.textCursor()
+            cursor.select(QTextCursor.SelectionType.Document)
+            edit.setTextCursor(cursor)
+            raw = cursor.selectedText()
+            # Qt returns U+2029 paragraph separator for line breaks
+            assert "\u2029" in raw
+            # After normalization (as done in contextMenuEvent), newlines are used
+            normalized = raw.replace("\u2029", "\n")
+            assert "\u2029" not in normalized
+            assert normalized == "line one\nline two\nline three"
+        finally:
+            edit.deleteLater()
             qt_app.processEvents()
 
 
@@ -362,21 +444,20 @@ class TestCompletionTextEditSelectionStats:
         try:
             assert hasattr(edit, 'contextMenuEvent')
             assert hasattr(edit, '_open_selection_stats')
-            assert hasattr(edit, '_find_providers_manager')
         finally:
             edit.deleteLater()
             qt_app.processEvents()
 
     def test_find_providers_manager_returns_none_without_app(self, qt_app):
         """
-        ``_find_providers_manager`` should return None when no ancestor has ``app``.
+        ``find_providers_manager`` should return None when no ancestor has ``app``.
         """
         from py_fade.gui.components.widget_completion_text_editor import CompletionTextEdit  # pylint: disable=import-outside-toplevel
 
         mock_frame = MagicMock()
         edit = CompletionTextEdit(mock_frame)
         try:
-            result = edit._find_providers_manager()  # pylint: disable=protected-access
+            result = find_providers_manager(edit.parent())
             assert result is None
         finally:
             edit.deleteLater()
@@ -384,7 +465,7 @@ class TestCompletionTextEditSelectionStats:
 
     def test_find_providers_manager_finds_app_in_parent(self, qt_app):
         """
-        ``_find_providers_manager`` should locate the providers_manager via
+        ``find_providers_manager`` should locate the providers_manager via
         the ``app`` attribute of an ancestor widget.
         """
         from py_fade.gui.components.widget_completion_text_editor import CompletionTextEdit  # pylint: disable=import-outside-toplevel
@@ -397,7 +478,7 @@ class TestCompletionTextEditSelectionStats:
         mock_frame = MagicMock()
         edit = CompletionTextEdit(mock_frame, parent)
         try:
-            result = edit._find_providers_manager()  # pylint: disable=protected-access
+            result = find_providers_manager(edit.parent())
             assert result is mock_pm
         finally:
             parent.deleteLater()

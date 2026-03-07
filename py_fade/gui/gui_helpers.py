@@ -2,8 +2,11 @@
 
 from typing import TYPE_CHECKING
 
+from PyQt6.QtWidgets import QWidget
+
 if TYPE_CHECKING:
     from py_fade.app import pyFadeApp
+    from py_fade.providers.providers_manager import InferenceProvidersManager
 
 
 def shorten_tab_title(title: str) -> str:
@@ -90,3 +93,27 @@ def update_dataset_preferences(app: "pyFadeApp", dataset_key: str, updates: dict
     preferences[dataset_key] = dataset_prefs
     app.config.dataset_preferences = preferences
     app.config.save()
+
+
+def find_providers_manager(widget: QWidget | None) -> "InferenceProvidersManager | None":
+    """
+    Walk the widget parent chain to locate an ``InferenceProvidersManager``.
+
+    The providers manager is typically available on the ``app`` attribute of
+    an ancestor widget (e.g. ``WidgetSample`` or ``WidgetDatasetTop``).
+
+    Args:
+        widget: The starting widget whose parent chain will be searched.
+
+    Returns:
+        The providers manager instance, or ``None`` if not found.
+    """
+    current = widget
+    while current is not None:
+        app = getattr(current, "app", None)
+        if app is not None:
+            pm = getattr(app, "providers_manager", None)
+            if pm is not None:
+                return pm
+        current = getattr(current, "parent", lambda: None)()
+    return None

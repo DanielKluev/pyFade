@@ -156,10 +156,16 @@ class WindowTokenCalculator(QDialog):
         """
         Replace the text area content and immediately update statistics.
 
+        Bypasses the debounce timer so the stats label reflects the new
+        content right away.  Useful when programmatically pre-filling text.
+
         Args:
             text: New text content.
         """
         self.text_area.setPlainText(text)
+        # For programmatic updates, bypass the debounce and refresh stats immediately.
+        self._stats_timer.stop()
+        self._update_stats()
 
     def get_text(self) -> str:
         """
