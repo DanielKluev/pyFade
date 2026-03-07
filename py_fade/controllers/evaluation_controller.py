@@ -9,15 +9,16 @@ import logging
 import re
 import random
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
-from py_fade.dataset.dataset import DatasetDatabase
 from py_fade.dataset.facet import Facet
 from py_fade.dataset.sample import Sample
 from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
 
 if TYPE_CHECKING:
+    from typing import Callable
     from py_fade.app import PyFadeApp
+    from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.dataset.export_template import ExportTemplate
     from py_fade.dataset.completion import PromptCompletion
 
@@ -172,11 +173,11 @@ class EvaluationController:
         each sample, and records issues in ``evaluation_report``.
 
         Returns:
-            The completed ``EvaluationReport``.
+            The completed ``EvaluationReport``. If the export template has no facets
+            configured, an empty report is returned and a warning is logged.
 
         Raises:
             RuntimeError: If the dataset session is not initialised.
-            ValueError: If the export template has no facets configured.
         """
         if not self.dataset.session:
             raise RuntimeError("Dataset session is not initialized. Call dataset.initialize() first.")
@@ -448,8 +449,11 @@ class EvaluationController:
                 )
             ]
 
-        count = sum(1 for completion in sample.prompt_revision.completions
-                    if (lambda r: r is not None and r.rating >= threshold)(completion.rating_for_facet(facet)))
+        count = 0
+        for completion in sample.prompt_revision.completions:
+            rating_obj = completion.rating_for_facet(facet)
+            if rating_obj is not None and rating_obj.rating >= threshold:
+                count += 1
 
         if count < min_count:
             return [

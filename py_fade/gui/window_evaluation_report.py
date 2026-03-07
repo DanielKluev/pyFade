@@ -546,6 +546,30 @@ class EvaluationReportWizard(BaseWizard):
             completion_regex_top_n=regex_top_n,
         )
 
+    def _stop_evaluation_worker(self) -> None:
+        """
+        Request interruption of the running evaluation worker and wait for it to finish.
+
+        Safe to call even when no worker is running.
+        """
+        if self.evaluation_worker and self.evaluation_worker.isRunning():
+            self.evaluation_worker.requestInterruption()
+            self.evaluation_worker.wait(30000)
+
+    def closeEvent(self, event) -> None:  # pylint: disable=invalid-name
+        """
+        Stop the evaluation worker thread before closing the dialog.
+        """
+        self._stop_evaluation_worker()
+        super().closeEvent(event)
+
+    def reject(self) -> None:
+        """
+        Stop the evaluation worker thread before rejecting (Cancel / Esc).
+        """
+        self._stop_evaluation_worker()
+        super().reject()
+
     def _start_evaluation(self) -> None:
         """
         Create the evaluation controller and start the background worker thread.

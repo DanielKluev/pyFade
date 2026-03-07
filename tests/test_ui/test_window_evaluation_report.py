@@ -13,12 +13,9 @@ Validates:
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from py_fade.controllers.evaluation_controller import (
-    EvaluationCriteria,
     EvaluationReport,
     IssueRecord,
     SampleIssueRecord,
