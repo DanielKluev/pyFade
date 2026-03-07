@@ -109,7 +109,12 @@ class ExportController:
     def run_export(self) -> int:
         """
         Run the export based on the template configuration.
-        Returns the number of samples (or pairs for DPO) exported.
+
+        Returns:
+            For SFT exports: the number of conversation entries written (may exceed
+            the number of source samples when ``completions_per_sample > 1``).
+            For DPO exports: the number of chosen/rejected pairs exported.
+            For KTO exports: the number of labelled samples exported.
         """
         if not self.export_template:
             raise ValueError("Export template must be set for template-based export")
@@ -279,7 +284,7 @@ class ExportController:
             sharegpt_format.save()
 
         self.export_results.total_exported = len(conversations)
-        self.log.info("SFT export completed: %d samples written to %s", len(conversations), self.output_path)
+        self.log.info("SFT export completed: %d conversation entries written to %s", len(conversations), self.output_path)
         return len(conversations)
 
     def _run_dpo_export(self) -> int:

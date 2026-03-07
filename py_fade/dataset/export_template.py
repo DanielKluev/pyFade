@@ -9,6 +9,7 @@ parameters, and duplication utilities that are consumed by the GUI widgets.
 from __future__ import annotations
 
 import datetime
+import math
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -377,12 +378,22 @@ class ExportTemplate(dataset_base):
             Validated integer >= 1.
 
         Raises:
-            ValueError: if value is less than 1.
+            ValueError: if value is not an integer, is a non-integral float, is a bool,
+                or is less than 1.
         """
-        try:
+        # Explicitly reject booleans, which are a subclass of int in Python.
+        if isinstance(value, bool):
+            raise ValueError("completions_per_sample must be an integer.")
+        # For floats, only accept integral values (e.g. 3.0), reject non-integral ones (e.g. 3.7).
+        if isinstance(value, float):
+            if not value.is_integer():
+                raise ValueError("completions_per_sample must be an integer.")
             int_value = int(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("completions_per_sample must be an integer.") from exc
+        else:
+            try:
+                int_value = int(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("completions_per_sample must be an integer.") from exc
         if int_value < 1:
             raise ValueError("completions_per_sample must be at least 1.")
         return int_value
@@ -396,15 +407,17 @@ class ExportTemplate(dataset_base):
             value: Requested balancing factor.
 
         Returns:
-            Validated float >= 0.0.
+            Validated finite float >= 0.0.
 
         Raises:
-            ValueError: if value is negative.
+            ValueError: if value is not a finite number or is negative.
         """
         try:
             float_value = float(value)
         except (TypeError, ValueError) as exc:
             raise ValueError("facet_balancing_factor must be a number.") from exc
+        if not math.isfinite(float_value):
+            raise ValueError("facet_balancing_factor must be a finite number.")
         if float_value < 0.0:
             raise ValueError("facet_balancing_factor must be >= 0.")
         return float_value

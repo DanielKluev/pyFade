@@ -296,11 +296,25 @@ class TestExportTemplateNewFields:
         assert copy.facet_balancing_factor == 0.0
         assert copy.name != original.name
 
-    def test_normalize_completions_per_sample_int_coercion(self):
+    def test_normalize_completions_per_sample_integral_float(self):
         """
-        Test that _normalize_completions_per_sample converts float to int when value >= 1.
+        Test that _normalize_completions_per_sample accepts integral floats (e.g. 3.0).
         """
-        assert ExportTemplate._normalize_completions_per_sample(3.7) == 3  # type: ignore[arg-type]
+        assert ExportTemplate._normalize_completions_per_sample(3.0) == 3  # type: ignore[arg-type]
+
+    def test_normalize_completions_per_sample_rejects_non_integral_float(self):
+        """
+        Test that _normalize_completions_per_sample rejects non-integral floats (e.g. 3.7).
+        """
+        with pytest.raises(ValueError, match="must be an integer"):
+            ExportTemplate._normalize_completions_per_sample(3.7)  # type: ignore[arg-type]
+
+    def test_normalize_completions_per_sample_rejects_bool(self):
+        """
+        Test that _normalize_completions_per_sample rejects booleans (bool is a subclass of int).
+        """
+        with pytest.raises(ValueError, match="must be an integer"):
+            ExportTemplate._normalize_completions_per_sample(True)  # type: ignore[arg-type]
 
     def test_normalize_completions_per_sample_invalid_type(self):
         """
@@ -308,6 +322,20 @@ class TestExportTemplateNewFields:
         """
         with pytest.raises(ValueError, match="must be an integer"):
             ExportTemplate._normalize_completions_per_sample("abc")  # type: ignore[arg-type]
+
+    def test_normalize_facet_balancing_factor_rejects_nan(self):
+        """
+        Test that _normalize_facet_balancing_factor rejects NaN.
+        """
+        with pytest.raises(ValueError, match="finite"):
+            ExportTemplate._normalize_facet_balancing_factor(float("nan"))
+
+    def test_normalize_facet_balancing_factor_rejects_infinity(self):
+        """
+        Test that _normalize_facet_balancing_factor rejects positive infinity.
+        """
+        with pytest.raises(ValueError, match="finite"):
+            ExportTemplate._normalize_facet_balancing_factor(float("inf"))
 
     def test_normalize_facet_balancing_factor_invalid_type(self):
         """
@@ -546,3 +574,112 @@ class TestFacetExportSummaryPartialField:
         assert stored_info.sample_id == 42
         assert eligible == 1
         assert requested == 3
+
+
+# ===========================================================================
+# Schema migration
+# ===========================================================================
+
+
+class TestSchemaMigration:
+    """
+    Tests for the schema migration that adds completions_per_sample and
+    facet_balancing_factor to the export_templates table in existing databases.
+    """
+
+    def test_migration_adds_columns_to_existing_db(self, tmp_path):
+        """
+        When an existing database was created without completions_per_sample /
+        facet_balancing_factor, DatasetDatabase.initialize() should add those columns
+        so the database opens without errors.
+        """
+        import sqlite3  # pylint: disable=import-outside-toplevel
+        from py_fade.dataset.dataset import DatasetDatabase  # pylint: disable=import-outside-toplevel
+
+        db_path = tmp_path / "old_schema.db"
+
+        # Create the database using a raw SQLite connection to simulate an older
+        # database that was created before the new columns were added.
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("""
+            CREATE TABLE export_templates (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT NOT NULL,
+                date_created DATETIME NOT NULL,
+                model_family TEXT NOT NULL,
+                filename_template TEXT NOT NULL,
+                output_format TEXT NOT NULL,
+                training_type TEXT NOT NULL,
+                facets_json TEXT NOT NULL,
+                normalize_style INTEGER NOT NULL,
+                encrypt INTEGER NOT NULL,
+                encryption_password TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
+
+        # Initialize the dataset — this must run the migration without raising.
+        dataset = DatasetDatabase(str(db_path))
+        dataset.initialize()
+
+        # The new columns must now exist.
+        conn = sqlite3.connect(str(db_path))
+        result = conn.execute("PRAGMA table_info(export_templates)").fetchall()
+        conn.close()
+        column_names = {row[1] for row in result}
+
+        assert "completions_per_sample" in column_names
+        assert "facet_balancing_factor" in column_names
+
+        dataset.dispose()
+
+    def test_migration_is_idempotent_on_fresh_db(self, temp_dataset: "DatasetDatabase"):
+        """
+        Running initialize() (and thus the migration) on a fresh database should not
+        cause errors — the columns already exist and the migration is a no-op.
+        """
+        # If this doesn't raise, the migration is idempotent.
+        temp_dataset.initialize()
+
+
+# ===========================================================================
+# Display name formatting
+# ===========================================================================
+
+
+class TestFormatSampleDisplayName:
+    """
+    Tests for the _format_sample_display_name helper in WindowExportWizard.
+    """
+
+    def test_group_path_present(self):
+        """
+        When group_path is set, display name is 'group_path/sample_title'.
+        """
+        from py_fade.gui.window_export_wizard import ExportWizard  # pylint: disable=import-outside-toplevel
+        from py_fade.controllers.export_controller import SampleExportInfo  # pylint: disable=import-outside-toplevel
+
+        info = SampleExportInfo(sample_id=1, sample_title="My Sample", group_path="my_group")
+        assert ExportWizard._format_sample_display_name(info) == "my_group/My Sample"
+
+    def test_group_path_none(self):
+        """
+        When group_path is None, display name is just 'sample_title' — no leading slash.
+        """
+        from py_fade.gui.window_export_wizard import ExportWizard  # pylint: disable=import-outside-toplevel
+        from py_fade.controllers.export_controller import SampleExportInfo  # pylint: disable=import-outside-toplevel
+
+        info = SampleExportInfo(sample_id=2, sample_title="Root Sample", group_path=None)
+        assert ExportWizard._format_sample_display_name(info) == "Root Sample"
+
+    def test_group_path_empty_string(self):
+        """
+        When group_path is an empty string, display name is just 'sample_title'.
+        """
+        from py_fade.gui.window_export_wizard import ExportWizard  # pylint: disable=import-outside-toplevel
+        from py_fade.controllers.export_controller import SampleExportInfo  # pylint: disable=import-outside-toplevel
+
+        info = SampleExportInfo(sample_id=3, sample_title="Root Sample 2", group_path="")
+        assert ExportWizard._format_sample_display_name(info) == "Root Sample 2"
