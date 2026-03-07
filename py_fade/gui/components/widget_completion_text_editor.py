@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor, QMouseEvent
+from PyQt6.QtGui import QAction, QColor, QTextCharFormat, QTextCursor, QMouseEvent
 from PyQt6.QtWidgets import QTextEdit, QToolTip, QWidget
 
 from py_fade.gui.auxillary import logprob_to_qcolor
@@ -337,3 +337,49 @@ class CompletionTextEdit(QTextEdit):
             cursor.setPosition(start_pos)
             cursor.setPosition(end_pos, QTextCursor.MoveMode.KeepAnchor)
             cursor.mergeCharFormat(highlight_format)
+
+    def contextMenuEvent(self, event) -> None:  # pylint: disable=invalid-name
+        """
+        Override contextMenuEvent to add a selection statistics action.
+
+        Creates the standard context menu and appends a "Show Selection Statistics"
+        action that opens a :class:`~py_fade.gui.window_token_calculator.WindowTokenCalculator`
+        window pre-populated with the currently selected text.
+
+        Args:
+            event: QContextMenuEvent with position information.
+        """
+        menu = self.createStandardContextMenu()
+
+        # Add separator before selection statistics
+        menu.addSeparator()
+
+        selected_text = self.textCursor().selectedText()
+        # QTextCursor.selectedText() uses U+2029 paragraph separator for line breaks;
+        # normalize to standard newlines for accurate word/token counting.
+        normalized_selected_text = selected_text.replace("\u2029", "\n")
+        show_stats_action = QAction("Show Selection Statistics", self)
+        show_stats_action.setEnabled(bool(normalized_selected_text))
+        show_stats_action.triggered.connect(lambda: self._open_selection_stats(normalized_selected_text))
+        menu.addAction(show_stats_action)
+
+        menu.exec(event.globalPos())
+
+    def _open_selection_stats(self, selected_text: str) -> None:
+        """
+        Open a Token Count Calculator window pre-populated with the selected text.
+
+        Args:
+            selected_text: The currently selected text to analyze.
+        """
+        from py_fade.gui.window_token_calculator import WindowTokenCalculator  # pylint: disable=import-outside-toplevel
+        from py_fade.gui.gui_helpers import find_providers_manager  # pylint: disable=import-outside-toplevel
+
+        providers_manager = find_providers_manager(self.parent())
+        if providers_manager is None:
+            self.log.warning("Cannot open selection stats: providers_manager not found in parent chain")
+            return
+
+        window = WindowTokenCalculator(providers_manager, initial_text=selected_text, parent=self.window())
+        window.show()
+        self.log.debug("Opened Token Count Calculator with %d characters of selected text", len(selected_text))

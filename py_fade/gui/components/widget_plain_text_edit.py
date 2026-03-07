@@ -143,6 +143,19 @@ class PlainTextEdit(QTextEdit):
         insert_assistant_end_action.triggered.connect(lambda: self.insert_role_tag_at_end(FLAT_PREFIX_ASSISTANT))
         menu.addAction(insert_assistant_end_action)
 
+        # Add separator before selection statistics
+        menu.addSeparator()
+
+        # Show Selection Statistics action (enabled only when text is selected)
+        show_stats_action = QAction("Show Selection Statistics", self)
+        selected_text = self.textCursor().selectedText()
+        # QTextCursor.selectedText() uses U+2029 paragraph separator for line breaks;
+        # normalize to standard newlines for accurate word/token counting.
+        normalized_selected_text = selected_text.replace("\u2029", "\n")
+        show_stats_action.setEnabled(bool(normalized_selected_text))
+        show_stats_action.triggered.connect(lambda: self._open_selection_stats(normalized_selected_text))
+        menu.addAction(show_stats_action)
+
         # Show the menu at the event position
         menu.exec(event.globalPos())
 
@@ -177,3 +190,22 @@ class PlainTextEdit(QTextEdit):
         cursor.insertText(tag)
 
         self.log.debug("Inserted role tag %s at end of text", tag)
+
+    def _open_selection_stats(self, selected_text: str) -> None:
+        """
+        Open a Token Count Calculator window pre-populated with the selected text.
+
+        Args:
+            selected_text: The currently selected text to analyze.
+        """
+        from py_fade.gui.window_token_calculator import WindowTokenCalculator  # pylint: disable=import-outside-toplevel
+        from py_fade.gui.gui_helpers import find_providers_manager  # pylint: disable=import-outside-toplevel
+
+        providers_manager = find_providers_manager(self.parent())
+        if providers_manager is None:
+            self.log.warning("Cannot open selection stats: providers_manager not found in parent chain")
+            return
+
+        window = WindowTokenCalculator(providers_manager, initial_text=selected_text, parent=self.window())
+        window.show()
+        self.log.debug("Opened Token Count Calculator with %d characters of selected text", len(selected_text))

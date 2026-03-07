@@ -90,6 +90,7 @@ class WidgetDatasetTop(QMainWindow):
         self.file_menu: QMenu | None = None
         self.export_menu: QMenu | None = None
         self.preferences_menu: QMenu | None = None
+        self.tools_menu: QMenu | None = None
         self.help_menu: QMenu | None = None
         self.action_encrypt_save_as: QAction | None = None
         self.action_change_password: QAction | None = None
@@ -101,6 +102,7 @@ class WidgetDatasetTop(QMainWindow):
         self.action_export_wizard: QAction | None = None
         self.action_export_current_facet: QAction | None = None
         self.action_manage_models: QAction | None = None
+        self.action_token_calculator: QAction | None = None
         self.action_open_encryption_docs: QAction | None = None
         self.action_about: QAction | None = None
         self.facet_summary_button: QPushButton | None = None
@@ -235,6 +237,12 @@ class WidgetDatasetTop(QMainWindow):
             return
         self.preferences_menu = preferences_menu
         self.action_manage_models = preferences_menu.addAction("Manage Models...")
+
+        tools_menu = menu_bar.addMenu("&Tools")
+        if tools_menu is None:  # pragma: no cover - defensive guard
+            return
+        self.tools_menu = tools_menu
+        self.action_token_calculator = tools_menu.addAction("Token Count Calculator")
 
         help_menu = menu_bar.addMenu("&Help")
         if help_menu is None:  # pragma: no cover - defensive guard
@@ -489,6 +497,13 @@ class WidgetDatasetTop(QMainWindow):
         dialog = ModelManagerWindow(self, self.app)
         dialog.exec()
 
+    def _handle_token_calculator(self, _checked: bool = False) -> None:
+        """Open a new Token Count Calculator window with an empty text area."""
+        from py_fade.gui.window_token_calculator import WindowTokenCalculator  # pylint: disable=import-outside-toplevel
+
+        window = WindowTokenCalculator(self.app.providers_manager, parent=self)
+        window.show()
+
     def _handle_open_encryption_docs(self, _checked: bool = False) -> None:
         """Open the encryption documentation in the user's default browser."""
 
@@ -640,6 +655,8 @@ class WidgetDatasetTop(QMainWindow):
             self.action_export_current_facet.triggered.connect(self._handle_export_current_facet)
         if self.action_manage_models is not None:
             self.action_manage_models.triggered.connect(self._handle_manage_models)
+        if self.action_token_calculator is not None:
+            self.action_token_calculator.triggered.connect(self._handle_token_calculator)
         if self.action_open_encryption_docs is not None:
             self.action_open_encryption_docs.triggered.connect(self._handle_open_encryption_docs)
         if self.action_about is not None:
