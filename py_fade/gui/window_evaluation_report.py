@@ -1,5 +1,5 @@
 """
-Non-modal wizard that runs an export template in dry-run mode and shows per-sample issues.
+Modal wizard that runs an export template in dry-run mode and shows per-sample issues.
 
 Flow:
  1. Select export template.
