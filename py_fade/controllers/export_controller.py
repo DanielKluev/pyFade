@@ -54,8 +54,9 @@ class FacetExportSummary:
     facet_name: str
     exported_samples: list[SampleExportInfo] = field(default_factory=list)
     failed_samples: list[tuple[SampleExportInfo, list[str]]] = field(default_factory=list)  # (sample, reasons)
-    # Samples that had fewer eligible completions than completions_per_sample requested.
-    partial_completion_samples: list[tuple[SampleExportInfo, int, int]] = field(default_factory=list)  # (sample, eligible_count, requested)
+    # Samples that had fewer available completions than completions_per_sample requested.
+    partial_completion_samples: list[tuple[SampleExportInfo, int,
+                                           int]] = field(default_factory=list)  # (sample, available_count, requested)
 
 
 @dataclass
@@ -250,14 +251,14 @@ class ExportController:
                     facet_summary.exported_samples.append(sample_info)
                     exported_count += 1
                     # Track partial completion coverage (sample yielded fewer conversations than requested)
-                    eligible_count = len(sample_conversations)
-                    if eligible_count < completions_per_sample:
-                        facet_summary.partial_completion_samples.append((sample_info, eligible_count, completions_per_sample))
+                    available_count = len(sample_conversations)
+                    if available_count < completions_per_sample:
+                        facet_summary.partial_completion_samples.append((sample_info, available_count, completions_per_sample))
                         self.log.info(
                             "Sample [%d] %s: only %d/%d eligible completions available",
                             sample.id,
                             sample.title,
-                            eligible_count,
+                            available_count,
                             completions_per_sample,
                         )
                 else:

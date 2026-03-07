@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Added
+- **Multiple Completions per SFT Sample**: SFT export can now utilize multiple eligible completions per sample to reduce diversity collapse
+  - `ExportTemplate` model: new `completions_per_sample` field (int, default 1) and `facet_balancing_factor` field (float, default 0.0) persisted in the database
+  - `ExportController._run_sft_export()`: exports up to K top-rated eligible completions per sample (K = `completions_per_sample`), pairing each with the same prompt; when a sample has fewer than K eligible completions, only available ones are exported
+  - `FacetExportSummary`: new `partial_completion_samples` field tracks samples that yielded fewer conversations than requested (available count < K)
+  - `facet_balancing_factor > 0` raises `NotImplementedError` (reserved for future per-facet balancing logic)
+  - `WidgetExportTemplate`: new "Multi-Completion (SFT only)" group with `completions_per_sample` (QSpinBox, 1–100) and `facet_balancing_factor` (QDoubleSpinBox, 0.0–10.0) controls
+  - Export Wizard: template details display shows completions_per_sample info; results summary reports partial-coverage samples with available/requested counts
+  - 18 comprehensive unit tests covering model field validation, create/update/duplicate, export with K=1/K=M/K>M, completion ordering, multi-sample scenarios, and partial coverage tracking
+
 - **Blockwise Generation**: New paragraph-by-paragraph completion generation mode
   - `BlockwiseGenerationController` for shadow-prefill prompt construction, generate-to-newline logic, automatic deduplication, and instruction-following regeneration with stub templates
   - `WindowBlockwiseGeneration` — non-modal, independent three-pane window (Current Completion, Generation Settings, Block Candidates)

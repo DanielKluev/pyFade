@@ -359,11 +359,11 @@ class ExportWizard(BaseWizard):
         ]
 
         if template.training_type == "SFT":
-            cps_note = " (single best — classic behavior)" if completions_per_sample == 1 else " top-rated completions per sample"
+            cps_note = " (single best - classic behavior)" if completions_per_sample == 1 else " top-rated completions per sample"
             details.append(f"<p><b>Completions per Sample:</b> {completions_per_sample}{cps_note}</p>")
             if facet_balancing_factor > 0.0:
                 details.append(f"<p><b>Facet Balancing Factor:</b> {facet_balancing_factor:.2f} "
-                               "<i>(reserved — not yet implemented)</i></p>")
+                               "<i>(reserved - not yet implemented)</i></p>")
 
         if template.facets_json:
             details.append("<p><b>Facets:</b></p><ul>")
@@ -594,12 +594,12 @@ class ExportWizard(BaseWizard):
         partial_samples = getattr(facet_summary, "partial_completion_samples", [])
         if partial_samples:
             html_lines.append(
-                f"<p><b>Partial Coverage ({len(partial_samples)} samples had fewer eligible completions than requested):</b></p>")
+                f"<p><b>Partial Coverage ({len(partial_samples)} samples had fewer available completions than requested):</b></p>")
             html_lines.append("<ul>")
-            for sample_info, eligible_count, requested_count in partial_samples:
+            for sample_info, available_count, requested_count in partial_samples:
                 display_name = f"{sample_info.group_path or ''}/{sample_info.sample_title}"
                 html_lines.append(
-                    f"<li style='color: #e65100;'>{display_name} — {eligible_count}/{requested_count} completions available</li>")
+                    f"<li style='color: #e65100;'>{display_name} - {available_count}/{requested_count} completions available</li>")
             html_lines.append("</ul>")
 
         # Failed samples

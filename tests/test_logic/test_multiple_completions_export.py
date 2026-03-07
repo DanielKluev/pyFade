@@ -8,12 +8,12 @@ Covers:
 - ExportController: facet_balancing_factor > 0 raises NotImplementedError
 - FacetExportSummary: partial_completion_samples tracking
 """
+# pylint: disable=protected-access
 
 from __future__ import annotations
 
 import json
 import pathlib
-import tempfile
 from typing import TYPE_CHECKING
 
 import pytest
@@ -25,12 +25,12 @@ from py_fade.providers.flat_prefix_template import FLAT_PREFIX_USER
 from tests.helpers.data_helpers import create_completion_with_rating_and_logprobs
 from tests.helpers.export_wizard_helpers import (
     create_and_run_export_test,
-    create_simple_export_template,
     setup_facet_sample_and_completion,
 )
 
 if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
+    from py_fade.dataset.prompt import PromptRevision
     from py_fade.app import pyFadeApp
 
 # ---------------------------------------------------------------------------
@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 
 
 def _make_sft_template(dataset: "DatasetDatabase", facet: Facet, completions_per_sample: int = 1, facet_balancing_factor: float = 0.0,
-                       name: str = "MultiCompletion Template") -> ExportTemplate:
+                       name: str = "Test Template") -> ExportTemplate:
     """
     Create an SFT export template with completions_per_sample and facet_balancing_factor set.
     """
@@ -63,8 +63,8 @@ def _make_sft_template(dataset: "DatasetDatabase", facet: Facet, completions_per
     return template
 
 
-def _add_completion(dataset: "DatasetDatabase", prompt_rev, model_id: str, facet: Facet, rating: int, text: str, min_logprob: float = -0.3,
-                    avg_logprob: float = -0.2):
+def _add_completion(dataset: "DatasetDatabase", prompt_rev: "PromptRevision", model_id: str, facet: Facet, rating: int, text: str,
+                    min_logprob: float = -0.3, avg_logprob: float = -0.2):
     """
     Shorthand to add a rated completion with logprobs to a prompt revision.
     """
@@ -416,8 +416,8 @@ class TestMultipleCompletionsSftExport:
             # Sample appears in partial_completion_samples
             facet_summary = controller.export_results.facet_summaries[0]
             assert len(facet_summary.partial_completion_samples) == 1
-            sample_info, eligible_count, requested_count = facet_summary.partial_completion_samples[0]
-            assert eligible_count == 2
+            sample_info, available_count, requested_count = facet_summary.partial_completion_samples[0]
+            assert available_count == 2
             assert requested_count == 3
             assert sample_info.sample_title == "Test Sample"
         finally:
@@ -502,7 +502,7 @@ class TestMultipleCompletionsSftExport:
 
         template = _make_sft_template(temp_dataset, facet, completions_per_sample=3, name="OrderTest")
 
-        controller, entries, path = _run_export_and_load(app_with_dataset, temp_dataset, template, model_id)
+        _, entries, path = _run_export_and_load(app_with_dataset, temp_dataset, template, model_id)
         try:
             assert len(entries) == 3
 
@@ -529,7 +529,7 @@ class TestFacetExportSummaryPartialField:
         FacetExportSummary.partial_completion_samples should default to empty list.
         """
         summary = FacetExportSummary(facet_id=1, facet_name="Test")
-        assert summary.partial_completion_samples == []
+        assert not summary.partial_completion_samples
 
     def test_partial_completion_samples_can_append(self):
         """
