@@ -54,6 +54,9 @@ class FacetExportSummary:
     facet_name: str
     exported_samples: list[SampleExportInfo] = field(default_factory=list)
     failed_samples: list[tuple[SampleExportInfo, list[str]]] = field(default_factory=list)  # (sample, reasons)
+    # Samples that had fewer available completions than completions_per_sample requested.
+    partial_completion_samples: list[tuple[SampleExportInfo, int,
+                                           int]] = field(default_factory=list)  # (sample, available_count, requested)
 
 
 @dataclass
@@ -106,7 +109,12 @@ class ExportController:
     def run_export(self) -> int:
         """
         Run the export based on the template configuration.
-        Returns the number of samples (or pairs for DPO) exported.
+
+        Returns:
+            For SFT exports: the number of conversation entries written (may exceed
+            the number of source samples when ``completions_per_sample > 1``).
+            For DPO exports: the number of chosen/rejected pairs exported.
+            For KTO exports: the number of labelled samples exported.
         """
         if not self.export_template:
             raise ValueError("Export template must be set for template-based export")
@@ -127,8 +135,22 @@ class ExportController:
     def _run_sft_export(self) -> int:
         """
         Run SFT export - exports conversations with best completions.
-        Returns the number of samples exported.
+
+        Supports exporting multiple top-rated completions per sample via the
+        ``completions_per_sample`` field on the export template.  If
+        ``facet_balancing_factor`` is greater than 0 the method raises
+        :exc:`NotImplementedError` because that feature is not yet implemented.
+
+        Returns:
+            Number of conversation entries written to the output file.
         """
+        # Facet balancing is reserved for a future implementation.
+        facet_balancing_factor = getattr(self.export_template, "facet_balancing_factor", 0.0)
+        if facet_balancing_factor > 0.0:
+            raise NotImplementedError("facet_balancing_factor > 0 is not yet implemented. Set facet_balancing_factor to 0 to export.")
+
+        completions_per_sample = getattr(self.export_template, "completions_per_sample", 1)
+
         # Initialize export results
         self.export_results = ExportResults()
 
@@ -218,9 +240,9 @@ class ExportController:
                     self.log.info("Skipping unfinished sample [%d]: %s", sample.id, sample.title)
                     continue
 
-                # Try to convert sample with threshold checking
-                conversation, failure_reasons = self._sample_to_conversation_with_validation(sample, facet, min_rating, min_logprob,
-                                                                                             avg_logprob)
+                # Try to get the top-K eligible conversations for this sample.
+                sample_conversations, failure_reasons = self._sample_to_conversations_with_validation(
+                    sample, facet, min_rating, min_logprob, avg_logprob, completions_per_sample)
 
                 sample_info = SampleExportInfo(
                     sample_id=sample.id,
@@ -228,11 +250,22 @@ class ExportController:
                     group_path=sample.group_path,
                 )
 
-                if conversation:
-                    conversations.append(conversation)
+                if sample_conversations:
+                    conversations.extend(sample_conversations)
                     exported_sample_ids.add(sample.id)
                     facet_summary.exported_samples.append(sample_info)
                     exported_count += 1
+                    # Track partial completion coverage (sample yielded fewer conversations than requested)
+                    available_count = len(sample_conversations)
+                    if available_count < completions_per_sample:
+                        facet_summary.partial_completion_samples.append((sample_info, available_count, completions_per_sample))
+                        self.log.info(
+                            "Sample [%d] %s: only %d/%d eligible completions available",
+                            sample.id,
+                            sample.title,
+                            available_count,
+                            completions_per_sample,
+                        )
                 else:
                     facet_summary.failed_samples.append((sample_info, failure_reasons))
 
@@ -251,7 +284,7 @@ class ExportController:
             sharegpt_format.save()
 
         self.export_results.total_exported = len(conversations)
-        self.log.info("SFT export completed: %d samples written to %s", len(conversations), self.output_path)
+        self.log.info("SFT export completed: %d conversation entries written to %s", len(conversations), self.output_path)
         return len(conversations)
 
     def _run_dpo_export(self) -> int:
@@ -561,8 +594,36 @@ class ExportController:
         Returns:
             Tuple of (conversation or None, list of failure reasons)
         """
+        conversations, failure_reasons = self._sample_to_conversations_with_validation(sample, facet, min_rating, min_logprob, avg_logprob,
+                                                                                       completions_per_sample=1)
+        if conversations:
+            return conversations[0], []
+        return None, failure_reasons
+
+    def _sample_to_conversations_with_validation(self, sample: Sample, facet: "Facet", min_rating: int, min_logprob: float,
+                                                 avg_logprob: float,
+                                                 completions_per_sample: int = 1) -> tuple[list[CommonConversation], list[str]]:
+        """
+        Convert a Sample to a list of CommonConversations, one per top-eligible completion.
+
+        Returns up to *completions_per_sample* conversations corresponding to the top
+        eligible completions sorted by rating descending.  If no eligible completion
+        exists, an empty list is returned together with failure reasons.
+
+        Args:
+            sample: Sample to convert.
+            facet: Facet for which to find rated completions.
+            min_rating: Minimum rating threshold.
+            min_logprob: Minimum token-level logprob threshold.
+            avg_logprob: Average token-level logprob threshold.
+            completions_per_sample: Maximum number of completions (conversations) to return.
+
+        Returns:
+            Tuple of (list of conversations, list of failure reasons).
+            The list of conversations is empty on failure.
+        """
         if not sample.prompt_revision or not sample.prompt_revision.completions:
-            return None, ["No prompt revision or completions"]
+            return [], ["No prompt revision or completions"]
 
         # Get completions rated for this facet
         rated_completions = []
@@ -572,14 +633,14 @@ class ExportController:
                 rated_completions.append((completion, rating_obj.rating))
 
         if not rated_completions:
-            return None, ["No rated completions found"]
+            return [], ["No rated completions found"]
 
         # Find completions that meet rating threshold
         high_rated = [comp for comp, rating in rated_completions if rating >= min_rating]
 
         if not high_rated:
             max_rating = max(rating for _, rating in rated_completions)
-            return None, [f"No completion with rating >= {min_rating} (max rating: {max_rating})"]
+            return [], [f"No completion with rating >= {min_rating} (max rating: {max_rating})"]
 
         # For exports, use the target model ID specified in constructor or fall back to first available model
         target_model_id = self.target_model_id
@@ -612,22 +673,29 @@ class ExportController:
                             reasons.append(f"  Completion {completion.id}: min_logprob {logprobs.min_logprob:.3f} < {min_logprob}")
                         if logprobs.avg_logprob < avg_logprob:
                             reasons.append(f"  Completion {completion.id}: avg_logprob {logprobs.avg_logprob:.3f} < {avg_logprob}")
-            return None, reasons
+            return [], reasons
 
-        # Get best valid completion (highest rated among those that pass thresholds)
-        best_completion = max(valid_completions, key=lambda x: self._get_completion_rating(x[0], facet))[0]
+        # Sort all valid completions by rating descending and take the top K.
+        sorted_completions = sorted(valid_completions, key=lambda x: self._get_completion_rating(x[0], facet), reverse=True)
+        top_completions = sorted_completions[:completions_per_sample]
 
-        # Parse prompt text into multi-turn conversation history using flat prefix markers.
-        # If parsing fails (e.g., empty prompt or malformed marker sequence) record the error
-        # as a per-sample failure reason instead of aborting the whole export run.
+        # Parse prompt text once - shared across all completions for this sample.
+        # If parsing fails, the whole sample is skipped.
         try:
-            prompt_conversation = parse_flat_prefix_string(sample.prompt_revision.prompt_text)
-            prompt_conversation.append({"role": "assistant", "content": best_completion.completion_text})
+            base_conversation = parse_flat_prefix_string(sample.prompt_revision.prompt_text)
         except ValueError as exc:
             self.log.warning("Skipping sample %d: failed to parse prompt text: %s", sample.id, exc)
-            return None, [f"Failed to parse prompt text: {exc}"]
+            return [], [f"Failed to parse prompt text: {exc}"]
 
-        return prompt_conversation, []
+        # Build one conversation per selected completion.
+        conversations: list[CommonConversation] = []
+        for completion, _ in top_completions:
+            # Create a fresh copy of the base conversation for each completion.
+            conv = CommonConversation(messages=list(base_conversation.messages))
+            conv.append({"role": "assistant", "content": completion.completion_text})
+            conversations.append(conv)
+
+        return conversations, []
 
     def _get_completion_rating(self, completion: PromptCompletion, facet: "Facet") -> int:
         """

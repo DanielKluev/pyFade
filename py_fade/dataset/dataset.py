@@ -111,11 +111,56 @@ class DatasetDatabase:
         return sqlcipher3  # type: ignore[attr-defined]
 
     def initialize(self) -> None:
-        """Create database tables if needed and open a new session."""
+        """Create database tables if needed and open a new session.
+
+        Also runs lightweight schema migrations for columns added after the initial
+        table creation, so that existing databases are upgraded on first open.
+        """
 
         self.dataset_base.metadata.create_all(self.engine)
+        self._run_schema_migrations()
         if self.session is None:
             self.session = self._session_factory()
+
+    def _run_schema_migrations(self) -> None:
+        """
+        Apply incremental schema migrations for columns added after initial table creation.
+
+        Each migration is idempotent: it checks whether the column already exists
+        before issuing ``ALTER TABLE``, so running it on a fresh database is harmless.
+
+        SQLAlchemy's ``create_all()`` only creates new tables; it never alters existing
+        ones.  Any time a non-nullable column with a default value is added to an ORM
+        model, a matching entry must be added here so that older databases are upgraded
+        when they are next opened.
+        """
+        with self.engine.connect() as conn:
+            # --- export_templates table -------------------------------------------
+            # Added in: Multiple Completions per SFT Sample feature
+            self._add_column_if_missing(conn, "export_templates", "completions_per_sample", "INTEGER NOT NULL DEFAULT 1")
+            self._add_column_if_missing(conn, "export_templates", "facet_balancing_factor", "REAL NOT NULL DEFAULT 0.0")
+
+    @staticmethod
+    def _add_column_if_missing(conn, table_name: str, column_name: str, column_definition: str) -> None:
+        """
+        Add *column_name* to *table_name* with *column_definition* if it does not exist.
+
+        Uses ``PRAGMA table_info`` to detect existing columns and ``ALTER TABLE ... ADD COLUMN``
+        to add missing ones.  This is the standard SQLite approach for schema migration.
+
+        Args:
+            conn: An active SQLAlchemy connection.
+            table_name: Name of the table to alter.
+            column_name: Name of the column to add.
+            column_definition: SQL type and constraint string (e.g. ``"INTEGER NOT NULL DEFAULT 1"``).
+        """
+        from sqlalchemy import text  # pylint: disable=import-outside-toplevel
+        result = conn.execute(text(f"PRAGMA table_info({table_name})"))
+        existing_columns = {row[1] for row in result.fetchall()}
+        if column_name not in existing_columns:
+            conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"))
+            conn.commit()
+            logging.getLogger("DatasetDatabase").info("Schema migration: added column '%s' to table '%s'", column_name, table_name)
 
     def get_session(self) -> Session:
         """Return the active SQLAlchemy session."""

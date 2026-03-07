@@ -348,6 +348,8 @@ class ExportWizard(BaseWizard):
 
         template = self.selected_template
         model_families_list = template.model_family.split(",") if template.model_family else []
+        completions_per_sample = getattr(template, "completions_per_sample", 1)
+        facet_balancing_factor = getattr(template, "facet_balancing_factor", 0.0)
         details = [
             f"<h3>{template.name}</h3>",
             f"<p><b>Description:</b> {template.description}</p>",
@@ -355,6 +357,13 @@ class ExportWizard(BaseWizard):
             f"<p><b>Output Format:</b> {template.output_format}</p>",
             f"<p><b>Model Families:</b> {', '.join(model_families_list) if model_families_list else 'None'}</p>",
         ]
+
+        if template.training_type == "SFT":
+            cps_note = " (single best - classic behavior)" if completions_per_sample == 1 else " top-rated completions per sample"
+            details.append(f"<p><b>Completions per Sample:</b> {completions_per_sample}{cps_note}</p>")
+            if facet_balancing_factor > 0.0:
+                details.append(f"<p><b>Facet Balancing Factor:</b> {facet_balancing_factor:.2f} "
+                               "<i>(reserved - not yet implemented)</i></p>")
 
         if template.facets_json:
             details.append("<p><b>Facets:</b></p><ul>")
@@ -575,18 +584,30 @@ class ExportWizard(BaseWizard):
             html_lines.append(f"<p><b>Exported Samples ({len(facet_summary.exported_samples)}):</b></p>")
             html_lines.append("<ul>")
             for sample_info in facet_summary.exported_samples:
-                display_name = f"{sample_info.group_path or ''}/{sample_info.sample_title}"
+                display_name = self._format_sample_display_name(sample_info)
                 html_lines.append(f"<li>{display_name}</li>")
             html_lines.append("</ul>")
         else:
             html_lines.append("<p><i>No samples exported from this facet.</i></p>")
+
+        # Partial completion samples — exported but with fewer completions than requested
+        partial_samples = getattr(facet_summary, "partial_completion_samples", [])
+        if partial_samples:
+            html_lines.append(
+                f"<p><b>Partial Coverage ({len(partial_samples)} samples had fewer available completions than requested):</b></p>")
+            html_lines.append("<ul>")
+            for sample_info, available_count, requested_count in partial_samples:
+                display_name = self._format_sample_display_name(sample_info)
+                html_lines.append(
+                    f"<li style='color: #e65100;'>{display_name} - {available_count}/{requested_count} completions available</li>")
+            html_lines.append("</ul>")
 
         # Failed samples
         if facet_summary.failed_samples:
             html_lines.append(f"<p><b>Failed Samples ({len(facet_summary.failed_samples)}):</b></p>")
             html_lines.append("<ul>")
             for sample_info, reasons in facet_summary.failed_samples:
-                display_name = f"{sample_info.group_path or ''}/{sample_info.sample_title}"
+                display_name = self._format_sample_display_name(sample_info)
                 html_lines.append(f"<li>{display_name}")
                 if reasons:
                     html_lines.append("<ul>")
@@ -597,6 +618,18 @@ class ExportWizard(BaseWizard):
             html_lines.append("</ul>")
 
         return html_lines
+
+    @staticmethod
+    def _format_sample_display_name(sample_info) -> str:
+        """
+        Return a human-readable display name for *sample_info*.
+
+        Includes the group path as a prefix only when it is non-empty, avoiding
+        the leading slash that would otherwise appear for root-level samples.
+        """
+        if sample_info.group_path:
+            return f"{sample_info.group_path}/{sample_info.sample_title}"
+        return sample_info.sample_title
 
     def update_results_display(self):
         """

@@ -9,6 +9,7 @@ parameters, and duplication utilities that are consumed by the GUI widgets.
 from __future__ import annotations
 
 import datetime
+import math
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -51,6 +52,10 @@ class ExportTemplate(dataset_base):
     normalize_style: Mapped[bool] = mapped_column(nullable=False, default=False)
     encrypt: Mapped[bool] = mapped_column(nullable=False, default=False)
     encryption_password: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Number of top-rated eligible completions to export per sample (1 = classic single-best behavior).
+    completions_per_sample: Mapped[int] = mapped_column(nullable=False, default=1)
+    # Facet balancing factor (0 = disabled; > 0 = reserved for future balancing logic).
+    facet_balancing_factor: Mapped[float] = mapped_column(nullable=False, default=0.0)
 
     # ------------------------------------------------------------------
     # Query helpers
@@ -89,9 +94,26 @@ class ExportTemplate(dataset_base):
     @classmethod
     def create(cls, dataset: "DatasetDatabase", *, name: str, description: str, training_type: str, output_format: str,
                model_families: Iterable[str], filename_template: str | None = None, normalize_style: bool = False, encrypt: bool = False,
-               encryption_password: str | None = None, facets: Iterable[FacetConfig] | None = None) -> "ExportTemplate":
+               encryption_password: str | None = None, facets: Iterable[FacetConfig] | None = None, completions_per_sample: int = 1,
+               facet_balancing_factor: float = 0.0) -> "ExportTemplate":
         """
         Create a new export template and attach it to *dataset*.
+
+        Args:
+            dataset: The dataset to attach the template to.
+            name: Unique name for the template.
+            description: Human-readable description.
+            training_type: One of TRAINING_TYPES (e.g. 'SFT', 'DPO', 'KTO').
+            output_format: One of OUTPUT_FORMATS for the given training_type.
+            model_families: Iterable of model family strings.
+            filename_template: Optional output filename pattern.
+            normalize_style: Whether to apply chat-style formatting normalization.
+            encrypt: Whether to encrypt the exported files.
+            encryption_password: Optional password for encryption.
+            facets: Optional iterable of facet configuration dicts.
+            completions_per_sample: How many top-rated completions to export per sample (SFT only).
+                With 1 (default) only the single best completion is exported.
+            facet_balancing_factor: Reserved for future facet balancing logic; must be 0.0 for now.
 
         Raises:
             ValueError: if validation fails or a template with ``name`` already exists.
@@ -113,6 +135,8 @@ class ExportTemplate(dataset_base):
 
         encrypted = bool(encrypt)
         password = cls._normalize_password(encrypted, encryption_password)
+        normalized_cps = cls._normalize_completions_per_sample(completions_per_sample)
+        normalized_fbf = cls._normalize_facet_balancing_factor(facet_balancing_factor)
 
         template = cls(
             name=trimmed_name,
@@ -125,6 +149,8 @@ class ExportTemplate(dataset_base):
             normalize_style=bool(normalize_style),
             encrypt=encrypted,
             encryption_password=password,
+            completions_per_sample=normalized_cps,
+            facet_balancing_factor=normalized_fbf,
         )
         session.add(template)
         return template
@@ -132,9 +158,25 @@ class ExportTemplate(dataset_base):
     def update(self, dataset: "DatasetDatabase", *, name: str | None = None, description: str | None = None,
                training_type: str | None = None, output_format: str | None = None, model_families: Iterable[str] | None = None,
                filename_template: str | None = None, normalize_style: bool | None = None, encrypt: bool | None = None,
-               encryption_password: str | None = None, facets: Iterable[FacetConfig] | None = None) -> None:
+               encryption_password: str | None = None, facets: Iterable[FacetConfig] | None = None,
+               completions_per_sample: int | None = None, facet_balancing_factor: float | None = None) -> None:
         """
         Update the template with the provided values after validation.
+
+        Args:
+            dataset: Dataset the template belongs to.
+            name: New unique name (optional).
+            description: New description (optional).
+            training_type: New training type (optional).
+            output_format: New output format (optional).
+            model_families: New model families (optional).
+            filename_template: New filename template (optional).
+            normalize_style: New normalize style flag (optional).
+            encrypt: New encrypt flag (optional).
+            encryption_password: New encryption password (optional).
+            facets: New facet configurations (optional).
+            completions_per_sample: New completions per sample value (optional).
+            facet_balancing_factor: New facet balancing factor (optional).
         """
 
         if name is not None:
@@ -180,6 +222,12 @@ class ExportTemplate(dataset_base):
         if encrypt is not None or encryption_password is not None:
             self.encryption_password = self._normalize_password(self.encrypt, encryption_password)
 
+        if completions_per_sample is not None:
+            self.completions_per_sample = self._normalize_completions_per_sample(completions_per_sample)
+
+        if facet_balancing_factor is not None:
+            self.facet_balancing_factor = self._normalize_facet_balancing_factor(facet_balancing_factor)
+
     def delete(self, dataset: "DatasetDatabase") -> None:
         """
         Remove this template from *dataset*.
@@ -210,6 +258,8 @@ class ExportTemplate(dataset_base):
             encrypt=self.encrypt,
             encryption_password=self.encryption_password,
             facets=self.facets_json,
+            completions_per_sample=self.completions_per_sample,
+            facet_balancing_factor=self.facet_balancing_factor,
         )
 
     # ------------------------------------------------------------------
@@ -315,6 +365,62 @@ class ExportTemplate(dataset_base):
             return None
         trimmed = password.strip()
         return trimmed or None
+
+    @staticmethod
+    def _normalize_completions_per_sample(value: int) -> int:
+        """
+        Validate and normalize the completions_per_sample value.
+
+        Args:
+            value: Requested number of completions per sample.
+
+        Returns:
+            Validated integer >= 1.
+
+        Raises:
+            ValueError: if value is not an integer, is a non-integral float, is a bool,
+                or is less than 1.
+        """
+        # Explicitly reject booleans, which are a subclass of int in Python.
+        if isinstance(value, bool):
+            raise ValueError("completions_per_sample must be an integer.")
+        # For floats, only accept integral values (e.g. 3.0), reject non-integral ones (e.g. 3.7).
+        if isinstance(value, float):
+            if not value.is_integer():
+                raise ValueError("completions_per_sample must be an integer.")
+            int_value = int(value)
+        else:
+            try:
+                int_value = int(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("completions_per_sample must be an integer.") from exc
+        if int_value < 1:
+            raise ValueError("completions_per_sample must be at least 1.")
+        return int_value
+
+    @staticmethod
+    def _normalize_facet_balancing_factor(value: float) -> float:
+        """
+        Validate and normalize the facet_balancing_factor value.
+
+        Args:
+            value: Requested balancing factor.
+
+        Returns:
+            Validated finite float >= 0.0.
+
+        Raises:
+            ValueError: if value is not a finite number or is negative.
+        """
+        try:
+            float_value = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("facet_balancing_factor must be a number.") from exc
+        if not math.isfinite(float_value):
+            raise ValueError("facet_balancing_factor must be a finite number.")
+        if float_value < 0.0:
+            raise ValueError("facet_balancing_factor must be >= 0.")
+        return float_value
 
     @classmethod
     def _generate_unique_name(cls, dataset: "DatasetDatabase", desired_name: str) -> str:
