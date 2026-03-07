@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import QTextEdit
 from py_fade.providers.flat_prefix_template import FLAT_PREFIX_SYSTEM, FLAT_PREFIX_USER, FLAT_PREFIX_ASSISTANT
 
 if TYPE_CHECKING:
-    pass
+    from py_fade.providers.providers_manager import InferenceProvidersManager
 
 
 class PlainTextEdit(QTextEdit):
@@ -143,6 +143,16 @@ class PlainTextEdit(QTextEdit):
         insert_assistant_end_action.triggered.connect(lambda: self.insert_role_tag_at_end(FLAT_PREFIX_ASSISTANT))
         menu.addAction(insert_assistant_end_action)
 
+        # Add separator before selection statistics
+        menu.addSeparator()
+
+        # Show Selection Statistics action (enabled only when text is selected)
+        show_stats_action = QAction("Show Selection Statistics", self)
+        selected_text = self.textCursor().selectedText()
+        show_stats_action.setEnabled(bool(selected_text))
+        show_stats_action.triggered.connect(lambda: self._open_selection_stats(selected_text))
+        menu.addAction(show_stats_action)
+
         # Show the menu at the event position
         menu.exec(event.globalPos())
 
@@ -177,3 +187,41 @@ class PlainTextEdit(QTextEdit):
         cursor.insertText(tag)
 
         self.log.debug("Inserted role tag %s at end of text", tag)
+
+    def _find_providers_manager(self) -> "InferenceProvidersManager | None":
+        """
+        Walk the widget parent chain to locate an ``InferenceProvidersManager``.
+
+        The providers manager is typically available on the ``app`` attribute of
+        an ancestor widget (e.g. ``WidgetSample`` or ``WidgetDatasetTop``).
+
+        Returns:
+            The providers manager instance, or ``None`` if not found.
+        """
+        widget = self.parent()
+        while widget is not None:
+            app = getattr(widget, "app", None)
+            if app is not None:
+                pm = getattr(app, "providers_manager", None)
+                if pm is not None:
+                    return pm
+            widget = getattr(widget, "parent", lambda: None)()
+        return None
+
+    def _open_selection_stats(self, selected_text: str) -> None:
+        """
+        Open a Token Count Calculator window pre-populated with the selected text.
+
+        Args:
+            selected_text: The currently selected text to analyse.
+        """
+        from py_fade.gui.window_token_calculator import WindowTokenCalculator  # pylint: disable=import-outside-toplevel
+
+        providers_manager = self._find_providers_manager()
+        if providers_manager is None:
+            self.log.warning("Cannot open selection stats: providers_manager not found in parent chain")
+            return
+
+        window = WindowTokenCalculator(providers_manager, initial_text=selected_text, parent=self.window())
+        window.show()
+        self.log.debug("Opened Token Count Calculator with %d characters of selected text", len(selected_text))

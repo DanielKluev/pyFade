@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor, QMouseEvent
+from PyQt6.QtGui import QAction, QColor, QTextCharFormat, QTextCursor, QMouseEvent
 from PyQt6.QtWidgets import QTextEdit, QToolTip, QWidget
 
 from py_fade.gui.auxillary import logprob_to_qcolor
@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from py_fade.dataset.dataset import DatasetDatabase
     from py_fade.dataset.facet import Facet
     from py_fade.providers.llm_response import LLMResponse
+    from py_fade.providers.providers_manager import InferenceProvidersManager
 
 PREFILL_COLOR = QColor("#FFF9C4")
 BEAM_TOKEN_COLOR = QColor("#C5E1A5")
@@ -337,3 +338,62 @@ class CompletionTextEdit(QTextEdit):
             cursor.setPosition(start_pos)
             cursor.setPosition(end_pos, QTextCursor.MoveMode.KeepAnchor)
             cursor.mergeCharFormat(highlight_format)
+
+    def contextMenuEvent(self, event) -> None:  # pylint: disable=invalid-name
+        """
+        Override contextMenuEvent to add a selection statistics action.
+
+        Creates the standard context menu and appends a "Show Selection Statistics"
+        action that opens a :class:`~py_fade.gui.window_token_calculator.WindowTokenCalculator`
+        window pre-populated with the currently selected text.
+
+        Args:
+            event: QContextMenuEvent with position information.
+        """
+        menu = self.createStandardContextMenu()
+
+        # Add separator before selection statistics
+        menu.addSeparator()
+
+        selected_text = self.textCursor().selectedText()
+        show_stats_action = QAction("Show Selection Statistics", self)
+        show_stats_action.setEnabled(bool(selected_text))
+        show_stats_action.triggered.connect(lambda: self._open_selection_stats(selected_text))
+        menu.addAction(show_stats_action)
+
+        menu.exec(event.globalPos())
+
+    def _find_providers_manager(self) -> "InferenceProvidersManager | None":
+        """
+        Walk the widget parent chain to locate an ``InferenceProvidersManager``.
+
+        Returns:
+            The providers manager instance, or ``None`` if not found.
+        """
+        widget = self.parent()
+        while widget is not None:
+            app = getattr(widget, "app", None)
+            if app is not None:
+                pm = getattr(app, "providers_manager", None)
+                if pm is not None:
+                    return pm
+            widget = getattr(widget, "parent", lambda: None)()
+        return None
+
+    def _open_selection_stats(self, selected_text: str) -> None:
+        """
+        Open a Token Count Calculator window pre-populated with the selected text.
+
+        Args:
+            selected_text: The currently selected text to analyse.
+        """
+        from py_fade.gui.window_token_calculator import WindowTokenCalculator  # pylint: disable=import-outside-toplevel
+
+        providers_manager = self._find_providers_manager()
+        if providers_manager is None:
+            self.log.warning("Cannot open selection stats: providers_manager not found in parent chain")
+            return
+
+        window = WindowTokenCalculator(providers_manager, initial_text=selected_text, parent=self.window())
+        window.show()
+        self.log.debug("Opened Token Count Calculator with %d characters of selected text", len(selected_text))
