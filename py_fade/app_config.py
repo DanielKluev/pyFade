@@ -28,10 +28,9 @@ class AppConfig:
     hip_visible_devices: str | None = (
         None  # Comma-separated list of HIP_VISIBLE_DEVICES for AMD GPUs
     )
-    dataset_preferences: dict[str, dict[str, int | str | None]] = (
-        {}
-    )  # Per-dataset persisted UI selections
+    dataset_preferences: dict[str, dict[str, int | str | None]] = ({})  # Per-dataset persisted UI selections
     last_export_path: str | None = None  # Last directory used for export save location
+    last_report_path: str | None = None  # Last directory used for evaluation report save location
 
     def __init__(
         self,
