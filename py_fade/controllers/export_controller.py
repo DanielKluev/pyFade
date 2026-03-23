@@ -25,7 +25,7 @@ from py_fade.data_formats.share_gpt_format import ShareGPTFormat
 from py_fade.data_formats.dpo_data_format import DPODataFormat, DPOPair
 from py_fade.data_formats.kto_data_format import KTODataFormat, KTOSample
 from py_fade.data_formats.facet_backup import FacetBackupFormat
-from py_fade.providers.flat_prefix_template import parse_flat_prefix_string
+from py_fade.providers.flat_prefix_template import parse_flat_prefix_string, NO_EOS_MARKER
 from py_fade.providers.llm_templates import get_template_function
 
 if TYPE_CHECKING:
@@ -610,6 +610,11 @@ class ExportController:
         eligible completions sorted by rating descending.  If no eligible completion
         exists, an empty list is returned together with failure reasons.
 
+        Truncated completions are excluded unless the export template has
+        ``allow_truncated`` enabled.  When a truncated completion *is* exported,
+        a ``<|NO_EOS|>`` marker is appended to its text so that the training
+        script can remove the EOS loss for the final token.
+
         Args:
             sample: Sample to convert.
             facet: Facet for which to find rated completions.
@@ -622,12 +627,17 @@ class ExportController:
             Tuple of (list of conversations, list of failure reasons).
             The list of conversations is empty on failure.
         """
+        allow_truncated = bool(self.export_template and getattr(self.export_template, "allow_truncated", False))
+
         if not sample.prompt_revision or not sample.prompt_revision.completions:
             return [], ["No prompt revision or completions"]
 
         # Get completions rated for this facet
         rated_completions = []
         for completion in sample.prompt_revision.completions:
+            # Skip truncated completions unless explicitly allowed
+            if completion.is_truncated and not allow_truncated:
+                continue
             rating_obj = completion.rating_for_facet(facet)
             if rating_obj:
                 rated_completions.append((completion, rating_obj.rating))
@@ -692,7 +702,12 @@ class ExportController:
         for completion, _ in top_completions:
             # Create a fresh copy of the base conversation for each completion.
             conv = CommonConversation(messages=list(base_conversation.messages))
-            conv.append({"role": "assistant", "content": completion.completion_text})
+            # Append NO_EOS marker to truncated completions so training scripts
+            # can correctly remove the EOS loss for the final token.
+            content = completion.completion_text
+            if completion.is_truncated:
+                content = content + NO_EOS_MARKER
+            conv.append({"role": "assistant", "content": content})
             conversations.append(conv)
 
         return conversations, []

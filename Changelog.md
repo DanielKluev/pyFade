@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### Added
+- **Better Truncation**: Comprehensive truncation management for training-ready datasets
+  - Completion widget "..." context menu: "Toggle Truncation State" action to manually mark/unmark completions as truncated
+  - Three-way completion editor: "Mark new completion as truncated" checkbox (off by default) sets `is_truncated` on manually created completions
+  - `ExportTemplate` model: new `allow_truncated` field (bool, default False) controls whether truncated completions are eligible for export
+  - Export controller: truncated completions are excluded by default; when `allow_truncated` is enabled and a truncated completion meets rating/logprob thresholds, it is exported with a `<|NO_EOS|>` marker appended to its text so training scripts can correctly remove the EOS loss
+  - `NO_EOS_MARKER` constant (`<|NO_EOS|>`) added to `flat_prefix_template.py` alongside existing role markers
+  - `WidgetExportTemplate`: new "Allow truncated completions in export" checkbox with descriptive tooltip
+  - Schema migration for `allow_truncated` column on `export_templates` table
+  - 19 comprehensive unit tests covering toggle state, manual edit truncation marking, export filtering, NO_EOS marker, and UI checkbox behavior
+
 - **Multiple Completions per SFT Sample**: SFT export can now utilize multiple eligible completions per sample to reduce diversity collapse
   - `ExportTemplate` model: new `completions_per_sample` field (int, default 1) and `facet_balancing_factor` field (float, default 0.0) persisted in the database
   - `ExportController._run_sft_export()`: exports up to K top-rated eligible completions per sample (K = `completions_per_sample`), pairing each with the same prompt; when a sample has fewer than K eligible completions, only available ones are exported

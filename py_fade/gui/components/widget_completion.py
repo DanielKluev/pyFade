@@ -726,7 +726,7 @@ class CompletionFrame(QFrame):
         Display the completion context menu.
 
         Shows a context menu with available operations for the completion.
-        Currently supports: Edit tags.
+        Currently supports: Edit tags, Toggle Truncation State.
 
         Args:
             global_pos: Global screen position to show the menu at
@@ -738,10 +738,19 @@ class CompletionFrame(QFrame):
 
         edit_tags_action = menu.addAction(google_icon_font.as_icon("label"), "Edit tags")
 
+        # Toggle truncation state is only available for saved completions
+        toggle_truncation_action = None
+        if isinstance(self.completion, PromptCompletion) and getattr(self.completion, "id", None) is not None:
+            is_truncated = self.completion.is_truncated
+            label = "Mark as not truncated" if is_truncated else "Mark as truncated"
+            toggle_truncation_action = menu.addAction(google_icon_font.as_icon("auto_read_pause"), label)
+
         action = menu.exec(global_pos)
 
         if action == edit_tags_action:
             self._open_tags_dialog()
+        elif action is not None and action == toggle_truncation_action:
+            self._toggle_truncation_state()
 
     def _open_tags_dialog(self) -> None:
         """
@@ -765,6 +774,24 @@ class CompletionFrame(QFrame):
             if hasattr(self, "rating_widget"):
                 self.rating_widget.set_context(self.completion, self.current_facet)
             self.log.debug("Tags updated for completion %s", self.completion.id)
+
+    def _toggle_truncation_state(self) -> None:
+        """
+        Toggle the truncation state of the current completion.
+
+        Flips ``is_truncated`` on the saved ``PromptCompletion``, commits the
+        change to the database, and refreshes the status icons to reflect
+        the new state.
+        """
+        if not isinstance(self.completion, PromptCompletion) or getattr(self.completion, "id", None) is None:
+            QMessageBox.warning(self, "Warning", "Truncation state can only be toggled on saved completions.")
+            return
+
+        new_state = not self.completion.is_truncated
+        self.completion.is_truncated = new_state
+        self.dataset.commit()
+        self._update_status_icons()
+        self.log.info("Toggled truncation state for completion %d to %s", self.completion.id, new_state)
 
     def _update_status_icons(self) -> None:
         """Populate status icons based on completion properties."""

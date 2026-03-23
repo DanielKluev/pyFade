@@ -123,6 +123,7 @@ def create_simple_export_template(
     avg_logprob: float | None = None,
     name: str = "Test Template",
     description: str = "Test template",
+    allow_truncated: bool = False,
 ) -> ExportTemplate:
     """
     Create a simple export template for testing with the given facet.
@@ -141,13 +142,14 @@ def create_simple_export_template(
         avg_logprob: Optional average logprob override
         name: Template name
         description: Template description
+        allow_truncated: Whether truncated completions are allowed in the export
 
     Returns:
         The created ExportTemplate
     """
     template = ExportTemplate.create(
         dataset, name=name, description=description, training_type="SFT", output_format="JSONL (ShareGPT)", model_families=["Llama3"],
-        facets=[{
+        allow_truncated=allow_truncated, facets=[{
             "facet_id": facet.id,
             "limit_type": limit_type,
             "limit_value": limit_value,

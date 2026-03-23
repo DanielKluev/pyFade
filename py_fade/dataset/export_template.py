@@ -56,6 +56,8 @@ class ExportTemplate(dataset_base):
     completions_per_sample: Mapped[int] = mapped_column(nullable=False, default=1)
     # Facet balancing factor (0 = disabled; > 0 = reserved for future balancing logic).
     facet_balancing_factor: Mapped[float] = mapped_column(nullable=False, default=0.0)
+    # Whether truncated completions are allowed in this export (False = skip truncated completions).
+    allow_truncated: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     # ------------------------------------------------------------------
     # Query helpers
@@ -95,7 +97,7 @@ class ExportTemplate(dataset_base):
     def create(cls, dataset: "DatasetDatabase", *, name: str, description: str, training_type: str, output_format: str,
                model_families: Iterable[str], filename_template: str | None = None, normalize_style: bool = False, encrypt: bool = False,
                encryption_password: str | None = None, facets: Iterable[FacetConfig] | None = None, completions_per_sample: int = 1,
-               facet_balancing_factor: float = 0.0) -> "ExportTemplate":
+               facet_balancing_factor: float = 0.0, allow_truncated: bool = False) -> "ExportTemplate":
         """
         Create a new export template and attach it to *dataset*.
 
@@ -114,6 +116,8 @@ class ExportTemplate(dataset_base):
             completions_per_sample: How many top-rated completions to export per sample (SFT only).
                 With 1 (default) only the single best completion is exported.
             facet_balancing_factor: Reserved for future facet balancing logic; must be 0.0 for now.
+            allow_truncated: Whether truncated completions are valid for export.
+                When False (default) truncated completions are skipped.
 
         Raises:
             ValueError: if validation fails or a template with ``name`` already exists.
@@ -151,6 +155,7 @@ class ExportTemplate(dataset_base):
             encryption_password=password,
             completions_per_sample=normalized_cps,
             facet_balancing_factor=normalized_fbf,
+            allow_truncated=bool(allow_truncated),
         )
         session.add(template)
         return template
@@ -159,7 +164,8 @@ class ExportTemplate(dataset_base):
                training_type: str | None = None, output_format: str | None = None, model_families: Iterable[str] | None = None,
                filename_template: str | None = None, normalize_style: bool | None = None, encrypt: bool | None = None,
                encryption_password: str | None = None, facets: Iterable[FacetConfig] | None = None,
-               completions_per_sample: int | None = None, facet_balancing_factor: float | None = None) -> None:
+               completions_per_sample: int | None = None, facet_balancing_factor: float | None = None,
+               allow_truncated: bool | None = None) -> None:
         """
         Update the template with the provided values after validation.
 
@@ -177,6 +183,7 @@ class ExportTemplate(dataset_base):
             facets: New facet configurations (optional).
             completions_per_sample: New completions per sample value (optional).
             facet_balancing_factor: New facet balancing factor (optional).
+            allow_truncated: New allow truncated flag (optional).
         """
 
         if name is not None:
@@ -228,6 +235,9 @@ class ExportTemplate(dataset_base):
         if facet_balancing_factor is not None:
             self.facet_balancing_factor = self._normalize_facet_balancing_factor(facet_balancing_factor)
 
+        if allow_truncated is not None:
+            self.allow_truncated = bool(allow_truncated)
+
     def delete(self, dataset: "DatasetDatabase") -> None:
         """
         Remove this template from *dataset*.
@@ -260,6 +270,7 @@ class ExportTemplate(dataset_base):
             facets=self.facets_json,
             completions_per_sample=self.completions_per_sample,
             facet_balancing_factor=self.facet_balancing_factor,
+            allow_truncated=self.allow_truncated,
         )
 
     # ------------------------------------------------------------------

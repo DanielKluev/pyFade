@@ -139,6 +139,8 @@ class DatasetDatabase:
             # Added in: Multiple Completions per SFT Sample feature
             self._add_column_if_missing(conn, "export_templates", "completions_per_sample", "INTEGER NOT NULL DEFAULT 1")
             self._add_column_if_missing(conn, "export_templates", "facet_balancing_factor", "REAL NOT NULL DEFAULT 0.0")
+            # Added in: Better Truncation feature
+            self._add_column_if_missing(conn, "export_templates", "allow_truncated", "BOOLEAN NOT NULL DEFAULT 0")
 
     @staticmethod
     def _add_column_if_missing(conn, table_name: str, column_name: str, column_definition: str) -> None:
