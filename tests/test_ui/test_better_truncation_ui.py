@@ -292,8 +292,8 @@ class TestWidgetExportTemplateAllowTruncated:
         assert widget.allow_truncated_checkbox.isChecked()
 
     @pytest.mark.usefixtures("ensure_google_icon_font")
-    def testcollect_form_data_includes_allow_truncated(self, app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase",
-                                                       qt_app: "QApplication") -> None:
+    def test_collect_form_data_includes_allow_truncated(self, app_with_dataset: "pyFadeApp", temp_dataset: "DatasetDatabase",
+                                                        qt_app: "QApplication") -> None:
         """
         collect_form_data() includes the allow_truncated key from the checkbox state.
         """
