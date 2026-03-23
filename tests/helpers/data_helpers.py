@@ -311,8 +311,8 @@ def create_test_logprobs(temp_dataset, completion_id: int, model_id: str, min_lo
 
 
 def create_completion_with_rating_and_logprobs(dataset: "DatasetDatabase", prompt_revision: PromptRevision, completion_text: str,
-                                               model_id: str, facet: Facet, rating: int, min_logprob: float,
-                                               avg_logprob: float) -> PromptCompletion:
+                                               model_id: str, facet: Facet, rating: int, min_logprob: float, avg_logprob: float,
+                                               is_truncated: bool = False) -> PromptCompletion:
     """
     Create a completion with rating and logprobs for testing.
 
@@ -322,7 +322,7 @@ def create_completion_with_rating_and_logprobs(dataset: "DatasetDatabase", promp
     sha256 = hashlib.sha256(completion_text.encode("utf-8")).hexdigest()
 
     completion = PromptCompletion(sha256=sha256, prompt_revision_id=prompt_revision.id, model_id=model_id, temperature=0.7, top_k=40,
-                                  completion_text=completion_text, tags={}, prefill=None, beam_token=None, is_truncated=False,
+                                  completion_text=completion_text, tags={}, prefill=None, beam_token=None, is_truncated=is_truncated,
                                   context_length=2048, max_tokens=512)
     dataset.session.add(completion)
     dataset.commit()
