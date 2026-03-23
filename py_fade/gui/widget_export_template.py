@@ -176,6 +176,16 @@ class WidgetExportTemplate(CrudFormWidget):
         info_layout.addWidget(normalize_label, 6, 0)
         info_layout.addWidget(self.normalize_checkbox, 6, 1)
 
+        allow_truncated_label = QLabel("Truncated Completions:", parent=info_group)
+        allow_truncated_label.setStyleSheet("font-weight: bold;")
+        self.allow_truncated_checkbox = QCheckBox("Allow truncated completions in export", parent=info_group)
+        self.allow_truncated_checkbox.setToolTip(
+            "When enabled, truncated completions are considered valid as long as rating and logprob thresholds are met. "
+            "Exported truncated completions will have a <|NO_EOS|> marker appended so training scripts can "
+            "correctly remove the EOS loss for the final token.")
+        info_layout.addWidget(allow_truncated_label, 7, 0)
+        info_layout.addWidget(self.allow_truncated_checkbox, 7, 1)
+
         form_layout.addWidget(info_group)
 
         # Encryption ---------------------------------------------------------
@@ -287,6 +297,7 @@ class WidgetExportTemplate(CrudFormWidget):
         self.output_combo.currentIndexChanged.connect(lambda _: self.validate_form())
         self.filename_input.textChanged.connect(self.validate_form)
         self.normalize_checkbox.stateChanged.connect(lambda _: self.validate_form())
+        self.allow_truncated_checkbox.stateChanged.connect(lambda _: self.validate_form())
         self.encrypt_checkbox.stateChanged.connect(self.on_encryption_toggled)
         self.password_input.textChanged.connect(self.validate_form)
         self.add_facet_button.clicked.connect(self.add_selected_facet)
@@ -331,6 +342,7 @@ class WidgetExportTemplate(CrudFormWidget):
             self._set_model_selection([ExportTemplate.SUPPORTED_MODEL_FAMILIES[0]])
             self.filename_input.setText(ExportTemplate.DEFAULT_FILENAME_TEMPLATE)
             self.normalize_checkbox.setChecked(False)
+            self.allow_truncated_checkbox.setChecked(False)
             self.encrypt_checkbox.setChecked(False)
             self.password_input.setText("")
             self.completions_per_sample_spin.setValue(1)
@@ -351,6 +363,7 @@ class WidgetExportTemplate(CrudFormWidget):
             self._set_model_selection(models or default_models)
             self.filename_input.setText(template.filename_template)
             self.normalize_checkbox.setChecked(template.normalize_style)
+            self.allow_truncated_checkbox.setChecked(getattr(template, "allow_truncated", False))
             self.encrypt_checkbox.setChecked(template.encrypt)
             self.password_input.setText(template.encryption_password or "")
             self.completions_per_sample_spin.setValue(getattr(template, "completions_per_sample", 1))
@@ -748,6 +761,7 @@ class WidgetExportTemplate(CrudFormWidget):
             "model_families": self._collect_selected_models(),
             "filename_template": self.filename_input.text().strip() or ExportTemplate.DEFAULT_FILENAME_TEMPLATE,
             "normalize_style": self.normalize_checkbox.isChecked(),
+            "allow_truncated": self.allow_truncated_checkbox.isChecked(),
             "encrypt": self.encrypt_checkbox.isChecked(),
             "encryption_password": self.password_input.text().strip() or None,
             "facets": self._collect_facets_from_table(),

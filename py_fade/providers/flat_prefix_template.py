@@ -14,6 +14,7 @@ from py_fade.data_formats.base_data_classes import CommonConversation
 FLAT_PREFIX_SYSTEM = "<|system|>"
 FLAT_PREFIX_USER = "<|user|>"
 FLAT_PREFIX_ASSISTANT = "<|assistant|>"
+NO_EOS_MARKER = "<|NO_EOS|>"
 
 _TOKEN_TO_ROLE = {
     FLAT_PREFIX_SYSTEM: "system",

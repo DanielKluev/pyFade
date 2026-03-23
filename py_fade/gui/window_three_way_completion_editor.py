@@ -75,6 +75,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
         self.pairwise_checkbox: QCheckBox | None = None
         self.delete_checkbox: QCheckBox | None = None
         self.inherit_ratings_checkbox: QCheckBox | None = None
+        self.mark_truncated_checkbox: QCheckBox | None = None
         self.generate_button: QPushButton | None = None
         self.save_button: QPushButton | None = None
         self.status_label: QLabel | None = None
@@ -174,6 +175,10 @@ class ThreeWayCompletionEditorWindow(QDialog):
         self.inherit_ratings_checkbox = QCheckBox("Inherit ratings from original", self)
         self.inherit_ratings_checkbox.setChecked(self.mode == EditorMode.CONTINUATION)
         options_layout.addWidget(self.inherit_ratings_checkbox)
+
+        self.mark_truncated_checkbox = QCheckBox("Mark new completion as truncated", self)
+        self.mark_truncated_checkbox.setChecked(False)
+        options_layout.addWidget(self.mark_truncated_checkbox)
 
         options_layout.addStretch()
         layout.addLayout(options_layout)
@@ -471,10 +476,14 @@ class ThreeWayCompletionEditorWindow(QDialog):
         generation_role = self.mode == EditorMode.CONTINUATION
         was_edited = self._generated_text_cache != new_text
         response = self.generated_response
+        mark_truncated = bool(self.mark_truncated_checkbox and self.mark_truncated_checkbox.isChecked())
         if response and not was_edited and generation_role:
             self.log.info("Saving generated continuation as-is.")
             new_completion = PromptCompletion.get_or_create_from_llm_response(self.dataset, self.original_completion.prompt_revision,
                                                                               response, parent_completion_id=self.original_completion.id)
+            # Override truncation state when the user explicitly requests it
+            if mark_truncated and not new_completion.is_truncated:
+                new_completion.is_truncated = True
         else:  # Manual edit or edited after generation
             if response and was_edited and generation_role:
                 self.log.info("Saving manually edited continuation.")
@@ -490,7 +499,7 @@ class ThreeWayCompletionEditorWindow(QDialog):
                 beam_token=None,
                 context_length=0,
                 max_tokens=0,
-                is_truncated=False,
+                is_truncated=mark_truncated,
                 is_manual=True,
             )
 
